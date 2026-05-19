@@ -105,6 +105,7 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-jakarta), system-ui, sans-serif;
     padding-bottom: env(safe-area-inset-bottom);
+    overflow-x: hidden;
   }
   html {
     scroll-behavior: smooth;
@@ -147,7 +148,7 @@
   }
 }
 
-* { -webkit-tap-highlight-color: transparent; }
+* { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

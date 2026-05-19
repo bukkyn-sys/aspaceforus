@@ -40,7 +40,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
+  // Only redirect away from the login page, not the callback (callback must always run to exchange the code)
+  if (user && pathname === "/auth/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/home";
     return NextResponse.redirect(url);

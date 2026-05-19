@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import PwaRegister from "@/components/pwa-register";
 
 const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument",
@@ -36,6 +37,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#F9F8F6",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -48,7 +50,10 @@ export default function RootLayout({
       lang="en"
       className={`${instrumentSerif.variable} ${plusJakarta.variable} ${geistMono.variable} h-full`}
     >
-      <body className="h-full antialiased">{children}</body>
+      <body className="h-full antialiased">
+        <PwaRegister />
+        {children}
+      </body>
     </html>
   );
 }

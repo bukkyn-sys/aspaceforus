@@ -17,16 +17,19 @@ create table if not exists profiles (
   created_at   timestamptz default now()
 );
 
--- Auto-create profile on signup
+-- Auto-create profile on signup (ON CONFLICT so it never fails)
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
   insert into profiles (id, display_name, avatar_url)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
-    new.raw_user_meta_data->>'avatar_url'
-  );
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture')
+  )
+  on conflict (id) do update set
+    display_name = coalesce(excluded.display_name, profiles.display_name),
+    avatar_url   = coalesce(excluded.avatar_url,   profiles.avatar_url);
   return new;
 end;
 $$;
@@ -172,3 +175,96 @@ do $$ declare tbl text; begin
     );
   end loop;
 end $$;
+
+-- ── Security-definer RPCs (bypass RLS, auth.uid() always works) ──────────────
+
+-- Returns a profile row by user id
+create or replace function get_my_profile(p_user_id uuid)
+returns json language plpgsql security definer as $$
+begin
+  return (
+    select row_to_json(p)
+    from (
+      select id, couple_id, display_name, avatar_url, current_mood
+      from profiles
+      where id = p_user_id
+    ) p
+  );
+end;
+$$;
+
+-- Returns my profile + partner profile in one round trip
+create or replace function get_session_data(p_user_id uuid)
+returns json language plpgsql security definer as $$
+declare
+  v_couple_id uuid;
+  v_me        json;
+  v_partner   json;
+begin
+  select row_to_json(p) into v_me
+  from (
+    select id, couple_id, display_name, avatar_url, accent_color
+    from profiles where id = p_user_id
+  ) p;
+
+  select couple_id into v_couple_id from profiles where id = p_user_id;
+
+  if v_couple_id is not null then
+    select row_to_json(p) into v_partner
+    from (
+      select id, couple_id, display_name, avatar_url, accent_color
+      from profiles
+      where couple_id = v_couple_id and id != p_user_id
+      limit 1
+    ) p;
+  end if;
+
+  return json_build_object('me', v_me, 'partner', v_partner);
+end;
+$$;
+
+-- Updates mood for a user (security definer bypasses RLS)
+create or replace function update_my_mood(p_user_id uuid, p_mood int)
+returns void language plpgsql security definer as $$
+begin
+  update profiles set current_mood = p_mood where id = p_user_id;
+end;
+$$;
+
+-- Creates a couple and links the given user to it; returns the invite code
+create or replace function create_couple_for_user(p_user_id uuid)
+returns text language plpgsql security definer as $$
+declare
+  v_couple_id uuid;
+  v_code      text;
+begin
+  insert into couples default values
+  returning id, invite_code into v_couple_id, v_code;
+
+  update profiles set couple_id = v_couple_id where id = p_user_id;
+
+  return v_code;
+end;
+$$;
+
+-- Joins an existing couple by invite code; returns 'ok' or 'not_found'
+create or replace function join_couple_for_user(p_user_id uuid, p_code text)
+returns text language plpgsql security definer as $$
+declare
+  v_couple_id uuid;
+begin
+  select id into v_couple_id from couples where invite_code = p_code;
+  if not found then return 'not_found'; end if;
+
+  update profiles set couple_id = v_couple_id where id = p_user_id;
+  return 'ok';
+end;
+$$;
+
+-- Updates a user's display name
+create or replace function update_my_display_name(p_user_id uuid, p_name text)
+returns void language plpgsql security definer as $$
+begin
+  update profiles set display_name = p_name where id = p_user_id;
+end;
+$$;

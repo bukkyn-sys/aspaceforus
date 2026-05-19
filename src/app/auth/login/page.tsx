@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -16,9 +17,15 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const urlError = searchParams.get("error");
+    if (urlError) setError(decodeURIComponent(urlError));
+  }, [searchParams]);
 
   async function handleGoogle() {
     setLoading(true);
@@ -32,26 +39,35 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="w-full max-w-xs space-y-4">
+      {error && (
+        <p className="text-sm text-destructive text-center break-all">{error}</p>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleGoogle}
+        disabled={loading}
+        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-white gap-3"
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
+        continue with Google
+      </Button>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 py-12">
       <div className="mb-12 text-center">
         <h1 className="font-heading text-5xl text-foreground tracking-tight mb-2">us.</h1>
         <p className="text-muted-foreground text-sm">your shared space</p>
       </div>
 
-      <div className="w-full max-w-xs space-y-4">
-        {error && <p className="text-sm text-destructive text-center">{error}</p>}
-
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleGoogle}
-          disabled={loading}
-          className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-white gap-3"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
-          continue with Google
-        </Button>
-      </div>
+      <Suspense fallback={<div className="w-full max-w-xs h-12" />}>
+        <LoginForm />
+      </Suspense>
 
       <p className="absolute bottom-8 text-xs text-muted-foreground">
         private — just the two of you.
