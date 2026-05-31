@@ -263,19 +263,19 @@ export default function CalendarClient() {
               roundRight ? "rounded-l-none rounded-r-xl" :
               "rounded-none";
 
-            // Show emoji on first visible cell of each event band row segment
-            const showBandEmoji = isEventDay && (isRangeStart || isWeekStart);
+            // Show emoji only on the true start of each event/countdown range
+            const showBandEmoji = isEventDay && isRangeStart;
             const bandEmoji = dayEvents[0]?.emoji ?? dayCds[0]?.emoji;
 
             return (
               <button
                 key={i}
-                onClick={() => !isPast && handleDay(ds)}
+                onClick={() => !isPast && !isEventDay && handleDay(ds)}
                 disabled={isPast}
                 className={cn(
                   "h-[52px] flex flex-col items-center justify-center relative transition-all select-none",
                   isEventDay
-                    ? eventRounding
+                    ? cn(eventRounding, "cursor-default")
                     : cn("rounded-xl", overlap && "bg-sage-light"),
                   isPast && "opacity-30 cursor-default",
                 )}
@@ -302,7 +302,7 @@ export default function CalendarClient() {
                 {/* Status dots */}
                 <div className={cn("flex gap-0.5 items-center", isEventDay && "opacity-40")}>
                   {mine === "busy" ? (
-                    <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
+                    <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
                   ) : (
                     <div
                       className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
@@ -311,7 +311,7 @@ export default function CalendarClient() {
                   )}
                   {partner && (
                     theirs === "busy" ? (
-                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta/50" />
+                      <X className="w-2.5 h-2.5 text-terracotta/50" strokeWidth={3} />
                     ) : (
                       <div
                         className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
@@ -363,7 +363,7 @@ export default function CalendarClient() {
               <span className="text-[11px] text-muted-foreground">free</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-0.5 rounded-full bg-terracotta" />
+              <X className="w-3 h-3 text-terracotta" strokeWidth={3} />
               <span className="text-[11px] text-muted-foreground">busy</span>
             </div>
             {partner && (
