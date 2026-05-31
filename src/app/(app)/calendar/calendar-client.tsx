@@ -189,25 +189,27 @@ export default function CalendarClient() {
   }).filter(Boolean).length;
 
   return (
-    <div className="px-4 pt-10 pb-6 max-w-lg mx-auto">
-      <h1 className="font-heading text-3xl text-foreground tracking-tight mb-1">calendar.</h1>
-      {overlaps > 0 ? (
-        <p className="text-sm text-sage font-medium mb-6">
-          {overlaps} day{overlaps !== 1 ? "s" : ""} overlap this month
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground mb-6">mark your free days below</p>
-      )}
+    <div className="max-w-lg mx-auto pb-8">
 
-      {/* Month nav */}
-      <div className="flex items-center justify-between mb-4">
+      {/* ── Header ─────────────────────────────────────────── */}
+      <div className="px-5 pt-10 pb-2">
+        <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
+        <p className={cn("text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
+          {overlaps > 0
+            ? `${overlaps} free day${overlaps !== 1 ? "s" : ""} together this month`
+            : "mark your free days"}
+        </p>
+      </div>
+
+      {/* ── Month nav ──────────────────────────────────────── */}
+      <div className="flex items-center px-3 py-3">
         <button
           onClick={() => setCurrent(new Date(year, month - 1, 1))}
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <p className="text-sm font-semibold text-foreground capitalize">{monthLabel}</p>
+        <p className="flex-1 text-center text-sm font-semibold text-foreground">{monthLabel}</p>
         <button
           onClick={() => setCurrent(new Date(year, month + 1, 1))}
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
@@ -216,20 +218,20 @@ export default function CalendarClient() {
         </button>
       </div>
 
-      {/* Day headers */}
-      <div className="grid grid-cols-7 mb-1">
+      {/* ── Day headers ────────────────────────────────────── */}
+      <div className="grid grid-cols-7 px-2">
         {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-medium text-muted-foreground py-1">{d}</div>
+          <div key={i} className="text-center text-[10px] font-medium text-muted-foreground/40 pb-1">{d}</div>
         ))}
       </div>
 
-      {/* Grid */}
+      {/* ── Grid ───────────────────────────────────────────── */}
       {loading ? (
         <div className="h-64 flex items-center justify-center">
           <p className="text-sm text-muted-foreground">loading…</p>
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-y-1.5">
+        <div className="grid grid-cols-7 gap-y-px px-2">
           {cells.map((day, i) => {
             if (!day) return <div key={i} />;
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -242,7 +244,6 @@ export default function CalendarClient() {
             const dayCds = getCountdownsForDate(ds);
             const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
 
-            // Banding: determine which edges to round for event days
             const colIndex = i % 7;
             const isWeekStart = colIndex === 0;
             const isWeekEnd = colIndex === 6;
@@ -256,12 +257,15 @@ export default function CalendarClient() {
             );
             const roundLeft = !isEventDay || isRangeStart || isWeekStart;
             const roundRight = !isEventDay || isRangeEnd || isWeekEnd;
-
             const eventRounding =
               roundLeft && roundRight ? "rounded-xl" :
               roundLeft ? "rounded-l-xl rounded-r-none" :
               roundRight ? "rounded-l-none rounded-r-xl" :
               "rounded-none";
+
+            // Show emoji on first visible cell of each event band row segment
+            const showBandEmoji = isEventDay && (isRangeStart || isWeekStart);
+            const bandEmoji = dayEvents[0]?.emoji ?? dayCds[0]?.emoji;
 
             return (
               <button
@@ -269,15 +273,11 @@ export default function CalendarClient() {
                 onClick={() => !isPast && handleDay(ds)}
                 disabled={isPast}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 transition-all",
+                  "h-[52px] flex flex-col items-center justify-center relative transition-all select-none",
                   isEventDay
                     ? eventRounding
-                    : cn(
-                        "rounded-xl mx-0.5",
-                        overlap && "bg-sage-light ring-1 ring-sage/20",
-                      ),
-                  isToday && "ring-1 ring-inset ring-foreground/40",
-                  isPast && "opacity-25 cursor-default",
+                    : cn("rounded-xl", overlap && "bg-sage-light"),
+                  isPast && "opacity-30 cursor-default",
                 )}
                 style={
                   isEventDay ? { backgroundColor: "#FEF3C7" }
@@ -285,202 +285,214 @@ export default function CalendarClient() {
                   : undefined
                 }
               >
-                <span className={cn(
-                  "text-xs font-semibold leading-none mb-1.5",
-                  overlap && !isEventDay ? "text-sage" : "text-foreground",
-                )}>
-                  {day}
-                </span>
-                <div className="flex gap-0.5 items-center">
-                  {mine === "busy" ? (
-                    <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
-                  ) : (
-                    <div
-                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-border/60" : "")}
-                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                    />
-                  )}
-                  {partner && (
-                    theirs === "busy" ? (
-                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta/60" />
+                {/* Day number — today gets a filled circle */}
+                {isToday ? (
+                  <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center mb-1">
+                    <span className="text-[11px] font-bold text-background leading-none">{day}</span>
+                  </div>
+                ) : (
+                  <span className={cn(
+                    "text-xs font-semibold leading-none mb-1.5",
+                    overlap && !isEventDay ? "text-sage" : "text-foreground/75",
+                    isEventDay && "text-amber-900/50 mb-0",
+                  )}>
+                    {day}
+                  </span>
+                )}
+
+                {/* Status dots — hidden inside event band */}
+                {!isEventDay && (
+                  <div className="flex gap-0.5 items-center">
+                    {mine === "busy" ? (
+                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
                     ) : (
                       <div
-                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-border/40" : "")}
-                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
+                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
                       />
-                    )
-                  )}
-                </div>
+                    )}
+                    {partner && (
+                      theirs === "busy" ? (
+                        <div className="w-2.5 h-0.5 rounded-full bg-terracotta/50" />
+                      ) : (
+                        <div
+                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
+                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                        />
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* Event band: emoji label on first cell of each row segment */}
+                {showBandEmoji && bandEmoji && (
+                  <span className="text-xs leading-none mt-0.5">{bandEmoji}</span>
+                )}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Legend — collapsed by default */}
-      <div className="mt-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] text-muted-foreground/50">tap a day · free → busy → clear</p>
-          <button
-            onClick={() => setShowLegend(s => !s)}
-            className="flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-          >
-            <span className="w-4 h-4 rounded-full border border-muted-foreground/25 inline-flex items-center justify-center text-[9px] font-bold">i</span>
-            key
-          </button>
-        </div>
-        {showLegend && (
-          <div className="mt-2 bg-secondary/50 rounded-2xl px-4 py-3 space-y-2.5">
-            <div className="flex items-center gap-2">
-              <div className="flex gap-0.5 items-center flex-shrink-0">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-                {partner
-                  ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-                  : <div className="w-2 h-2 rounded-full bg-border/40" />
-                }
-              </div>
-              <span className="text-[11px] text-muted-foreground">
-                left dot = you · right dot = {partner ? partnerName : "partner"}
-              </span>
-            </div>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-                <span className="text-[11px] text-muted-foreground">free</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-3 h-0.5 rounded-full bg-terracotta" />
-                <span className="text-[11px] text-muted-foreground">busy</span>
-              </div>
-              {partner && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
-                  <span className="text-[11px] text-muted-foreground">both free</span>
-                </div>
-              )}
-              <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-md bg-amber-100" />
-                <span className="text-[11px] text-muted-foreground">event / countdown</span>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* ── Hint + legend toggle ────────────────────────────── */}
+      <div className="px-5 mt-4 flex items-center justify-between">
+        <p className="text-[11px] text-muted-foreground/40">tap · free → busy → clear</p>
+        <button
+          onClick={() => setShowLegend(s => !s)}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+        >
+          <span className="w-4 h-4 rounded-full border border-current inline-flex items-center justify-center text-[9px] font-bold">i</span>
+          key
+        </button>
       </div>
 
-      {/* Events + countdowns */}
-      {!loading && events.length === 0 && countdowns.length === 0 && (
-        <div className="flex flex-col items-center py-6 gap-2">
-          <p className="text-sm text-muted-foreground">no events this month</p>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-            tap the
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
-              <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
+      {showLegend && (
+        <div className="mx-5 mt-2 bg-secondary/60 rounded-2xl px-4 py-3 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5 items-center flex-shrink-0">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+              {partner
+                ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
+                : <div className="w-2 h-2 rounded-full bg-foreground/10" />
+              }
+            </div>
+            <span className="text-[11px] text-muted-foreground">
+              left = you · right = {partner ? partnerName : "partner"}
             </span>
-            to add an event
           </div>
-          <div className="text-muted-foreground/30 text-lg mt-1">↓</div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+              <span className="text-[11px] text-muted-foreground">free</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-0.5 rounded-full bg-terracotta" />
+              <span className="text-[11px] text-muted-foreground">busy</span>
+            </div>
+            {partner && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded-lg bg-sage-light" />
+                <span className="text-[11px] text-muted-foreground">both free</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <div className="w-4 h-4 rounded-lg bg-amber-100" />
+              <span className="text-[11px] text-muted-foreground">event</span>
+            </div>
+          </div>
         </div>
       )}
 
-      {!loading && (events.length > 0 || countdowns.length > 0) && (() => {
-        // Merge events + countdowns sorted by date
-        type Item =
-          | { kind: "event"; data: CalEvent }
-          | { kind: "countdown"; data: Countdown };
-        const items: Item[] = [
-          ...events.map((e) => ({ kind: "event" as const, data: e })),
-          ...countdowns.map((c) => ({ kind: "countdown" as const, data: c })),
-        ].sort((a, b) => {
-          const da = a.kind === "event" ? a.data.start_at.slice(0, 10) : a.data.target_date;
-          const db = b.kind === "event" ? b.data.start_at.slice(0, 10) : b.data.target_date;
-          return da.localeCompare(db);
-        });
-
-        return (
-          <div>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">events this month</p>
-            <div className="space-y-2">
-              {items.map((item) => {
-                if (item.kind === "event") {
-                  const evt = item.data;
-                  const d = new Date(evt.start_at);
-                  const isMe = evt.created_by === me.id;
-                  const creatorAccent = isMe ? myAccent : partnerAccent;
-                  const creatorAvatar = isMe ? me.avatar_url : partner?.avatar_url;
-                  const creatorInitial = isMe
-                    ? (me.display_name?.[0] ?? "?").toUpperCase()
-                    : (partner?.display_name?.[0] ?? "?").toUpperCase();
-                  return (
-                    <div
-                      key={evt.id}
-                      className="bg-white border border-border/50 rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
-                      style={{ borderLeftColor: creatorAccent.hex, borderLeftWidth: "3px" }}
-                    >
-                      <span className="text-xl flex-shrink-0">{evt.emoji}</span>
-                      {/* Creator avatar */}
-                      <div
-                        className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-secondary"
-                        style={{ boxShadow: `0 0 0 1.5px ${creatorAccent.hex}` }}
-                      >
-                        {creatorAvatar ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
-                            {creatorInitial}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                        <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
-                          {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                          {evt.end_at && (() => {
-                            const endD = new Date(evt.end_at!);
-                            return ` – ${endD.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
-                          })()}
-                        </p>
-                      </div>
-                      {isMe && (
-                        <button
-                          onClick={() => handleDeleteEvent(evt.id)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  );
-                } else {
-                  const cd = item.data;
-                  const days = daysUntil(cd.target_date);
-                  const d = new Date(cd.target_date + "T12:00:00");
-                  return (
-                    <div
-                      key={cd.id}
-                      className="bg-white border border-border/50 border-l-[3px] rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
-                      style={{ borderLeftColor: "#D4A427" }}
-                    >
-                      <span className="text-xl flex-shrink-0">{cd.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
-                        <p className="text-xs text-amber-600/70 mt-0.5">
-                          {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                          {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-semibold text-foreground">{days}</p>
-                        <p className="text-[10px] text-muted-foreground">days</p>
-                      </div>
-                    </div>
-                  );
-                }
-              })}
+      {/* ── Events this month ──────────────────────────────── */}
+      <div className="px-5 mt-8">
+        {!loading && events.length === 0 && countdowns.length === 0 && (
+          <div className="flex flex-col items-center py-6 gap-2">
+            <p className="text-sm text-muted-foreground">no events this month</p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+              tap the
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
+                <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
+              </span>
+              to add an event
             </div>
           </div>
-        );
-      })()}
+        )}
+
+        {!loading && (events.length > 0 || countdowns.length > 0) && (() => {
+          type Item =
+            | { kind: "event"; data: CalEvent }
+            | { kind: "countdown"; data: Countdown };
+          const items: Item[] = [
+            ...events.map((e) => ({ kind: "event" as const, data: e })),
+            ...countdowns.map((c) => ({ kind: "countdown" as const, data: c })),
+          ].sort((a, b) => {
+            const da = a.kind === "event" ? a.data.start_at.slice(0, 10) : a.data.target_date;
+            const db = b.kind === "event" ? b.data.start_at.slice(0, 10) : b.data.target_date;
+            return da.localeCompare(db);
+          });
+
+          return (
+            <div>
+              <p className="text-xs text-muted-foreground/50 font-medium uppercase tracking-wider mb-3">events this month</p>
+              <div className="space-y-2">
+                {items.map((item) => {
+                  if (item.kind === "event") {
+                    const evt = item.data;
+                    const d = new Date(evt.start_at);
+                    const isMe = evt.created_by === me.id;
+                    const creatorAccent = isMe ? myAccent : partnerAccent;
+                    const creatorAvatar = isMe ? me.avatar_url : partner?.avatar_url;
+                    const creatorInitial = isMe
+                      ? (me.display_name?.[0] ?? "?").toUpperCase()
+                      : (partner?.display_name?.[0] ?? "?").toUpperCase();
+                    return (
+                      <div
+                        key={evt.id}
+                        className="bg-white border border-border/50 rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
+                        style={{ borderLeftColor: creatorAccent.hex, borderLeftWidth: "3px" }}
+                      >
+                        <span className="text-xl flex-shrink-0">{evt.emoji}</span>
+                        <div
+                          className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-secondary"
+                          style={{ boxShadow: `0 0 0 1.5px ${creatorAccent.hex}` }}
+                        >
+                          {creatorAvatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
+                              {creatorInitial}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
+                          <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
+                            {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                            {evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+                          </p>
+                        </div>
+                        {isMe && (
+                          <button
+                            onClick={() => handleDeleteEvent(evt.id)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    const cd = item.data;
+                    const days = daysUntil(cd.target_date);
+                    const d = new Date(cd.target_date + "T12:00:00");
+                    return (
+                      <div
+                        key={cd.id}
+                        className="bg-white border border-border/50 border-l-[3px] rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
+                        style={{ borderLeftColor: "#D4A427" }}
+                      >
+                        <span className="text-xl flex-shrink-0">{cd.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
+                          <p className="text-xs text-amber-600/70 mt-0.5">
+                            {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                            {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-semibold text-foreground">{days}</p>
+                          <p className="text-[10px] text-muted-foreground">days</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
 
       {/* Add event sheet */}
       {showAddEvent && (
