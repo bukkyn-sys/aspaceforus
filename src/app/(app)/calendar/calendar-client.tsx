@@ -217,20 +217,24 @@ export default function CalendarClient() {
                 )}>
                   {day}
                 </span>
-                <div className="flex gap-0.5">
-                  <div
-                    className={cn("w-1.5 h-1.5 rounded-full",
-                      mine === "busy" ? "bg-terracotta" : mine === null ? "bg-border/60" : ""
-                    )}
-                    style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                  />
-                  {partner && (
+                <div className="flex gap-0.5 items-center">
+                  {mine === "busy" ? (
+                    <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
+                  ) : (
                     <div
-                      className={cn("w-1.5 h-1.5 rounded-full",
-                        theirs === "busy" ? "bg-terracotta/60" : theirs === null ? "bg-border/40" : ""
-                      )}
-                      style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-border/60" : "")}
+                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
                     />
+                  )}
+                  {partner && (
+                    theirs === "busy" ? (
+                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta/60" />
+                    ) : (
+                      <div
+                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-border/40" : "")}
+                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                      />
+                    )
                   )}
                 </div>
                 {dayEvents.length > 0 && (
@@ -249,7 +253,7 @@ export default function CalendarClient() {
           <span className="text-[11px] text-muted-foreground">you — free</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-terracotta" />
+          <div className="w-3 h-0.5 rounded-full bg-terracotta" />
           <span className="text-[11px] text-muted-foreground">you — busy</span>
         </div>
         {partner && (
