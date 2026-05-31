@@ -578,8 +578,10 @@ export default function DashboardClient() {
       {showCountdownSheet && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowCountdownSheet(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-            style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl overflow-y-auto p-6 space-y-4"
+            style={{ maxHeight: "92dvh", paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
+          >
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">add countdown</p>
               <button onClick={() => setShowCountdownSheet(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
@@ -620,24 +622,24 @@ export default function DashboardClient() {
             />
             {/* Start / end dates */}
             <div className="grid grid-cols-2 gap-2">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-1.5">starts</p>
                 <Input
                   type="date"
                   value={cdDate}
                   min={today}
                   onChange={(e) => setCdDate(e.target.value)}
-                  className="h-11 rounded-xl bg-white border-border/60"
+                  className="h-11 rounded-xl bg-white border-border/60 w-full"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
                 <Input
                   type="date"
                   value={cdEndDate}
                   min={cdDate || today}
                   onChange={(e) => setCdEndDate(e.target.value)}
-                  className="h-11 rounded-xl bg-white border-border/60"
+                  className="h-11 rounded-xl bg-white border-border/60 w-full"
                 />
               </div>
             </div>

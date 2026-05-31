@@ -477,19 +477,16 @@ export default function CalendarClient() {
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddEvent(false)} />
           <div
-            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl flex flex-col"
-            style={{ maxHeight: "90dvh" }}
+            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl overflow-y-auto"
+            style={{ maxHeight: "92dvh", paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
           >
-            {/* Sticky header */}
-            <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
-              <p className="font-semibold text-foreground">add event</p>
-              <button onClick={() => setShowAddEvent(false)} className="text-muted-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Scrollable content */}
-            <div className="overflow-y-auto px-6 space-y-4 flex-1">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-foreground">add event</p>
+                <button onClick={() => setShowAddEvent(false)} className="text-muted-foreground">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
               <Input
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
@@ -500,33 +497,23 @@ export default function CalendarClient() {
               <div className="grid grid-cols-2 gap-2">
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground mb-1.5">start date</p>
-                  <Input
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="h-11 rounded-xl bg-white border-border/60 w-full"
-                  />
+                  <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
-                  <Input
-                    type="date"
-                    value={eventEndDate}
-                    min={eventDate}
-                    onChange={(e) => setEventEndDate(e.target.value)}
-                    className="h-11 rounded-xl bg-white border-border/60 w-full"
-                  />
+                  <Input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full" />
                 </div>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-2">pick an emoji</p>
-                <div className="flex flex-wrap gap-2">
+                {/* Single scrolling row — never wraps, consistent on all screen sizes */}
+                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
                   {EVENT_EMOJIS.map((e) => (
                     <button
                       key={e}
                       onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
                       className={cn(
-                        "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all",
+                        "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all flex-shrink-0",
                         eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
                       )}
                     >
@@ -541,13 +528,6 @@ export default function CalendarClient() {
                   className="h-9 rounded-xl bg-white border-border/60 text-sm mt-2"
                 />
               </div>
-            </div>
-
-            {/* Pinned button — extra bottom padding clears the fixed nav bar (~80px) */}
-            <div
-              className="px-6 pt-4 flex-shrink-0"
-              style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
-            >
               <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
                 add event
               </Button>
