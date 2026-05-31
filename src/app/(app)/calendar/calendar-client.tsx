@@ -494,12 +494,12 @@ export default function CalendarClient() {
                 className="h-11 rounded-xl bg-white border-border/60"
                 autoFocus
               />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="min-w-0">
+              <div className="flex flex-col gap-3">
+                <div>
                   <p className="text-xs text-muted-foreground mb-1.5">start date</p>
                   <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full" />
                 </div>
-                <div className="min-w-0">
+                <div>
                   <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
                   <Input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full" />
                 </div>
