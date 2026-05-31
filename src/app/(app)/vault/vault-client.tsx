@@ -80,6 +80,80 @@ const SORT_CYCLE: SortBy[] = ["newest", "oldest", "az", "price"];
 
 const EMOJI_OPTIONS = ["📁", "🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎪", "💫", "📌"];
 
+// ── Module-level sub-components (must NOT be inside VaultClient — inline
+//    definitions get a new reference every render, causing unmount/remount) ──
+
+function PriceInput({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  return (
+    <div className="space-y-2">
+      <Input
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        placeholder="e.g. £45 or free"
+        className="h-11 rounded-xl bg-white border-border/60"
+      />
+      <div className="flex gap-2">
+        {PRICE_RANGES.map((p) => (
+          <button key={p} type="button" onClick={() => onChange(value === p ? null : p)}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors",
+              value === p
+                ? "bg-foreground text-background border-foreground"
+                : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
+            )}
+          >{p}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OgCard({ preview, loading }: { preview: OgPreview | null; loading: boolean }) {
+  if (loading) return (
+    <div className="flex items-center gap-2 p-2 bg-secondary rounded-xl mt-2">
+      <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
+      <span className="text-xs text-muted-foreground">fetching preview…</span>
+    </div>
+  );
+  if (!preview?.image && !preview?.title) return null;
+  return (
+    <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl mt-2">
+      {preview.image && <img src={preview.image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
+      {preview.title && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{preview.title}</p>}
+    </div>
+  );
+}
+
+function OwnerButtons({
+  value, onChange, meId, myName, partner, partnerName,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  meId: string;
+  myName: string;
+  partner: { id: string } | null;
+  partnerName: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      {[
+        { value: "shared", label: "shared" },
+        { value: meId,     label: myName },
+        ...(partner ? [{ value: partner.id, label: partnerName }] : []),
+      ].map((o) => (
+        <button key={o.value} onClick={() => onChange(o.value)}
+          className={cn(
+            "flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
+            value === o.value
+              ? "bg-foreground text-background border-foreground"
+              : "bg-white text-muted-foreground border-border/60"
+          )}
+        >{o.label}</button>
+      ))}
+    </div>
+  );
+}
+
 export default function VaultClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
@@ -389,66 +463,6 @@ export default function VaultClient() {
     startTransition(() => deleteVaultItem(id, coupleId));
   }
 
-  // ── Shared sub-components ────────────────────────────────────────────────────
-
-  const PriceInput = ({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) => (
-    <div className="space-y-2">
-      <Input
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        placeholder="e.g. £45 or free"
-        className="h-11 rounded-xl bg-white border-border/60"
-      />
-      <div className="flex gap-2">
-        {PRICE_RANGES.map((p) => (
-          <button key={p} type="button" onClick={() => onChange(value === p ? null : p)}
-            className={cn(
-              "px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors",
-              value === p
-                ? "bg-foreground text-background border-foreground"
-                : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
-            )}
-          >{p}</button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const OgCard = ({ preview, loading }: { preview: OgPreview | null; loading: boolean }) => {
-    if (loading) return (
-      <div className="flex items-center gap-2 p-2 bg-secondary rounded-xl mt-2">
-        <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
-        <span className="text-xs text-muted-foreground">fetching preview…</span>
-      </div>
-    );
-    if (!preview?.image && !preview?.title) return null;
-    return (
-      <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl mt-2">
-        {preview.image && <img src={preview.image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
-        {preview.title && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{preview.title}</p>}
-      </div>
-    );
-  };
-
-  const OwnerButtons = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <div className="flex gap-2">
-      {[
-        { value: "shared", label: "shared" },
-        { value: me.id,    label: myName },
-        ...(partner ? [{ value: partner.id, label: partnerName }] : []),
-      ].map((o) => (
-        <button key={o.value} onClick={() => onChange(o.value)}
-          className={cn(
-            "flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
-            value === o.value
-              ? "bg-foreground text-background border-foreground"
-              : "bg-white text-muted-foreground border-border/60"
-          )}
-        >{o.label}</button>
-      ))}
-    </div>
-  );
-
   // ── FOLDERS VIEW ─────────────────────────────────────────────────────────────
 
   if (view === "folders") {
@@ -722,7 +736,7 @@ export default function VaultClient() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">for?</p>
-              <OwnerButtons value={owner} onChange={setOwner} />
+              <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
             </div>
             <Button onClick={handleAdd} disabled={!title.trim()} className="w-full h-11 rounded-xl">add</Button>
           </div>
@@ -771,7 +785,7 @@ export default function VaultClient() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">for?</p>
-              <OwnerButtons value={editOwner} onChange={setEditOwner} />
+              <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
             </div>
             <div className="flex gap-3">
               <Button
