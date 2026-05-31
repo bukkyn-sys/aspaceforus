@@ -281,7 +281,6 @@ export default function CalendarClient() {
                 )}
                 style={
                   isEventDay ? { backgroundColor: "#FEF3C7" }
-                  : !overlap && mine === "free" ? { backgroundColor: myAccent.light }
                   : undefined
                 }
               >
@@ -292,37 +291,35 @@ export default function CalendarClient() {
                   </div>
                 ) : (
                   <span className={cn(
-                    "text-xs font-semibold leading-none mb-1.5",
-                    overlap && !isEventDay ? "text-sage" : "text-foreground/75",
-                    isEventDay && "text-amber-900/50 mb-0",
+                    "text-xs font-semibold leading-none",
+                    overlap && !isEventDay ? "text-sage font-bold" : "text-foreground/75",
+                    isEventDay ? "text-amber-800/60 mb-0" : "mb-1.5",
                   )}>
                     {day}
                   </span>
                 )}
 
-                {/* Status dots — hidden inside event band */}
-                {!isEventDay && (
-                  <div className="flex gap-0.5 items-center">
-                    {mine === "busy" ? (
-                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
+                {/* Status dots */}
+                <div className={cn("flex gap-0.5 items-center", isEventDay && "opacity-40")}>
+                  {mine === "busy" ? (
+                    <div className="w-2.5 h-0.5 rounded-full bg-terracotta" />
+                  ) : (
+                    <div
+                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
+                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
+                    />
+                  )}
+                  {partner && (
+                    theirs === "busy" ? (
+                      <div className="w-2.5 h-0.5 rounded-full bg-terracotta/50" />
                     ) : (
                       <div
-                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
-                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
+                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
+                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
                       />
-                    )}
-                    {partner && (
-                      theirs === "busy" ? (
-                        <div className="w-2.5 h-0.5 rounded-full bg-terracotta/50" />
-                      ) : (
-                        <div
-                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
-                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
-                        />
-                      )
-                    )}
-                  </div>
-                )}
+                    )
+                  )}
+                </div>
 
                 {/* Event band: emoji label on first cell of each row segment */}
                 {showBandEmoji && bandEmoji && (
