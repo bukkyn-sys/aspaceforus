@@ -31,6 +31,7 @@ export default function CalendarClient() {
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -239,6 +240,28 @@ export default function CalendarClient() {
             const isToday = ds === todayStr;
             const dayEvents = getEvents(ds);
             const dayCds = getCountdownsForDate(ds);
+            const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
+
+            // Banding: determine which edges to round for event days
+            const colIndex = i % 7;
+            const isWeekStart = colIndex === 0;
+            const isWeekEnd = colIndex === 6;
+            const isRangeStart = isEventDay && (
+              dayEvents.some(e => e.start_at.slice(0, 10) === ds) ||
+              dayCds.some(c => c.target_date === ds)
+            );
+            const isRangeEnd = isEventDay && (
+              dayEvents.some(e => (e.end_at ? e.end_at.slice(0, 10) : e.start_at.slice(0, 10)) === ds) ||
+              dayCds.some(c => (c.end_date ?? c.target_date) === ds)
+            );
+            const roundLeft = !isEventDay || isRangeStart || isWeekStart;
+            const roundRight = !isEventDay || isRangeEnd || isWeekEnd;
+
+            const eventRounding =
+              roundLeft && roundRight ? "rounded-xl" :
+              roundLeft ? "rounded-l-xl rounded-r-none" :
+              roundRight ? "rounded-l-none rounded-r-xl" :
+              "rounded-none";
 
             return (
               <button
@@ -246,17 +269,25 @@ export default function CalendarClient() {
                 onClick={() => !isPast && handleDay(ds)}
                 disabled={isPast}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 rounded-xl mx-0.5 transition-all",
-                  overlap && "bg-sage-light",
-                  !overlap && mine === "free" && "bg-secondary",
-                  !overlap && mine === "busy" && "bg-terracotta-light",
-                  isToday && "ring-1 ring-foreground/30",
+                  "flex flex-col items-center justify-center py-2 transition-all",
+                  isEventDay
+                    ? eventRounding
+                    : cn(
+                        "rounded-xl mx-0.5",
+                        overlap && "bg-sage-light ring-1 ring-sage/20",
+                      ),
+                  isToday && "ring-1 ring-inset ring-foreground/40",
                   isPast && "opacity-25 cursor-default",
                 )}
+                style={
+                  isEventDay ? { backgroundColor: "#FEF3C7" }
+                  : !overlap && mine === "free" ? { backgroundColor: myAccent.light }
+                  : undefined
+                }
               >
                 <span className={cn(
                   "text-xs font-semibold leading-none mb-1.5",
-                  overlap ? "text-sage" : mine === "busy" ? "text-terracotta" : "text-foreground",
+                  overlap && !isEventDay ? "text-sage" : "text-foreground",
                 )}>
                   {day}
                 </span>
@@ -280,57 +311,61 @@ export default function CalendarClient() {
                     )
                   )}
                 </div>
-                {/* Event / countdown indicator — single neutral dot */}
-                {(dayEvents.length > 0 || dayCds.length > 0) && (
-                  <div className="w-1 h-1 rounded-full bg-foreground/30 mt-0.5" />
-                )}
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Legend */}
-      <div className="mt-4 bg-secondary/50 rounded-2xl px-4 py-3 space-y-2.5">
-        {/* Two-dot system explanation */}
-        <div className="flex items-center gap-2">
-          <div className="flex gap-0.5 items-center flex-shrink-0">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-            {partner
-              ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-              : <div className="w-2 h-2 rounded-full bg-border/40" />
-            }
-          </div>
-          <span className="text-[11px] text-muted-foreground">
-            left dot = you · right dot = {partner ? partnerName : "partner"}
-          </span>
+      {/* Legend — collapsed by default */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-muted-foreground/50">tap a day · free → busy → clear</p>
+          <button
+            onClick={() => setShowLegend(s => !s)}
+            className="flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+          >
+            <span className="w-4 h-4 rounded-full border border-muted-foreground/25 inline-flex items-center justify-center text-[9px] font-bold">i</span>
+            key
+          </button>
         </div>
-        {/* Status shapes */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-            <span className="text-[11px] text-muted-foreground">free</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 rounded-full bg-terracotta" />
-            <span className="text-[11px] text-muted-foreground">busy</span>
-          </div>
-          {partner && (
-            <div className="flex items-center gap-1.5">
-              <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
-              <span className="text-[11px] text-muted-foreground">both free</span>
+        {showLegend && (
+          <div className="mt-2 bg-secondary/50 rounded-2xl px-4 py-3 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-0.5 items-center flex-shrink-0">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+                {partner
+                  ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
+                  : <div className="w-2 h-2 rounded-full bg-border/40" />
+                }
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                left dot = you · right dot = {partner ? partnerName : "partner"}
+              </span>
             </div>
-          )}
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-foreground/30" />
-            <span className="text-[11px] text-muted-foreground">event / countdown</span>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+                <span className="text-[11px] text-muted-foreground">free</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-0.5 rounded-full bg-terracotta" />
+                <span className="text-[11px] text-muted-foreground">busy</span>
+              </div>
+              {partner && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
+                  <span className="text-[11px] text-muted-foreground">both free</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <div className="w-4 h-4 rounded-md bg-amber-100" />
+                <span className="text-[11px] text-muted-foreground">event / countdown</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-
-      <p className="text-center text-[11px] text-muted-foreground/60 mt-4 mb-6">
-        tap a day to mark free → busy → clear
-      </p>
 
       {/* Events + countdowns */}
       {!loading && events.length === 0 && countdowns.length === 0 && (
