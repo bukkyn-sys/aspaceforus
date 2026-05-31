@@ -27,7 +27,7 @@ const COUNTDOWN_TYPES = [
   { label: "other",       emoji: "🗓️" },
 ];
 
-interface Countdown { id: string; title: string; target_date: string; emoji: string; }
+interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; }
 
 interface DashboardData {
   myMood: number | null;
@@ -106,7 +106,9 @@ export default function DashboardClient() {
   // Countdown form
   const [cdTitle, setCdTitle] = useState("");
   const [cdDate, setCdDate] = useState("");
+  const [cdEndDate, setCdEndDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("✈️");
+  const [cdCustomEmoji, setCdCustomEmoji] = useState("");
 
   useRegisterFab(() => setShowCountdownSheet(true));
 
@@ -132,7 +134,7 @@ export default function DashboardClient() {
         supabase.rpc("get_my_profile", { p_user_id: me.id }),
         supabase.rpc("get_partner_profile", { p_couple_id: coupleId, p_my_id: me.id }),
         supabase.from("couples").select("shared_note, started_at, invite_code, banner_url").eq("id", coupleId).single(),
-        supabase.from("countdowns").select("id, title, target_date, emoji").eq("couple_id", coupleId)
+        supabase.from("countdowns").select("id, title, target_date, end_date, emoji").eq("couple_id", coupleId)
           .eq("archived", false).gte("target_date", today).order("target_date"),
         supabase.from("events").select("title, start_at, created_at").eq("couple_id", coupleId)
           .neq("created_by", me.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -246,14 +248,14 @@ export default function DashboardClient() {
 
   function handleAddCountdown() {
     if (!cdTitle.trim() || !cdDate) return;
-    const cd: Countdown = { id: crypto.randomUUID(), title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji };
+    const cd: Countdown = { id: crypto.randomUUID(), title: cdTitle.trim(), target_date: cdDate, end_date: cdEndDate || null, emoji: cdEmoji };
     setData((prev) => ({
       ...prev,
       countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
     }));
-    setCdTitle(""); setCdDate(""); setCdEmoji("✈️"); setShowCountdownSheet(false);
+    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji(""); setShowCountdownSheet(false);
     markActivity("home");
-    startTransition(() => { addCountdown({ coupleId, userId: me.id, title: cd.title, targetDate: cdDate, emoji: cdEmoji }); });
+    startTransition(() => { addCountdown({ coupleId, userId: me.id, title: cd.title, targetDate: cdDate, endDate: cdEndDate || null, emoji: cdEmoji }); });
   }
 
   function handleDeleteCountdown(id: string) {
@@ -297,7 +299,8 @@ export default function DashboardClient() {
             <span className="font-heading text-2xl text-foreground/25">hours</span>
           </div>
           <p className="text-xs text-muted-foreground/35 mt-3 tabular-nums">
-            {new Date(cd.target_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+            {new Date(cd.target_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: cd.end_date ? undefined : "numeric" })}
+            {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}
           </p>
         </div>
       </div>
@@ -582,10 +585,10 @@ export default function DashboardClient() {
               {COUNTDOWN_TYPES.map((t) => (
                 <button
                   key={t.label}
-                  onClick={() => { setCdEmoji(t.emoji); if (!cdTitle) setCdTitle(t.label); }}
+                  onClick={() => { setCdEmoji(t.emoji); setCdCustomEmoji(""); if (!cdTitle) setCdTitle(t.label); }}
                   className={cn(
                     "flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-xs font-medium transition-all",
-                    cdEmoji === t.emoji
+                    cdEmoji === t.emoji && !cdCustomEmoji
                       ? "bg-foreground text-background border-foreground"
                       : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
                   )}
@@ -595,20 +598,50 @@ export default function DashboardClient() {
                 </button>
               ))}
             </div>
+            {/* Custom emoji */}
+            <div className="flex items-center gap-2">
+              <div className={cn(
+                "w-11 h-11 rounded-xl border flex items-center justify-center text-xl flex-shrink-0 transition-colors",
+                cdCustomEmoji ? "bg-foreground border-foreground" : "bg-white border-border/60"
+              )}>
+                {cdCustomEmoji || <span className="text-[10px] text-muted-foreground/30">?</span>}
+              </div>
+              <Input
+                value={cdCustomEmoji}
+                onChange={(e) => { const v = e.target.value; setCdCustomEmoji(v); if (v.trim()) setCdEmoji(v.trim()); }}
+                placeholder="or type your own emoji"
+                className="h-11 rounded-xl bg-white border-border/60 flex-1"
+              />
+            </div>
             <Input
               value={cdTitle}
               onChange={(e) => setCdTitle(e.target.value)}
               placeholder="give it a name"
               className="h-11 rounded-xl bg-white border-border/60"
-              autoFocus
             />
-            <Input
-              type="date"
-              value={cdDate}
-              min={today}
-              onChange={(e) => setCdDate(e.target.value)}
-              className="h-11 rounded-xl bg-white border-border/60"
-            />
+            {/* Start / end dates */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">starts</p>
+                <Input
+                  type="date"
+                  value={cdDate}
+                  min={today}
+                  onChange={(e) => setCdDate(e.target.value)}
+                  className="h-11 rounded-xl bg-white border-border/60"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
+                <Input
+                  type="date"
+                  value={cdEndDate}
+                  min={cdDate || today}
+                  onChange={(e) => setCdEndDate(e.target.value)}
+                  className="h-11 rounded-xl bg-white border-border/60"
+                />
+              </div>
+            </div>
             <Button onClick={handleAddCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-11 rounded-xl">
               add
             </Button>

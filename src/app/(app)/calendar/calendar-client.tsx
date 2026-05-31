@@ -16,7 +16,7 @@ import { getAccent } from "@/lib/accent-colors";
 type Status = "free" | "busy" | null;
 interface Row { user_id: string; date: string; status: Status; }
 interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; }
-interface Countdown { id: string; title: string; target_date: string; emoji: string; }
+interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
 
@@ -35,6 +35,7 @@ export default function CalendarClient() {
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
   const [eventEmoji, setEventEmoji] = useState("📅");
+  const [eventCustomEmoji, setEventCustomEmoji] = useState("");
   const [, startTransition] = useTransition();
 
   const year = current.getFullYear();
@@ -74,7 +75,7 @@ export default function CalendarClient() {
         .order("start_at"),
       supabase
         .from("countdowns")
-        .select("id, title, target_date, emoji")
+        .select("id, title, target_date, end_date, emoji")
         .eq("couple_id", coupleId)
         .eq("archived", false)
         .gte("target_date", start)
@@ -145,7 +146,7 @@ export default function CalendarClient() {
       created_by: me.id,
     };
     setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
-    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setShowAddEvent(false);
+    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setEventCustomEmoji(""); setShowAddEvent(false);
     markActivity("calendar");
     startTransition(() => {
       addEvent({ coupleId, userId: me.id, title: optimistic.title, startAt, endAt, emoji: eventEmoji });
@@ -423,6 +424,7 @@ export default function CalendarClient() {
                         <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
                         <p className="text-xs text-amber-600/70 mt-0.5">
                           {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                          {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
@@ -484,15 +486,29 @@ export default function CalendarClient() {
                 {EVENT_EMOJIS.map((e) => (
                   <button
                     key={e}
-                    onClick={() => setEventEmoji(e)}
+                    onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
                     className={cn(
                       "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all",
-                      eventEmoji === e ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
+                      eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
                     )}
                   >
                     {e}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl border flex items-center justify-center text-xl flex-shrink-0 transition-colors",
+                  eventCustomEmoji ? "bg-foreground border-foreground" : "bg-secondary border-transparent"
+                )}>
+                  {eventCustomEmoji || <span className="text-[10px] text-muted-foreground/30">?</span>}
+                </div>
+                <Input
+                  value={eventCustomEmoji}
+                  onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
+                  placeholder="or type your own emoji"
+                  className="h-10 rounded-xl bg-white border-border/60 flex-1"
+                />
               </div>
             </div>
             <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">

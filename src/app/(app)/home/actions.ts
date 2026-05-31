@@ -27,15 +27,17 @@ export async function addCountdown(data: {
   userId: string;
   title: string;
   targetDate: string;
+  endDate?: string | null;
   emoji: string;
 }) {
   const supabase = await createClient();
-  await supabase.rpc("add_countdown", {
-    p_couple_id: data.coupleId,
-    p_user_id: data.userId,
-    p_title: data.title,
-    p_target_date: data.targetDate,
-    p_emoji: data.emoji,
+  await supabase.from("countdowns").insert({
+    couple_id: data.coupleId,
+    created_by: data.userId,
+    title: data.title,
+    target_date: data.targetDate,
+    end_date: data.endDate ?? null,
+    emoji: data.emoji,
   });
 }
 
