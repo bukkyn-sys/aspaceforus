@@ -51,6 +51,7 @@ export async function addVaultItem(data: {
   priceRange?: string;
   ogImage?: string;
   ogTitle?: string;
+  itemEmoji?: string;
 }) {
   const supabase = await createClient();
   await supabase.from("vault_items").insert({
@@ -65,6 +66,7 @@ export async function addVaultItem(data: {
     price_range: data.priceRange || null,
     og_image: data.ogImage || null,
     og_title: data.ogTitle || null,
+    item_emoji: data.itemEmoji || null,
     stage: "ideas",
   });
   await notifyPartner(
@@ -99,6 +101,7 @@ export async function updateVaultItem(data: {
   priceRange?: string | null;
   ogImage?: string | null;
   ogTitle?: string | null;
+  itemEmoji?: string | null;
 }) {
   const supabase = await createClient();
   await supabase
@@ -111,6 +114,7 @@ export async function updateVaultItem(data: {
       price_range: data.priceRange ?? null,
       og_image: data.ogImage ?? null,
       og_title: data.ogTitle ?? null,
+      item_emoji: data.itemEmoji ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)

@@ -50,6 +50,7 @@ interface VaultItem {
   price_range: string | null;
   og_image: string | null;
   og_title: string | null;
+  item_emoji: string | null;
 }
 
 interface OgPreview { image: string | null; title: string | null }
@@ -79,6 +80,7 @@ const SORT_LABELS: Record<SortBy, string> = {
 const SORT_CYCLE: SortBy[] = ["newest", "oldest", "az", "price"];
 
 const EMOJI_OPTIONS = ["📁", "🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎪", "💫", "📌"];
+const ITEM_EMOJIS   = ["🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎭", "🎬", "🛍️", "📚", "🎵", "🍷", "💎", "🎮", "🌿", "🧁"];
 
 // ── Module-level sub-components (must NOT be inside VaultClient — inline
 //    definitions get a new reference every render, causing unmount/remount) ──
@@ -108,18 +110,54 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
   );
 }
 
-function OgCard({ preview, loading }: { preview: OgPreview | null; loading: boolean }) {
-  if (loading) return (
-    <div className="flex items-center gap-2 p-2 bg-secondary rounded-xl mt-2">
-      <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
-      <span className="text-xs text-muted-foreground">fetching preview…</span>
-    </div>
-  );
-  if (!preview?.image && !preview?.title) return null;
+function VisualPicker({
+  value, onChange, ogImage, ogTitle, loading,
+}: {
+  value: "og" | string | null;
+  onChange: (v: "og" | string | null) => void;
+  ogImage?: string | null;
+  ogTitle?: string | null;
+  loading?: boolean;
+}) {
   return (
-    <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl mt-2">
-      {preview.image && <img src={preview.image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
-      {preview.title && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{preview.title}</p>}
+    <div className="space-y-2">
+      {loading && (
+        <div className="flex items-center gap-2 p-2 bg-secondary rounded-xl">
+          <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
+          <span className="text-xs text-muted-foreground">fetching preview…</span>
+        </div>
+      )}
+      {!loading && ogImage && (
+        <button
+          type="button"
+          onClick={() => onChange(value === "og" ? null : "og")}
+          className={cn(
+            "w-full flex items-center gap-3 p-2.5 rounded-xl border-2 transition-all text-left",
+            value === "og"
+              ? "border-foreground bg-secondary"
+              : "border-border/40 bg-secondary/50 hover:bg-secondary"
+          )}
+        >
+          <img src={ogImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+          {ogTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2 flex-1">{ogTitle}</p>}
+          <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">thumbnail</span>
+        </button>
+      )}
+      <div className="grid grid-cols-6 gap-2">
+        {ITEM_EMOJIS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => onChange(value === e ? null : e)}
+            className={cn(
+              "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+              value === e
+                ? "bg-foreground/10 ring-2 ring-foreground/40"
+                : "bg-secondary hover:bg-secondary/70"
+            )}
+          >{e}</button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -190,6 +228,7 @@ export default function VaultClient() {
   const [priceRange, setPriceRange] = useState<string | null>(null);
   const [ogPreview, setOgPreview] = useState<OgPreview | null>(null);
   const [fetchingOg, setFetchingOg] = useState(false);
+  const [selectedVisual, setSelectedVisual] = useState<"og" | string | null>(null);
 
   // Edit item form
   const [editTitle, setEditTitle] = useState("");
@@ -199,6 +238,7 @@ export default function VaultClient() {
   const [editPriceRange, setEditPriceRange] = useState<string | null>(null);
   const [editOgPreview, setEditOgPreview] = useState<OgPreview | null>(null);
   const [fetchingEditOg, setFetchingEditOg] = useState(false);
+  const [editSelectedVisual, setEditSelectedVisual] = useState<"og" | string | null>(null);
 
   const [, startTransition] = useTransition();
 
@@ -264,7 +304,7 @@ export default function VaultClient() {
     const supabase = createClient();
     supabase
       .from("vault_items")
-      .select("id, folder_id, owner, title, url, notes, stage, created_by, created_at, price_range, og_image, og_title")
+      .select("id, folder_id, owner, title, url, notes, stage, created_by, created_at, price_range, og_image, og_title, item_emoji")
       .eq("couple_id", coupleId)
       .eq("folder_id", activeFolder.id)
       .order("created_at", { ascending: false })
@@ -366,25 +406,30 @@ export default function VaultClient() {
 
   function closeAdd() {
     setShowAdd(false);
-    setTitle(""); setUrl(""); setNotes(""); setPriceRange(null); setOgPreview(null);
+    setTitle(""); setUrl(""); setNotes(""); setPriceRange(null); setOgPreview(null); setSelectedVisual(null);
   }
 
   async function handleUrlBlur(val: string) {
-    if (!val.trim()) { setOgPreview(null); return; }
+    if (!val.trim()) { setOgPreview(null); setSelectedVisual((v) => v === "og" ? null : v); return; }
     setFetchingOg(true);
-    setOgPreview(await fetchOgPreview(val.trim()));
+    const preview = await fetchOgPreview(val.trim());
+    setOgPreview(preview);
+    if (preview?.image) setSelectedVisual("og"); // auto-select thumbnail when found
     setFetchingOg(false);
   }
 
   async function handleEditUrlBlur(val: string) {
-    if (!val.trim()) { setEditOgPreview(null); return; }
+    if (!val.trim()) { setEditOgPreview(null); setEditSelectedVisual((v) => v === "og" ? null : v); return; }
     setFetchingEditOg(true);
-    setEditOgPreview(await fetchOgPreview(val.trim()));
+    const preview = await fetchOgPreview(val.trim());
+    setEditOgPreview(preview);
+    if (preview?.image) setEditSelectedVisual("og");
     setFetchingEditOg(false);
   }
 
   function handleAdd() {
     if (!title.trim() || !activeFolder) return;
+    const itemEmoji = selectedVisual && selectedVisual !== "og" ? selectedVisual : null;
     const optimistic: VaultItem = {
       id: crypto.randomUUID(),
       folder_id: activeFolder.id,
@@ -398,6 +443,7 @@ export default function VaultClient() {
       price_range: priceRange,
       og_image: ogPreview?.image ?? null,
       og_title: ogPreview?.title ?? null,
+      item_emoji: itemEmoji,
     };
     setItems((prev) => [optimistic, ...prev]);
     markActivity("vault");
@@ -411,6 +457,7 @@ export default function VaultClient() {
         priceRange: priceRange ?? undefined,
         ogImage: ogPreview?.image ?? undefined,
         ogTitle: ogPreview?.title ?? undefined,
+        itemEmoji: itemEmoji ?? undefined,
       })
     );
     closeAdd();
@@ -424,16 +471,19 @@ export default function VaultClient() {
     setEditNotes(item.notes ?? "");
     setEditPriceRange(item.price_range ?? null);
     setEditOgPreview(item.og_image ? { image: item.og_image, title: item.og_title } : null);
+    setEditSelectedVisual(item.item_emoji ?? (item.og_image ? "og" : null));
   }
 
   function handleEdit() {
     if (!editingItem || !editTitle.trim()) return;
+    const itemEmoji = editSelectedVisual && editSelectedVisual !== "og" ? editSelectedVisual : null;
     setItems((prev) =>
       prev.map((i) =>
         i.id === editingItem.id
           ? { ...i, title: editTitle.trim(), owner: editOwner, url: editUrl.trim() || null,
               notes: editNotes.trim() || null, price_range: editPriceRange,
-              og_image: editOgPreview?.image ?? null, og_title: editOgPreview?.title ?? null }
+              og_image: editOgPreview?.image ?? null, og_title: editOgPreview?.title ?? null,
+              item_emoji: itemEmoji }
           : i
       )
     );
@@ -448,6 +498,7 @@ export default function VaultClient() {
         priceRange: editPriceRange,
         ogImage: editOgPreview?.image ?? null,
         ogTitle: editOgPreview?.title ?? null,
+        itemEmoji: itemEmoji,
       })
     );
   }
@@ -671,9 +722,13 @@ export default function VaultClient() {
                     )}
                   </div>
                 </div>
-                {item.og_image && (
+                {item.item_emoji ? (
+                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-2xl flex-shrink-0 leading-none">
+                    {item.item_emoji}
+                  </div>
+                ) : item.og_image ? (
                   <img src={item.og_image} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                )}
+                ) : null}
                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   <button
                     onClick={() => openEdit(item)}
@@ -713,16 +768,23 @@ export default function VaultClient() {
               className="h-11 rounded-xl bg-white border-border/60"
               autoFocus
             />
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onBlur={(e) => handleUrlBlur(e.target.value)}
+              placeholder="url (optional)"
+              className="h-11 rounded-xl bg-white border-border/60"
+              type="url"
+            />
             <div>
-              <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onBlur={(e) => handleUrlBlur(e.target.value)}
-                placeholder="url (optional)"
-                className="h-11 rounded-xl bg-white border-border/60"
-                type="url"
+              <p className="text-xs text-muted-foreground mb-2">visual <span className="opacity-50">(optional)</span></p>
+              <VisualPicker
+                value={selectedVisual}
+                onChange={setSelectedVisual}
+                ogImage={ogPreview?.image}
+                ogTitle={ogPreview?.title}
+                loading={fetchingOg}
               />
-              <OgCard preview={ogPreview} loading={fetchingOg} />
             </div>
             <textarea
               value={notes}
@@ -762,16 +824,23 @@ export default function VaultClient() {
               className="h-11 rounded-xl bg-white border-border/60"
               autoFocus
             />
+            <Input
+              value={editUrl}
+              onChange={(e) => setEditUrl(e.target.value)}
+              onBlur={(e) => handleEditUrlBlur(e.target.value)}
+              placeholder="url (optional)"
+              className="h-11 rounded-xl bg-white border-border/60"
+              type="url"
+            />
             <div>
-              <Input
-                value={editUrl}
-                onChange={(e) => setEditUrl(e.target.value)}
-                onBlur={(e) => handleEditUrlBlur(e.target.value)}
-                placeholder="url (optional)"
-                className="h-11 rounded-xl bg-white border-border/60"
-                type="url"
+              <p className="text-xs text-muted-foreground mb-2">visual <span className="opacity-50">(optional)</span></p>
+              <VisualPicker
+                value={editSelectedVisual}
+                onChange={setEditSelectedVisual}
+                ogImage={editOgPreview?.image}
+                ogTitle={editOgPreview?.title}
+                loading={fetchingEditOg}
               />
-              <OgCard preview={editOgPreview} loading={fetchingEditOg} />
             </div>
             <textarea
               value={editNotes}

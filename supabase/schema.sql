@@ -293,6 +293,7 @@ create policy "vault_folders_all" on vault_folders
 alter table vault_items add column if not exists folder_id    uuid references vault_folders(id) on delete cascade;
 alter table vault_items add column if not exists notes        text;
 alter table vault_items add column if not exists price_range  text;
+alter table vault_items add column if not exists item_emoji   text;
 
 -- Widen type to include 'general' (for custom folders)
 alter table vault_items drop constraint if exists vault_items_type_check;
