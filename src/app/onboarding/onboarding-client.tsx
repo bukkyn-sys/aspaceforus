@@ -35,6 +35,7 @@ function CropModal({
 
   const [objectUrl] = useState(() => URL.createObjectURL(file));
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
+  const [baseScale, setBaseScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
 
@@ -42,11 +43,11 @@ function CropModal({
   const imgRef = useRef<HTMLImageElement>(null);
   const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
-  // Refs so native event handlers always see current values without re-registering
+  // Refs for use inside native event handlers (always current without re-registering)
   const zoomRef = useRef(1);
   const offsetRef = useRef({ x: 0, y: 0 });
-  const swRef = useRef(FRAME.w);
-  const shRef = useRef(FRAME.h);
+  const baseScaleRef = useRef(1);
+  const imgNaturalRef = useRef<{ w: number; h: number } | null>(null);
 
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
 
@@ -57,42 +58,39 @@ function CropModal({
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const baseScale = imgNatural ? Math.max(FRAME.w / imgNatural.w, FRAME.h / imgNatural.h) : 1;
-  const scale = baseScale * zoom;
-  const sw = imgNatural ? imgNatural.w * scale : FRAME.w;
-  const sh = imgNatural ? imgNatural.h * scale : FRAME.h;
-
-  // Keep refs in sync on every render
+  // Keep refs in sync with state (runs every render, before effects)
   zoomRef.current = zoom;
   offsetRef.current = offset;
-  swRef.current = sw;
-  shRef.current = sh;
+  baseScaleRef.current = baseScale;
+  imgNaturalRef.current = imgNatural;
 
-  function clamp(ox: number, oy: number, w: number, h: number) {
+  // Fixed base dimensions (zoom=1). Zoom is applied via CSS transform, not by resizing.
+  const baseW = imgNatural ? imgNatural.w * baseScale : FRAME.w;
+  const baseH = imgNatural ? imgNatural.h * baseScale : FRAME.h;
+
+  function clampOffset(ox: number, oy: number, z: number, bw: number, bh: number) {
     return {
-      x: Math.min(0, Math.max(ox, FRAME.w - w)),
-      y: Math.min(0, Math.max(oy, FRAME.h - h)),
+      x: Math.min(0, Math.max(ox, FRAME.w - bw * z)),
+      y: Math.min(0, Math.max(oy, FRAME.h - bh * z)),
     };
   }
-
-  // Re-clamp offset whenever zoom changes so image never leaves frame
-  useEffect(() => {
-    if (!imgNatural) return;
-    setOffset((prev) => clamp(prev.x, prev.y, swRef.current, shRef.current));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom]);
 
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const img = e.currentTarget;
     const nat = { w: img.naturalWidth, h: img.naturalHeight };
-    setImgNatural(nat);
     const sc = Math.max(FRAME.w / nat.w, FRAME.h / nat.h);
-    const initW = nat.w * sc;
-    const initH = nat.h * sc;
-    setOffset(clamp((FRAME.w - initW) / 2, (FRAME.h - initH) / 2, initW, initH));
+    const bw = nat.w * sc;
+    const bh = nat.h * sc;
+    const init = clampOffset((FRAME.w - bw) / 2, (FRAME.h - bh) / 2, 1, bw, bh);
+    setImgNatural(nat);
+    setBaseScale(sc);
+    setOffset(init);
+    imgNaturalRef.current = nat;
+    baseScaleRef.current = sc;
+    offsetRef.current = init;
   }
 
-  // Non-passive touch + wheel listeners so we can call preventDefault
+  // Non-passive touch listeners so preventDefault stops page scroll
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -115,13 +113,21 @@ function CropModal({
 
     function onTouchMove(e: TouchEvent) {
       e.preventDefault();
+      const nat = imgNaturalRef.current;
+      if (!nat) return;
+      const bs = baseScaleRef.current;
+      const bw = nat.w * bs;
+      const bh = nat.h * bs;
+
       if (e.touches.length === 1 && dragRef.current) {
         const d = dragRef.current;
-        setOffset(clamp(
+        const newOffset = clampOffset(
           d.ox + e.touches[0].clientX - d.startX,
           d.oy + e.touches[0].clientY - d.startY,
-          swRef.current, shRef.current,
-        ));
+          zoomRef.current, bw, bh,
+        );
+        setOffset(newOffset);
+        offsetRef.current = newOffset;
       } else if (e.touches.length === 2 && pinchRef.current) {
         const dist = Math.hypot(
           e.touches[1].clientX - e.touches[0].clientX,
@@ -130,26 +136,24 @@ function CropModal({
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
           pinchRef.current.startZoom * (dist / pinchRef.current.startDist),
         ));
+        // Re-clamp offset with new zoom inline so it's immediate
+        const newOffset = clampOffset(offsetRef.current.x, offsetRef.current.y, newZoom, bw, bh);
         setZoom(newZoom);
+        setOffset(newOffset);
+        zoomRef.current = newZoom;
+        offsetRef.current = newOffset;
       }
     }
 
     function onTouchEnd() { dragRef.current = null; pinchRef.current = null; }
 
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - e.deltaY * 0.005)));
-    }
-
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd);
-    el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       el.removeEventListener("touchstart", onTouchStart);
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("wheel", onWheel);
     };
   }, []); // empty — all live values accessed via refs
 
@@ -160,7 +164,7 @@ function CropModal({
   function onMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return;
     const d = dragRef.current;
-    setOffset(clamp(d.ox + e.clientX - d.startX, d.oy + e.clientY - d.startY, sw, sh));
+    setOffset(clampOffset(d.ox + e.clientX - d.startX, d.oy + e.clientY - d.startY, zoom, baseW, baseH));
   }
   function onMouseUp() { dragRef.current = null; }
 
@@ -169,10 +173,17 @@ function CropModal({
     canvas.width = OUTPUT.w;
     canvas.height = OUTPUT.h;
     const ctx = canvas.getContext("2d")!;
-    if (imgRef.current) {
-      const sx = OUTPUT.w / FRAME.w;
-      const sy = OUTPUT.h / FRAME.h;
-      ctx.drawImage(imgRef.current, offset.x * sx, offset.y * sy, sw * sx, sh * sy);
+    if (imgRef.current && imgNatural) {
+      // Map the visible frame area back to natural image coordinates
+      const totalScale = baseScale * zoom;
+      ctx.drawImage(
+        imgRef.current,
+        -offset.x / totalScale,    // source x (natural px)
+        -offset.y / totalScale,    // source y (natural px)
+        FRAME.w / totalScale,      // source width (natural px)
+        FRAME.h / totalScale,      // source height (natural px)
+        0, 0, OUTPUT.w, OUTPUT.h,  // dest: full 800×800 canvas
+      );
     }
     canvas.toBlob((b) => { if (b) onConfirm(b); }, "image/jpeg", 0.92);
   }
@@ -182,7 +193,7 @@ function CropModal({
       <div className="bg-background rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-6 space-y-5">
         <div>
           <p className="font-semibold text-foreground">position photo</p>
-          <p className="text-xs text-muted-foreground mt-0.5">drag to reposition · pinch or scroll to zoom</p>
+          <p className="text-xs text-muted-foreground mt-0.5">drag to reposition · pinch to zoom</p>
         </div>
         <div className="flex justify-center">
           <div
@@ -202,24 +213,13 @@ function CropModal({
               draggable={false}
               onLoad={onImgLoad}
               className="absolute top-0 left-0 pointer-events-none"
-              style={{ width: sw, height: sh, transform: `translate(${offset.x}px, ${offset.y}px)` }}
+              style={{
+                width: baseW,
+                height: baseH,
+                transformOrigin: "0 0",
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              }}
             />
-          </div>
-        </div>
-        {/* Zoom slider */}
-        <div className="px-1">
-          <input
-            type="range"
-            min={MIN_ZOOM}
-            max={MAX_ZOOM}
-            step={0.05}
-            value={zoom}
-            onChange={(e) => setZoom(parseFloat(e.target.value))}
-            className="w-full accent-foreground"
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-0.5 px-0.5">
-            <span>zoom out</span>
-            <span>zoom in</span>
           </div>
         </div>
         <div className="flex gap-3">
