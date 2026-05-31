@@ -495,25 +495,26 @@ export default function CalendarClient() {
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="what's happening?"
                 className="h-11 rounded-xl bg-white border-border/60"
+                autoFocus
               />
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground mb-1.5">start date</p>
                   <Input
                     type="date"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
-                    className="h-11 rounded-xl bg-white border-border/60"
+                    className="h-11 rounded-xl bg-white border-border/60 w-full"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
                   <Input
                     type="date"
                     value={eventEndDate}
                     min={eventDate}
                     onChange={(e) => setEventEndDate(e.target.value)}
-                    className="h-11 rounded-xl bg-white border-border/60"
+                    className="h-11 rounded-xl bg-white border-border/60 w-full"
                   />
                 </div>
               </div>
