@@ -16,10 +16,11 @@ import { getAccent } from "@/lib/accent-colors";
 type Status = "free" | "busy" | null;
 interface Row { user_id: string; date: string; status: Status; }
 interface CalEvent { id: string; title: string; start_at: string; emoji: string; created_by: string; }
+interface Countdown { id: string; title: string; target_date: string; emoji: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
 
-type CalCache = { rows: Row[]; events: CalEvent[] };
+type CalCache = { rows: Row[]; events: CalEvent[]; countdowns: Countdown[] };
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
@@ -27,6 +28,7 @@ export default function CalendarClient() {
   const [current, setCurrent] = useState(() => new Date());
   const [rows, setRows] = useState<Row[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
+  const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
@@ -45,6 +47,7 @@ export default function CalendarClient() {
     if (cached) {
       setRows(cached.rows);
       setEvents(cached.events);
+      setCountdowns(cached.countdowns);
       setLoading(false);
     } else {
       setLoading(true);
@@ -66,13 +69,23 @@ export default function CalendarClient() {
         .gte("start_at", start + "T00:00:00")
         .lte("start_at", end + "T23:59:59")
         .order("start_at"),
-    ]).then(([{ data: avail }, { data: evts }]) => {
+      supabase
+        .from("countdowns")
+        .select("id, title, target_date, emoji")
+        .eq("couple_id", coupleId)
+        .eq("archived", false)
+        .gte("target_date", start)
+        .lte("target_date", end)
+        .order("target_date"),
+    ]).then(([{ data: avail }, { data: evts }, { data: cds }]) => {
       const rows = avail ?? [];
       const events = (evts as CalEvent[]) ?? [];
+      const countdowns = (cds as Countdown[]) ?? [];
       setRows(rows);
       setEvents(events);
+      setCountdowns(countdowns);
       setLoading(false);
-      setCache(key, { rows, events });
+      setCache(key, { rows, events, countdowns });
     });
   }, [coupleId, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,6 +95,14 @@ export default function CalendarClient() {
 
   function getEvents(dateStr: string): CalEvent[] {
     return events.filter((e) => e.start_at.startsWith(dateStr));
+  }
+
+  function getCountdownsForDate(dateStr: string): Countdown[] {
+    return countdowns.filter((c) => c.target_date === dateStr);
+  }
+
+  function daysUntil(dateStr: string): number {
+    return Math.max(0, Math.floor((new Date(dateStr + "T00:00:00").getTime() - Date.now()) / 86400000));
   }
 
   function handleDay(dateStr: string) {
@@ -196,6 +217,7 @@ export default function CalendarClient() {
             const isPast = ds < todayStr;
             const isToday = ds === todayStr;
             const dayEvents = getEvents(ds);
+            const dayCds = getCountdownsForDate(ds);
 
             return (
               <button
@@ -237,8 +259,12 @@ export default function CalendarClient() {
                     )
                   )}
                 </div>
-                {dayEvents.length > 0 && (
-                  <div className="w-1 h-1 rounded-full bg-foreground/40 mt-0.5" />
+                {/* Event / countdown dots */}
+                {(dayEvents.length > 0 || dayCds.length > 0) && (
+                  <div className="flex gap-0.5 mt-0.5">
+                    {dayEvents.length > 0 && <div className="w-1 h-1 rounded-full bg-foreground/40" />}
+                    {dayCds.length > 0 && <div className="w-1 h-1 rounded-full bg-amber-400/70" />}
+                  </div>
                 )}
               </button>
             );
@@ -247,35 +273,53 @@ export default function CalendarClient() {
       )}
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-2 mt-5 justify-center">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-          <span className="text-[11px] text-muted-foreground">you — free</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 rounded-full bg-terracotta" />
-          <span className="text-[11px] text-muted-foreground">you — busy</span>
-        </div>
-        {partner && (
-          <>
+      <div className="mt-5 space-y-2">
+        {/* Who's who */}
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+            <span className="text-[11px] text-muted-foreground">you — free</span>
+          </div>
+          {partner && (
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
               <span className="text-[11px] text-muted-foreground">{partnerName} — free</span>
             </div>
+          )}
+          {partner && (
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
               <span className="text-[11px] text-muted-foreground">both free</span>
             </div>
-          </>
-        )}
+          )}
+        </div>
+        {/* Shape meaning */}
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-foreground/20" />
+            <span className="text-[11px] text-muted-foreground">free day</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 rounded-full bg-terracotta" />
+            <span className="text-[11px] text-muted-foreground">busy day</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-foreground/40" />
+            <span className="text-[11px] text-muted-foreground">event</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-amber-400/70" />
+            <span className="text-[11px] text-muted-foreground">countdown</span>
+          </div>
+        </div>
       </div>
 
       <p className="text-center text-[11px] text-muted-foreground/60 mt-4 mb-6">
         tap a day to mark free → busy → clear
       </p>
 
-      {/* Personal events */}
-      {!loading && events.length === 0 && (
+      {/* Events + countdowns */}
+      {!loading && events.length === 0 && countdowns.length === 0 && (
         <div className="flex flex-col items-center py-6 gap-2">
           <p className="text-sm text-muted-foreground">no events this month</p>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
@@ -283,46 +327,106 @@ export default function CalendarClient() {
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
               <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
             </span>
-            below to add a personal event
+            to add an event
           </div>
           <div className="text-muted-foreground/30 text-lg mt-1">↓</div>
         </div>
       )}
 
-      {!loading && events.length > 0 && (
-        <div>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">personal events this month</p>
-          <div className="space-y-2">
-            {events.map((evt) => {
-              const d = new Date(evt.start_at);
-              const creatorAccent = evt.created_by === me.id ? myAccent : partnerAccent;
-              return (
-                <div
-                  key={evt.id}
-                  className="bg-white border border-border/50 rounded-2xl px-4 py-3 shadow-card flex items-center gap-3 overflow-hidden relative"
-                  style={{ borderLeftColor: creatorAccent.hex, borderLeftWidth: "3px" }}
-                >
-                  <span className="text-xl flex-shrink-0">{evt.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
-                      {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                    </p>
-                  </div>
-                  {evt.created_by === me.id && (
-                    <button
-                      onClick={() => handleDeleteEvent(evt.id)}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0"
+      {!loading && (events.length > 0 || countdowns.length > 0) && (() => {
+        // Merge events + countdowns sorted by date
+        type Item =
+          | { kind: "event"; data: CalEvent }
+          | { kind: "countdown"; data: Countdown };
+        const items: Item[] = [
+          ...events.map((e) => ({ kind: "event" as const, data: e })),
+          ...countdowns.map((c) => ({ kind: "countdown" as const, data: c })),
+        ].sort((a, b) => {
+          const da = a.kind === "event" ? a.data.start_at.slice(0, 10) : a.data.target_date;
+          const db = b.kind === "event" ? b.data.start_at.slice(0, 10) : b.data.target_date;
+          return da.localeCompare(db);
+        });
+
+        return (
+          <div>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">events this month</p>
+            <div className="space-y-2">
+              {items.map((item) => {
+                if (item.kind === "event") {
+                  const evt = item.data;
+                  const d = new Date(evt.start_at);
+                  const isMe = evt.created_by === me.id;
+                  const creatorAccent = isMe ? myAccent : partnerAccent;
+                  const creatorAvatar = isMe ? me.avatar_url : partner?.avatar_url;
+                  const creatorInitial = isMe
+                    ? (me.display_name?.[0] ?? "?").toUpperCase()
+                    : (partner?.display_name?.[0] ?? "?").toUpperCase();
+                  return (
+                    <div
+                      key={evt.id}
+                      className="bg-white border border-border/50 rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
+                      style={{ borderLeftColor: creatorAccent.hex, borderLeftWidth: "3px" }}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                      <span className="text-xl flex-shrink-0">{evt.emoji}</span>
+                      {/* Creator avatar */}
+                      <div
+                        className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-secondary"
+                        style={{ boxShadow: `0 0 0 1.5px ${creatorAccent.hex}` }}
+                      >
+                        {creatorAvatar ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
+                            {creatorInitial}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
+                        <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
+                          {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                        </p>
+                      </div>
+                      {isMe && (
+                        <button
+                          onClick={() => handleDeleteEvent(evt.id)}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                } else {
+                  const cd = item.data;
+                  const days = daysUntil(cd.target_date);
+                  const d = new Date(cd.target_date + "T12:00:00");
+                  return (
+                    <div
+                      key={cd.id}
+                      className="bg-white border border-border/50 border-l-[3px] rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
+                      style={{ borderLeftColor: "#D4A427" }}
+                    >
+                      <span className="text-xl flex-shrink-0">{cd.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
+                        <p className="text-xs text-amber-600/70 mt-0.5">
+                          {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-semibold text-foreground">{days}</p>
+                        <p className="text-[10px] text-muted-foreground">days</p>
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Add event sheet */}
       {showAddEvent && (
