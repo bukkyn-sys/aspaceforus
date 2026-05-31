@@ -495,7 +495,6 @@ export default function CalendarClient() {
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="what's happening?"
                 className="h-11 rounded-xl bg-white border-border/60"
-                autoFocus
               />
               <div className="grid grid-cols-2 gap-2">
                 <div>
@@ -543,10 +542,10 @@ export default function CalendarClient() {
               </div>
             </div>
 
-            {/* Pinned button */}
+            {/* Pinned button — extra bottom padding clears the fixed nav bar (~80px) */}
             <div
-              className="px-6 pt-4 pb-6 flex-shrink-0"
-              style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+              className="px-6 pt-4 flex-shrink-0"
+              style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
             >
               <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
                 add event
