@@ -4,27 +4,41 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 
 type FabAction = (() => void) | null;
 
-interface FabContextValue {
-  action: FabAction;
-  setAction: (fn: FabAction) => void;
-}
-
-const FabContext = createContext<FabContextValue>({ action: null, setAction: () => {} });
+// Split into two contexts so page components can subscribe to the setter
+// without re-rendering every time the action value changes.
+const FabSetContext = createContext<(fn: FabAction) => void>(() => {});
+const FabGetContext = createContext<FabAction>(null);
 
 export function FabProvider({ children }: { children: React.ReactNode }) {
-  const [action, _set] = useState<FabAction>(null);
+  const [action, setRaw] = useState<FabAction>(null);
   const setAction = useCallback((fn: FabAction) => {
-    _set(fn ? () => fn : null);
+    setRaw(fn ? () => fn : null);
   }, []);
-  return <FabContext.Provider value={{ action, setAction }}>{children}</FabContext.Provider>;
+  return (
+    <FabSetContext.Provider value={setAction}>
+      <FabGetContext.Provider value={action}>
+        {children}
+      </FabGetContext.Provider>
+    </FabSetContext.Provider>
+  );
 }
 
+/** Read the current FAB action. Only BottomNav needs this. */
 export function useFab() {
-  return useContext(FabContext);
+  return {
+    action: useContext(FabGetContext),
+    setAction: useContext(FabSetContext),
+  };
 }
 
+/** Get the FAB setter only — subscribes to nothing that ever changes. */
+export function useFabSetter() {
+  return useContext(FabSetContext);
+}
+
+/** Register a FAB action for the lifetime of the calling component. */
 export function useRegisterFab(fn: () => void) {
-  const { setAction } = useFab();
+  const setAction = useFabSetter();
   useEffect(() => {
     setAction(fn);
     return () => setAction(null);

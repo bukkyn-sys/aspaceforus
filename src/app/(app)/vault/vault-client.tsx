@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
-import { useFab } from "@/contexts/fab-context";
+import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { useScrollLock } from "@/lib/use-scroll-lock";
 import {
@@ -195,7 +195,7 @@ function OwnerButtons({
 export default function VaultClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
-  const { setAction } = useFab();
+  const setAction = useFabSetter();
 
   // Navigation
   const [view, setView] = useState<"folders" | "items">("folders");
