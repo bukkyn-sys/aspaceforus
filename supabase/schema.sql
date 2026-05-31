@@ -320,8 +320,8 @@ begin
     if not exists (select 1 from vault_folders where couple_id = c.couple_id) then
       insert into vault_folders (couple_id, created_by, name, emoji, kind, is_default, sort_order)
       values
-        (c.couple_id, c.created_by, 'Date Ideas', '🌹', 'date_idea', true, 0),
-        (c.couple_id, c.created_by, 'Wishlist',   '🎁', 'wishlist',  true, 1);
+        (c.couple_id, c.created_by, 'date ideas', '🌹', 'date_idea', true, 0),
+        (c.couple_id, c.created_by, 'wishlist',   '🎁', 'wishlist',  true, 1);
     end if;
 
     select id into date_folder_id from vault_folders

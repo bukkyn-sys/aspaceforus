@@ -276,8 +276,8 @@ export default function VaultClient() {
 
       // Seed defaults for new couples
       if (folderList.length === 0) {
-        await addVaultFolder({ coupleId, userId: me.id, name: "Date Ideas", emoji: "🌹", kind: "date_idea", isDefault: true });
-        await addVaultFolder({ coupleId, userId: me.id, name: "Wishlist",   emoji: "🎁", kind: "wishlist",  isDefault: true });
+        await addVaultFolder({ coupleId, userId: me.id, name: "date ideas", emoji: "🌹", kind: "date_idea", isDefault: true });
+        await addVaultFolder({ coupleId, userId: me.id, name: "wishlist",  emoji: "🎁", kind: "wishlist",  isDefault: true });
         const { data: refetched } = await supabase
           .from("vault_folders")
           .select("id, name, emoji, kind, is_default, sort_order, created_by, created_at")
@@ -560,10 +560,10 @@ export default function VaultClient() {
 
             <button
               onClick={() => setShowNewFolder(true)}
-              className="w-full rounded-3xl border-2 border-dashed border-border/40 h-14 flex items-center justify-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:border-border/60 transition-colors"
+              className="w-full rounded-3xl border border-border/50 bg-white/60 h-14 flex items-center justify-center gap-2 text-muted-foreground hover:bg-white hover:border-border/80 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" strokeWidth={2} />
-              <span className="text-sm">new folder</span>
+              <span className="text-sm font-medium">new folder</span>
             </button>
           </>
         )}
@@ -678,32 +678,33 @@ export default function VaultClient() {
             return (
               <div
                 key={item.id}
-                className="bg-white border border-border/40 rounded-2xl p-4 shadow-sm flex items-start gap-3"
-                style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                className="bg-white border border-border/30 rounded-2xl overflow-hidden shadow-sm flex items-stretch gap-0"
+                style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "4px" }}
               >
-                <div className="flex-1 min-w-0">
+                {/* Main content */}
+                <div className="flex-1 min-w-0 p-4">
                   <button
                     onClick={() => openEdit(item)}
-                    className="text-sm font-medium text-foreground text-left w-full hover:text-foreground/70 transition-colors"
+                    className="text-sm font-semibold text-foreground text-left w-full hover:text-foreground/70 transition-colors leading-snug"
                   >
                     {item.title}
                   </button>
                   {item.notes && (
-                    <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{item.notes}</p>
+                    <p className="text-xs text-muted-foreground/60 line-clamp-1 mt-0.5">{item.notes}</p>
                   )}
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className="text-[10px] text-muted-foreground capitalize">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground/60 capitalize">
                       {resolveOwnerName(item.owner)}
                     </span>
                     {item.price_range && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-md">
+                      <span className="text-[11px] font-semibold text-foreground/80 bg-foreground/[0.07] px-2 py-0.5 rounded-full">
                         {item.price_range}
                       </span>
                     )}
                     {activeFolder?.kind === "date_idea" && (
                       <button
                         onClick={() => handleStage(item)}
-                        className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-md transition-colors", STAGE_COLOR[item.stage])}
+                        className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
                       >
                         {STAGE_LABEL[item.stage]}
                       </button>
@@ -713,35 +714,41 @@ export default function VaultClient() {
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] text-blue-500 flex items-center gap-0.5"
                         onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors"
                       >
-                        <Link2 className="w-2.5 h-2.5" />
+                        <Link2 className="w-3 h-3" />
                         link
                       </a>
                     )}
                   </div>
                 </div>
-                {item.item_emoji ? (
-                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-2xl flex-shrink-0 leading-none">
-                    {item.item_emoji}
+
+                {/* Visual + actions column */}
+                <div className="flex flex-col items-center justify-between p-3 pl-0 gap-2 flex-shrink-0">
+                  {item.item_emoji ? (
+                    <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-2xl leading-none">
+                      {item.item_emoji}
+                    </div>
+                  ) : item.og_image ? (
+                    <img src={item.og_image} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                  ) : (
+                    <div className="w-11 h-11" />
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(item.id)}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                ) : item.og_image ? (
-                  <img src={item.og_image} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-                ) : null}
-                <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
                 </div>
               </div>
             );
