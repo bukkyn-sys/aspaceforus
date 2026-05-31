@@ -37,54 +37,158 @@ function CropModal({
 }) {
   const FRAME = purpose === "avatar" ? { w: 260, h: 260 } : { w: 320, h: 160 };
   const OUTPUT = purpose === "avatar" ? { w: 800, h: 800 } : { w: 1600, h: 800 };
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+
   const [objectUrl] = useState(() => URL.createObjectURL(file));
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
+  const [baseScale, setBaseScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+
+  const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  // Refs for use inside native event handlers
+  const zoomRef = useRef(1);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const baseScaleRef = useRef(1);
+  const imgNaturalRef = useRef<{ w: number; h: number } | null>(null);
 
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
 
-  const scale = imgNatural ? Math.max(FRAME.w / imgNatural.w, FRAME.h / imgNatural.h) : 1;
-  const sw = imgNatural ? imgNatural.w * scale : FRAME.w;
-  const sh = imgNatural ? imgNatural.h * scale : FRAME.h;
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
-  function clamp(ox: number, oy: number) {
+  // Keep refs in sync with state every render
+  zoomRef.current = zoom;
+  offsetRef.current = offset;
+  baseScaleRef.current = baseScale;
+  imgNaturalRef.current = imgNatural;
+
+  // Fixed base dimensions at zoom=1; zoom applied via CSS transform
+  const baseW = imgNatural ? imgNatural.w * baseScale : FRAME.w;
+  const baseH = imgNatural ? imgNatural.h * baseScale : FRAME.h;
+
+  function clampOffset(ox: number, oy: number, z: number, bw: number, bh: number) {
     return {
-      x: Math.min(0, Math.max(ox, FRAME.w - sw)),
-      y: Math.min(0, Math.max(oy, FRAME.h - sh)),
+      x: Math.min(0, Math.max(ox, FRAME.w - bw * z)),
+      y: Math.min(0, Math.max(oy, FRAME.h - bh * z)),
     };
   }
 
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const img = e.currentTarget;
     const nat = { w: img.naturalWidth, h: img.naturalHeight };
-    setImgNatural(nat);
     const sc = Math.max(FRAME.w / nat.w, FRAME.h / nat.h);
-    setOffset(clamp((FRAME.w - nat.w * sc) / 2, (FRAME.h - nat.h * sc) / 2));
+    const bw = nat.w * sc;
+    const bh = nat.h * sc;
+    const init = clampOffset((FRAME.w - bw) / 2, (FRAME.h - bh) / 2, 1, bw, bh);
+    setImgNatural(nat);
+    setBaseScale(sc);
+    setOffset(init);
+    imgNaturalRef.current = nat;
+    baseScaleRef.current = sc;
+    offsetRef.current = init;
   }
 
-  function startDrag(x: number, y: number) {
-    dragRef.current = { startX: x, startY: y, ox: offset.x, oy: offset.y };
-  }
+  // Non-passive touch listeners so preventDefault stops page + modal scroll
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-  function moveDrag(x: number, y: number) {
+    function onTouchStart(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const { x, y } = offsetRef.current;
+        dragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: x, oy: y };
+        pinchRef.current = null;
+      } else if (e.touches.length === 2) {
+        dragRef.current = null;
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY,
+        );
+        pinchRef.current = { startDist: dist, startZoom: zoomRef.current };
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      e.preventDefault();
+      const nat = imgNaturalRef.current;
+      if (!nat) return;
+      const bs = baseScaleRef.current;
+      const bw = nat.w * bs;
+      const bh = nat.h * bs;
+
+      if (e.touches.length === 1 && dragRef.current) {
+        const d = dragRef.current;
+        const newOffset = clampOffset(
+          d.ox + e.touches[0].clientX - d.startX,
+          d.oy + e.touches[0].clientY - d.startY,
+          zoomRef.current, bw, bh,
+        );
+        setOffset(newOffset);
+        offsetRef.current = newOffset;
+      } else if (e.touches.length === 2 && pinchRef.current) {
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY,
+        );
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+          pinchRef.current.startZoom * (dist / pinchRef.current.startDist),
+        ));
+        const newOffset = clampOffset(offsetRef.current.x, offsetRef.current.y, newZoom, bw, bh);
+        setZoom(newZoom);
+        setOffset(newOffset);
+        zoomRef.current = newZoom;
+        offsetRef.current = newOffset;
+      }
+    }
+
+    function onTouchEnd() { dragRef.current = null; pinchRef.current = null; }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
+
+  // Mouse drag (desktop)
+  function onMouseDown(e: React.MouseEvent) {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
+  }
+  function onMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return;
     const d = dragRef.current;
-    setOffset(clamp(d.ox + x - d.startX, d.oy + y - d.startY));
+    setOffset(clampOffset(d.ox + e.clientX - d.startX, d.oy + e.clientY - d.startY, zoom, baseW, baseH));
   }
-
-  function endDrag() { dragRef.current = null; }
+  function onMouseUp() { dragRef.current = null; }
 
   function confirm() {
     const canvas = document.createElement("canvas");
     canvas.width = OUTPUT.w;
     canvas.height = OUTPUT.h;
     const ctx = canvas.getContext("2d")!;
-    if (imgRef.current) {
-      const sx = OUTPUT.w / FRAME.w;
-      const sy = OUTPUT.h / FRAME.h;
-      ctx.drawImage(imgRef.current, offset.x * sx, offset.y * sy, sw * sx, sh * sy);
+    if (imgRef.current && imgNatural) {
+      const totalScale = baseScale * zoom;
+      ctx.drawImage(
+        imgRef.current,
+        -offset.x / totalScale,
+        -offset.y / totalScale,
+        FRAME.w / totalScale,
+        FRAME.h / totalScale,
+        0, 0, OUTPUT.w, OUTPUT.h,
+      );
     }
     canvas.toBlob((b) => { if (b) onConfirm(b); }, "image/jpeg", 0.92);
   }
@@ -94,23 +198,22 @@ function CropModal({
       <div className="bg-background rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-6 space-y-5">
         <div>
           <p className="font-semibold text-foreground">position photo</p>
-          <p className="text-xs text-muted-foreground mt-0.5">drag to choose what shows</p>
+          <p className="text-xs text-muted-foreground mt-0.5">drag to reposition · pinch to zoom</p>
         </div>
         <div className="flex justify-center">
           <div
+            ref={containerRef}
             className={cn(
-              "relative overflow-hidden bg-secondary touch-none cursor-grab active:cursor-grabbing select-none",
+              "relative overflow-hidden bg-secondary cursor-grab active:cursor-grabbing select-none",
               purpose === "avatar" ? "rounded-full" : "rounded-2xl"
             )}
             style={{ width: FRAME.w, height: FRAME.h }}
-            onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
-            onMouseMove={(e) => { if (dragRef.current) moveDrag(e.clientX, e.clientY); }}
-            onMouseUp={endDrag}
-            onMouseLeave={endDrag}
-            onTouchStart={(e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
-            onTouchMove={(e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY)}
-            onTouchEnd={endDrag}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={imgRef}
               src={objectUrl}
@@ -118,7 +221,12 @@ function CropModal({
               draggable={false}
               onLoad={onImgLoad}
               className="absolute top-0 left-0 pointer-events-none"
-              style={{ width: sw, height: sh, transform: `translate(${offset.x}px, ${offset.y}px)` }}
+              style={{
+                width: baseW,
+                height: baseH,
+                transformOrigin: "0 0",
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+              }}
             />
           </div>
         </div>
