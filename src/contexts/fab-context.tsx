@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 type FabAction = (() => void) | null;
 
@@ -13,9 +13,9 @@ const FabContext = createContext<FabContextValue>({ action: null, setAction: () 
 
 export function FabProvider({ children }: { children: React.ReactNode }) {
   const [action, _set] = useState<FabAction>(null);
-  function setAction(fn: FabAction) {
+  const setAction = useCallback((fn: FabAction) => {
     _set(fn ? () => fn : null);
-  }
+  }, []);
   return <FabContext.Provider value={{ action, setAction }}>{children}</FabContext.Provider>;
 }
 

@@ -251,7 +251,7 @@ export default function VaultClient() {
   useEffect(() => {
     setAction(view === "folders" ? () => setShowNewFolder(true) : () => setShowAdd(true));
     return () => setAction(null);
-  }, [view, setAction]);
+  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { markSeen("vault"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
