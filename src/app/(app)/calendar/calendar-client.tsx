@@ -476,68 +476,82 @@ export default function CalendarClient() {
       {showAddEvent && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddEvent(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-            style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
-            <div className="flex items-center justify-between">
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl flex flex-col"
+            style={{ maxHeight: "90dvh" }}
+          >
+            {/* Sticky header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 flex-shrink-0">
               <p className="font-semibold text-foreground">add event</p>
               <button onClick={() => setShowAddEvent(false)} className="text-muted-foreground">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <Input
-              value={eventTitle}
-              onChange={(e) => setEventTitle(e.target.value)}
-              placeholder="what's happening?"
-              className="h-11 rounded-xl bg-white border-border/60"
-              autoFocus
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">start date</p>
-                <Input
-                  type="date"
-                  value={eventDate}
-                  onChange={(e) => setEventDate(e.target.value)}
-                  className="h-11 rounded-xl bg-white border-border/60"
-                />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
-                <Input
-                  type="date"
-                  value={eventEndDate}
-                  min={eventDate}
-                  onChange={(e) => setEventEndDate(e.target.value)}
-                  className="h-11 rounded-xl bg-white border-border/60"
-                />
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">pick an emoji</p>
-              <div className="flex flex-wrap gap-2">
-                {EVENT_EMOJIS.map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
-                    className={cn(
-                      "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all",
-                      eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
-                    )}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
+
+            {/* Scrollable content */}
+            <div className="overflow-y-auto px-6 space-y-4 flex-1">
               <Input
-                value={eventCustomEmoji}
-                onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
-                placeholder="or type your own emoji"
-                className="h-9 rounded-xl bg-white border-border/60 text-sm mt-2"
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                placeholder="what's happening?"
+                className="h-11 rounded-xl bg-white border-border/60"
+                autoFocus
               />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5">start date</p>
+                  <Input
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="h-11 rounded-xl bg-white border-border/60"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
+                  <Input
+                    type="date"
+                    value={eventEndDate}
+                    min={eventDate}
+                    onChange={(e) => setEventEndDate(e.target.value)}
+                    className="h-11 rounded-xl bg-white border-border/60"
+                  />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">pick an emoji</p>
+                <div className="flex flex-wrap gap-2">
+                  {EVENT_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
+                      className={cn(
+                        "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all",
+                        eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
+                      )}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  value={eventCustomEmoji}
+                  onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
+                  placeholder="or type your own emoji"
+                  className="h-9 rounded-xl bg-white border-border/60 text-sm mt-2"
+                />
+              </div>
             </div>
-            <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
-              add event
-            </Button>
+
+            {/* Pinned button */}
+            <div
+              className="px-6 pt-4 pb-6 flex-shrink-0"
+              style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+            >
+              <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
+                add event
+              </Button>
+            </div>
           </div>
         </div>
       )}
