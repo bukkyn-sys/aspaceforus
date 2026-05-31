@@ -394,7 +394,7 @@ export default function CalendarClient() {
 
           return (
             <div>
-              <p className="text-xs text-muted-foreground/50 font-medium uppercase tracking-wider mb-3">events this month</p>
+              <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
               <div className="space-y-2">
                 {items.map((item) => {
                   if (item.kind === "event") {
@@ -506,7 +506,7 @@ export default function CalendarClient() {
               />
               {/* Emoji */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">emoji</p>
+                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
                 <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
                   {EVENT_EMOJIS.map((e) => (
                     <button
@@ -524,11 +524,11 @@ export default function CalendarClient() {
               </div>
               {/* Dates */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">dates</p>
+                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative rounded-2xl overflow-hidden">
                     <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">starts</p>
+                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
                       <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
                         {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
                       </p>
@@ -537,7 +537,7 @@ export default function CalendarClient() {
                   </div>
                   <div className="relative rounded-2xl overflow-hidden">
                     <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
                       <p className={cn("text-sm font-medium", eventEndDate ? "text-foreground" : "text-muted-foreground/40")}>
                         {eventEndDate ? new Date(eventEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
                       </p>

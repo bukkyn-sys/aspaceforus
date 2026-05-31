@@ -107,7 +107,6 @@ export default function VaultClient() {
   // New folder form
   const [folderName, setFolderName] = useState("");
   const [folderEmoji, setFolderEmoji] = useState("📁");
-  const [folderKind, setFolderKind] = useState<VaultKind>("general");
 
   // Add item form
   const [title, setTitle] = useState("");
@@ -269,7 +268,7 @@ export default function VaultClient() {
       id: crypto.randomUUID(),
       name: folderName.trim(),
       emoji: folderEmoji,
-      kind: folderKind,
+      kind: "general" as VaultKind,
       is_default: false,
       sort_order: folders.length,
       created_by: me.id,
@@ -278,7 +277,7 @@ export default function VaultClient() {
     };
     setFolders((prev) => [...prev, optimistic]);
     setShowNewFolder(false);
-    setFolderName(""); setFolderEmoji("📁"); setFolderKind("general");
+    setFolderName(""); setFolderEmoji("📁");
     startTransition(() => {
       addVaultFolder({ coupleId, userId: me.id, name: optimistic.name, emoji: optimistic.emoji, kind: optimistic.kind });
     });
@@ -514,20 +513,20 @@ export default function VaultClient() {
             >
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">new folder</p>
-                <button onClick={() => setShowNewFolder(false)} className="text-muted-foreground">
+                <button onClick={() => setShowNewFolder(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div>
                 <p className="text-xs text-muted-foreground mb-2">emoji</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-6 gap-2">
                   {EMOJI_OPTIONS.map((e) => (
                     <button
                       key={e}
                       onClick={() => setFolderEmoji(e)}
                       className={cn(
-                        "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all",
+                        "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
                         folderEmoji === e
                           ? "bg-foreground/10 ring-2 ring-foreground/40"
                           : "bg-secondary hover:bg-secondary/70"
@@ -544,28 +543,6 @@ export default function VaultClient() {
                 className="h-11 rounded-xl bg-white border-border/60"
                 autoFocus
               />
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">type</p>
-                <div className="flex gap-2">
-                  {([
-                    { value: "date_idea" as VaultKind, label: "dates" },
-                    { value: "wishlist"  as VaultKind, label: "wishlist" },
-                    { value: "general"   as VaultKind, label: "general" },
-                  ]).map((k) => (
-                    <button
-                      key={k.value}
-                      onClick={() => setFolderKind(k.value)}
-                      className={cn(
-                        "flex-1 py-2 text-sm rounded-xl border transition-colors",
-                        folderKind === k.value
-                          ? "bg-foreground text-background border-foreground"
-                          : "bg-white text-muted-foreground border-border/60"
-                      )}
-                    >{k.label}</button>
-                  ))}
-                </div>
-              </div>
 
               <Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">
                 create folder
@@ -713,7 +690,7 @@ export default function VaultClient() {
           >
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">add to {activeFolder?.name}</p>
-              <button onClick={closeAdd} className="text-muted-foreground"><X className="w-5 h-5" /></button>
+              <button onClick={closeAdd} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
             </div>
             <Input
               value={title}
@@ -762,7 +739,7 @@ export default function VaultClient() {
           >
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">edit</p>
-              <button onClick={() => setEditingItem(null)} className="text-muted-foreground"><X className="w-5 h-5" /></button>
+              <button onClick={() => setEditingItem(null)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
             </div>
             <Input
               value={editTitle}

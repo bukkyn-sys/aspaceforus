@@ -277,7 +277,7 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
 
   return (
     <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
-      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">notifications</p>
+      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">notifications</p>
       {status === "granted" && (
         <div className="flex items-center gap-2 text-sm text-foreground">
           <Bell className="w-4 h-4 text-sage" />
@@ -445,7 +445,7 @@ export default function ProfileClient({
 
       {/* Display name */}
       <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">display name</p>
+        <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">display name</p>
         {editingName ? (
           <div className="flex gap-2">
             <Input
@@ -479,7 +479,7 @@ export default function ProfileClient({
 
       {/* Accent color */}
       <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-3">your colour</p>
+        <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">your colour</p>
         <div className="flex gap-3">
           {ACCENT_COLORS.map((color) => {
             const isMine = profile.accentColor === color.name;
@@ -514,7 +514,7 @@ export default function ProfileClient({
 
       {/* Couple */}
       <div className="bg-white border border-border/50 rounded-3xl overflow-hidden shadow-card mb-4">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider p-4 pb-3">couple</p>
+        <p className="text-xs text-muted-foreground font-medium tracking-wide p-4 pb-3">couple</p>
 
         {/* Banner upload */}
         <button

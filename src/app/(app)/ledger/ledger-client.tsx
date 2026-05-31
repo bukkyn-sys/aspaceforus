@@ -177,7 +177,7 @@ export default function LedgerClient() {
           "rounded-3xl p-5 mb-5",
           balanced ? "bg-secondary" : net > 0 ? "bg-sage-light" : "bg-terracotta-light"
         )}>
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mb-1">balance</p>
+          <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
           <p className={cn("font-heading text-4xl mb-1",
             balanced ? "text-muted-foreground" : net > 0 ? "text-sage" : "text-terracotta"
           )}>
@@ -311,7 +311,7 @@ export default function LedgerClient() {
             style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">log expense</p>
-              <button onClick={() => setShowAdd(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+              <button onClick={() => setShowAdd(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
             </div>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
             <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
@@ -351,7 +351,7 @@ export default function LedgerClient() {
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">{selectedPot.title}</p>
-                <button onClick={() => setSelectedPot(null)}><X className="w-5 h-5 text-muted-foreground" /></button>
+                <button onClick={() => setSelectedPot(null)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
               </div>
               <div>
                 <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
@@ -395,7 +395,7 @@ export default function LedgerClient() {
             style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">new savings pot</p>
-              <button onClick={() => setShowPot(false)}><X className="w-5 h-5 text-muted-foreground" /></button>
+              <button onClick={() => setShowPot(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
             </div>
             <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
             <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder="goal amount (£)" type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
