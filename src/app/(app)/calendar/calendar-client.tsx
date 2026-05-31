@@ -301,7 +301,7 @@ export default function CalendarClient() {
         {/* Status shapes */}
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-foreground/25" />
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
             <span className="text-[11px] text-muted-foreground">free</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -496,20 +496,12 @@ export default function CalendarClient() {
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-2 mt-2">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl border flex items-center justify-center text-xl flex-shrink-0 transition-colors",
-                  eventCustomEmoji ? "bg-foreground border-foreground" : "bg-secondary border-transparent"
-                )}>
-                  {eventCustomEmoji || <span className="text-[10px] text-muted-foreground/30">?</span>}
-                </div>
-                <Input
-                  value={eventCustomEmoji}
-                  onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
-                  placeholder="or type your own emoji"
-                  className="h-10 rounded-xl bg-white border-border/60 flex-1"
-                />
-              </div>
+              <Input
+                value={eventCustomEmoji}
+                onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
+                placeholder="or type your own emoji"
+                className="h-9 rounded-xl bg-white border-border/60 text-sm mt-2"
+              />
             </div>
             <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
               add event

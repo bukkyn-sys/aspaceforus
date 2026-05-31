@@ -110,7 +110,10 @@ export default function DashboardClient() {
   const [cdEmoji, setCdEmoji] = useState("✈️");
   const [cdCustomEmoji, setCdCustomEmoji] = useState("");
 
-  useRegisterFab(() => setShowCountdownSheet(true));
+  useRegisterFab(() => {
+    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
+    setShowCountdownSheet(true);
+  });
 
   // Note debounce ref
   useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -585,7 +588,11 @@ export default function DashboardClient() {
               {COUNTDOWN_TYPES.map((t) => (
                 <button
                   key={t.label}
-                  onClick={() => { setCdEmoji(t.emoji); setCdCustomEmoji(""); if (!cdTitle) setCdTitle(t.label); }}
+                  onClick={() => {
+                    setCdEmoji(t.emoji); setCdCustomEmoji("");
+                    const isDefault = !cdTitle || COUNTDOWN_TYPES.some((ct) => ct.label === cdTitle);
+                    if (isDefault) setCdTitle(t.label);
+                  }}
                   className={cn(
                     "flex flex-col items-center gap-1 py-2.5 rounded-2xl border text-xs font-medium transition-all",
                     cdEmoji === t.emoji && !cdCustomEmoji
@@ -598,21 +605,13 @@ export default function DashboardClient() {
                 </button>
               ))}
             </div>
-            {/* Custom emoji */}
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-11 h-11 rounded-xl border flex items-center justify-center text-xl flex-shrink-0 transition-colors",
-                cdCustomEmoji ? "bg-foreground border-foreground" : "bg-white border-border/60"
-              )}>
-                {cdCustomEmoji || <span className="text-[10px] text-muted-foreground/30">?</span>}
-              </div>
-              <Input
-                value={cdCustomEmoji}
-                onChange={(e) => { const v = e.target.value; setCdCustomEmoji(v); if (v.trim()) setCdEmoji(v.trim()); }}
-                placeholder="or type your own emoji"
-                className="h-11 rounded-xl bg-white border-border/60 flex-1"
-              />
-            </div>
+            {/* Custom emoji — compact */}
+            <Input
+              value={cdCustomEmoji}
+              onChange={(e) => { const v = e.target.value; setCdCustomEmoji(v); if (v.trim()) setCdEmoji(v.trim()); }}
+              placeholder="or type your own emoji"
+              className="h-9 rounded-xl bg-white border-border/60 text-sm"
+            />
             <Input
               value={cdTitle}
               onChange={(e) => setCdTitle(e.target.value)}
