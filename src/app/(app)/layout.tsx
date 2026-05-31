@@ -26,7 +26,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() reads the JWT from the cookie locally — no network call.
+  // Middleware has already verified and refreshed the token, so this is safe.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
 
   if (!user) redirect("/auth/login");
 
