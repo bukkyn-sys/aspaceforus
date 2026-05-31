@@ -6,6 +6,7 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 import { setMood, updateNote, setStartedAt, addCountdown, deleteCountdown } from "./actions";
 import Link from "next/link";
 import { Plane, X, Heart, User } from "lucide-react";
@@ -118,9 +119,7 @@ export default function DashboardClient() {
   // Note debounce ref
   useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    document.body.style.overflow = (showCountdownSheet || showDatePicker) ? "hidden" : "";
-  }, [showCountdownSheet, showDatePicker]);
+  useScrollLock(showCountdownSheet || showDatePicker);
 
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

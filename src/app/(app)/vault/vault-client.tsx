@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 import {
   addVaultFolder,
   deleteVaultFolder,
@@ -130,6 +131,8 @@ export default function VaultClient() {
 
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
+
+  useScrollLock(showNewFolder || showAdd || editingItem !== null);
 
   // FAB wires to the correct action per view
   useEffect(() => {
@@ -389,18 +392,26 @@ export default function VaultClient() {
 
   // ── Shared sub-components ────────────────────────────────────────────────────
 
-  const PriceChips = ({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) => (
-    <div className="flex gap-2">
-      {PRICE_RANGES.map((p) => (
-        <button key={p} type="button" onClick={() => onChange(value === p ? null : p)}
-          className={cn(
-            "px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors",
-            value === p
-              ? "bg-foreground text-background border-foreground"
-              : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
-          )}
-        >{p}</button>
-      ))}
+  const PriceInput = ({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) => (
+    <div className="space-y-2">
+      <Input
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        placeholder="e.g. £45 or free"
+        className="h-11 rounded-xl bg-white border-border/60"
+      />
+      <div className="flex gap-2">
+        {PRICE_RANGES.map((p) => (
+          <button key={p} type="button" onClick={() => onChange(value === p ? null : p)}
+            className={cn(
+              "px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors",
+              value === p
+                ? "bg-foreground text-background border-foreground"
+                : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
+            )}
+          >{p}</button>
+        ))}
+      </div>
     </div>
   );
 
@@ -495,7 +506,7 @@ export default function VaultClient() {
 
         {/* New folder sheet */}
         {showNewFolder && (
-          <div className="fixed inset-0 z-50">
+          <div className="fixed inset-0 z-[60]">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowNewFolder(false)} />
             <div
               className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-5"
@@ -694,7 +705,7 @@ export default function VaultClient() {
 
       {/* Add item sheet */}
       {showAdd && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" onClick={closeAdd} />
           <div
             className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
@@ -730,7 +741,7 @@ export default function VaultClient() {
             />
             <div>
               <p className="text-xs text-muted-foreground mb-2">budget?</p>
-              <PriceChips value={priceRange} onChange={setPriceRange} />
+              <PriceInput value={priceRange} onChange={setPriceRange} />
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">for?</p>
@@ -743,7 +754,7 @@ export default function VaultClient() {
 
       {/* Edit item sheet */}
       {editingItem && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditingItem(null)} />
           <div
             className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
@@ -779,7 +790,7 @@ export default function VaultClient() {
             />
             <div>
               <p className="text-xs text-muted-foreground mb-2">budget?</p>
-              <PriceChips value={editPriceRange} onChange={setEditPriceRange} />
+              <PriceInput value={editPriceRange} onChange={setEditPriceRange} />
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">for?</p>

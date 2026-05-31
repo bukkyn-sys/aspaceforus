@@ -8,6 +8,7 @@ import { addLedgerEntry, settleAll, addSavingsPot, contributeToPot, deleteSaving
 import { Plus, X, Check, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,8 @@ export default function LedgerClient() {
   const [myContrib, setMyContrib] = useState("");
 
   useRegisterFab(() => tab === "entries" ? setShowAdd(true) : setShowPot(true));
+
+  useScrollLock(showAdd || showPot || selectedPot !== null);
 
   useEffect(() => { markSeen("ledger"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -302,7 +305,7 @@ export default function LedgerClient() {
 
       {/* Add entry sheet */}
       {showAdd && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowAdd(false)} />
           <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
             style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
@@ -342,7 +345,7 @@ export default function LedgerClient() {
           : parseFloat(selectedPot.his_amount ?? "0");
         const pct = Math.min(100, ((myAmt + theirAmt) / goal) * 100);
         return (
-          <div className="fixed inset-0 z-50">
+          <div className="fixed inset-0 z-[60]">
             <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedPot(null)} />
             <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
@@ -386,7 +389,7 @@ export default function LedgerClient() {
 
       {/* Add pot sheet */}
       {showPot && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowPot(false)} />
           <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
             style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>

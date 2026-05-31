@@ -8,6 +8,7 @@ import { setAvailability, addEvent, deleteEvent } from "./actions";
 import { ChevronLeft, ChevronRight, Plus, X, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -43,9 +44,7 @@ export default function CalendarClient() {
 
   useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    document.body.style.overflow = showAddEvent ? "hidden" : "";
-  }, [showAddEvent]);
+  useScrollLock(showAddEvent);
 
   useEffect(() => {
     const key = `cal:${coupleId}:${year}:${month}`;
