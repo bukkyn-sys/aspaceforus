@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { setAvailability, addEvent, deleteEvent } from "./actions";
-import { ChevronLeft, ChevronRight, X, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, X, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
@@ -218,13 +218,19 @@ export default function CalendarClient() {
                   {day}
                 </span>
                 <div className="flex gap-0.5">
-                  <div className={cn("w-1.5 h-1.5 rounded-full",
-                    mine === "free" ? "bg-sage" : mine === "busy" ? "bg-terracotta" : "bg-border/60"
-                  )} />
+                  <div
+                    className={cn("w-1.5 h-1.5 rounded-full",
+                      mine === "busy" ? "bg-terracotta" : mine === null ? "bg-border/60" : ""
+                    )}
+                    style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
+                  />
                   {partner && (
-                    <div className={cn("w-1.5 h-1.5 rounded-full",
-                      theirs === "free" ? "bg-sage/60" : theirs === "busy" ? "bg-terracotta/60" : "bg-border/40"
-                    )} />
+                    <div
+                      className={cn("w-1.5 h-1.5 rounded-full",
+                        theirs === "busy" ? "bg-terracotta/60" : theirs === null ? "bg-border/40" : ""
+                      )}
+                      style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                    />
                   )}
                 </div>
                 {dayEvents.length > 0 && (
@@ -239,7 +245,7 @@ export default function CalendarClient() {
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-5 justify-center">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-sage" />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
           <span className="text-[11px] text-muted-foreground">you — free</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -249,12 +255,12 @@ export default function CalendarClient() {
         {partner && (
           <>
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-sage/60" />
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
               <span className="text-[11px] text-muted-foreground">{partnerName} — free</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
-              <span className="text-[11px] text-muted-foreground">overlap</span>
+              <span className="text-[11px] text-muted-foreground">both free</span>
             </div>
           </>
         )}
@@ -270,7 +276,9 @@ export default function CalendarClient() {
           <p className="text-sm text-muted-foreground">no events this month</p>
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
             tap the
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground text-background text-[10px] font-bold leading-none">+</span>
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
+              <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
+            </span>
             below to add a personal event
           </div>
           <div className="text-muted-foreground/30 text-lg mt-1">↓</div>
