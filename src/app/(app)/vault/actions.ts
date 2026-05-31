@@ -3,12 +3,49 @@
 import { createClient } from "@/lib/supabase/server";
 import { notifyPartner } from "@/lib/push";
 
+type VaultKind = "date_idea" | "wishlist" | "general";
+
+export async function addVaultFolder(data: {
+  coupleId: string;
+  userId: string;
+  name: string;
+  emoji: string;
+  kind: VaultKind;
+  isDefault?: boolean;
+}) {
+  const supabase = await createClient();
+  const { data: folder } = await supabase
+    .from("vault_folders")
+    .insert({
+      couple_id: data.coupleId,
+      created_by: data.userId,
+      name: data.name,
+      emoji: data.emoji,
+      kind: data.kind,
+      is_default: data.isDefault ?? false,
+    })
+    .select("id")
+    .single();
+  return folder?.id as string | undefined;
+}
+
+export async function deleteVaultFolder(id: string, coupleId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("vault_folders")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId)
+    .eq("is_default", false);
+}
+
 export async function addVaultItem(data: {
   coupleId: string;
   userId: string;
-  type: "date_idea" | "wishlist";
+  folderId: string;
+  folderKind: VaultKind;
   title: string;
-  owner: "shared" | "his" | "hers";
+  owner: string;
   url?: string;
   notes?: string;
   priceRange?: string;
@@ -16,20 +53,27 @@ export async function addVaultItem(data: {
   ogTitle?: string;
 }) {
   const supabase = await createClient();
-  await supabase.rpc("add_vault_item", {
-    p_couple_id: data.coupleId,
-    p_user_id: data.userId,
-    p_type: data.type,
-    p_owner: data.owner,
-    p_title: data.title,
-    p_url: data.url || null,
-    p_notes: data.notes || null,
-    p_price_range: data.priceRange || null,
-    p_og_image: data.ogImage || null,
-    p_og_title: data.ogTitle || null,
+  await supabase.from("vault_items").insert({
+    couple_id: data.coupleId,
+    created_by: data.userId,
+    folder_id: data.folderId,
+    type: data.folderKind === "date_idea" ? "date_idea" : data.folderKind === "wishlist" ? "wishlist" : "general",
+    owner: data.owner,
+    title: data.title,
+    url: data.url || null,
+    notes: data.notes || null,
+    price_range: data.priceRange || null,
+    og_image: data.ogImage || null,
+    og_title: data.ogTitle || null,
+    stage: "ideas",
   });
-  const label = data.type === "wishlist" ? "wishlist" : "date ideas";
-  await notifyPartner(data.coupleId, data.userId, "us.", `your partner added "${data.title}" to ${label}`, "/vault");
+  await notifyPartner(
+    data.coupleId,
+    data.userId,
+    "us.",
+    `your partner added "${data.title}" to the vault`,
+    "/vault"
+  );
 }
 
 export async function updateVaultStage(
@@ -38,7 +82,11 @@ export async function updateVaultStage(
   stage: "ideas" | "planned" | "completed"
 ) {
   const supabase = await createClient();
-  await supabase.rpc("update_vault_stage", { p_id: id, p_couple_id: coupleId, p_stage: stage });
+  await supabase
+    .from("vault_items")
+    .update({ stage, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("couple_id", coupleId);
 }
 
 export async function updateVaultItem(data: {
@@ -47,28 +95,35 @@ export async function updateVaultItem(data: {
   title: string;
   url?: string;
   notes?: string;
-  owner?: "shared" | "his" | "hers";
+  owner?: string;
   priceRange?: string | null;
   ogImage?: string | null;
   ogTitle?: string | null;
 }) {
   const supabase = await createClient();
-  await supabase.rpc("update_vault_item", {
-    p_id: data.id,
-    p_couple_id: data.coupleId,
-    p_title: data.title,
-    p_url: data.url || null,
-    p_notes: data.notes || null,
-    p_owner: data.owner || null,
-    p_price_range: data.priceRange ?? null,
-    p_og_image: data.ogImage ?? null,
-    p_og_title: data.ogTitle ?? null,
-  });
+  await supabase
+    .from("vault_items")
+    .update({
+      title: data.title,
+      url: data.url || null,
+      notes: data.notes || null,
+      owner: data.owner || null,
+      price_range: data.priceRange ?? null,
+      og_image: data.ogImage ?? null,
+      og_title: data.ogTitle ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.id)
+    .eq("couple_id", data.coupleId);
 }
 
 export async function deleteVaultItem(id: string, coupleId: string) {
   const supabase = await createClient();
-  await supabase.rpc("delete_vault_item", { p_id: id, p_couple_id: coupleId });
+  await supabase
+    .from("vault_items")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId);
 }
 
 export async function fetchOgPreview(url: string): Promise<{ image: string | null; title: string | null }> {
@@ -81,8 +136,9 @@ export async function fetchOgPreview(url: string): Promise<{ image: string | nul
     if (!res.ok) return { image: null, title: null };
     const html = await res.text();
     const getOg = (prop: string) => {
-      const m = html.match(new RegExp(`<meta[^>]*property=["']${prop}["'][^>]*content=["']([^"']+)["']`, "i"))
-        ?? html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']${prop}["']`, "i"));
+      const m =
+        html.match(new RegExp(`<meta[^>]*property=["']${prop}["'][^>]*content=["']([^"']+)["']`, "i")) ??
+        html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']${prop}["']`, "i"));
       return m?.[1]?.trim() ?? null;
     };
     return { image: getOg("og:image"), title: getOg("og:title") };

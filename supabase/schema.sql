@@ -268,3 +268,69 @@ begin
   update profiles set display_name = p_name where id = p_user_id;
 end;
 $$;
+
+-- ── Vault Folders ─────────────────────────────────────────────────────────────
+-- Run this block to upgrade the vault to the folder system.
+
+create table if not exists vault_folders (
+  id          uuid primary key default gen_random_uuid(),
+  couple_id   uuid not null references couples(id) on delete cascade,
+  created_by  uuid not null references profiles(id),
+  name        text not null,
+  emoji       text not null default '📁',
+  kind        text not null default 'general' check (kind in ('date_idea', 'wishlist', 'general')),
+  is_default  boolean not null default false,
+  sort_order  integer not null default 0,
+  created_at  timestamptz default now()
+);
+
+alter table vault_folders enable row level security;
+
+create policy "vault_folders_all" on vault_folders
+  for all using (is_couple_member(couple_id));
+
+-- Add missing columns to vault_items
+alter table vault_items add column if not exists folder_id    uuid references vault_folders(id) on delete cascade;
+alter table vault_items add column if not exists notes        text;
+alter table vault_items add column if not exists price_range  text;
+
+-- Widen type to include 'general' (for custom folders)
+alter table vault_items drop constraint if exists vault_items_type_check;
+alter table vault_items add constraint vault_items_type_check
+  check (type in ('date_idea', 'wishlist', 'general'));
+
+-- Drop old 'his'/'hers' owner constraint — owner now stores 'shared' or a profile UUID
+alter table vault_items drop constraint if exists vault_items_owner_check;
+
+-- ── Migration: seed default folders + link existing items ─────────────────────
+-- Run once to migrate existing data. Safe to re-run (on conflict do nothing).
+
+do $$
+declare
+  c record;
+  date_folder_id uuid;
+  wish_folder_id uuid;
+begin
+  for c in
+    select distinct couple_id, min(created_by) as created_by
+    from vault_items
+    group by couple_id
+  loop
+    if not exists (select 1 from vault_folders where couple_id = c.couple_id) then
+      insert into vault_folders (couple_id, created_by, name, emoji, kind, is_default, sort_order)
+      values
+        (c.couple_id, c.created_by, 'Date Ideas', '🌹', 'date_idea', true, 0),
+        (c.couple_id, c.created_by, 'Wishlist',   '🎁', 'wishlist',  true, 1);
+    end if;
+
+    select id into date_folder_id from vault_folders
+      where couple_id = c.couple_id and kind = 'date_idea' limit 1;
+    select id into wish_folder_id from vault_folders
+      where couple_id = c.couple_id and kind = 'wishlist'  limit 1;
+
+    update vault_items set folder_id = date_folder_id
+      where couple_id = c.couple_id and type = 'date_idea' and folder_id is null;
+    update vault_items set folder_id = wish_folder_id
+      where couple_id = c.couple_id and type = 'wishlist'  and folder_id is null;
+  end loop;
+end $$;
