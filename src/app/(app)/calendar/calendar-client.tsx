@@ -15,7 +15,7 @@ import { getAccent } from "@/lib/accent-colors";
 
 type Status = "free" | "busy" | null;
 interface Row { user_id: string; date: string; status: Status; }
-interface CalEvent { id: string; title: string; start_at: string; emoji: string; created_by: string; }
+interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; }
 interface Countdown { id: string; title: string; target_date: string; emoji: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
@@ -33,6 +33,7 @@ export default function CalendarClient() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [eventEndDate, setEventEndDate] = useState("");
   const [eventEmoji, setEventEmoji] = useState("📅");
   const [, startTransition] = useTransition();
 
@@ -53,8 +54,10 @@ export default function CalendarClient() {
       setLoading(true);
     }
     const supabase = createClient();
-    const start = new Date(year, month, 1).toISOString().split("T")[0];
-    const end = new Date(year, month + 1, 0).toISOString().split("T")[0];
+    // Use local date parts — .toISOString() shifts to UTC which causes off-by-one in non-UTC timezones
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const start = `${year}-${pad(month + 1)}-01`;
+    const end = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`;
     Promise.all([
       supabase
         .from("availability")
@@ -64,7 +67,7 @@ export default function CalendarClient() {
         .lte("date", end),
       supabase
         .from("events")
-        .select("id, title, start_at, emoji, created_by")
+        .select("id, title, start_at, end_at, emoji, created_by")
         .eq("couple_id", coupleId)
         .gte("start_at", start + "T00:00:00")
         .lte("start_at", end + "T23:59:59")
@@ -110,33 +113,42 @@ export default function CalendarClient() {
     const next: Status = cur === null ? "free" : cur === "free" ? "busy" : null;
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
-      return next ? [...filtered, { user_id: me.id, date: dateStr, status: next }] : filtered;
+      const newRows = next ? [...filtered, { user_id: me.id, date: dateStr, status: next }] : filtered;
+      // Write through to cache so navigation away and back restores current state
+      const key = `cal:${coupleId}:${year}:${month}`;
+      const existing = getCache<CalCache>(key);
+      if (existing) setCache(key, { ...existing, rows: newRows });
+      return newRows;
     });
     markActivity("calendar");
     startTransition(() => { setAvailability(coupleId, me.id, dateStr, next); });
   }
 
   useRegisterFab(() => {
-    const today = new Date().toISOString().split("T")[0];
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     setEventDate(today);
+    setEventEndDate("");
     setShowAddEvent(true);
   });
 
   function handleAddEvent() {
     if (!eventTitle.trim() || !eventDate) return;
     const startAt = eventDate + "T12:00:00";
+    const endAt = eventEndDate ? eventEndDate + "T12:00:00" : null;
     const optimistic: CalEvent = {
       id: crypto.randomUUID(),
       title: eventTitle.trim(),
       start_at: startAt,
+      end_at: endAt,
       emoji: eventEmoji,
       created_by: me.id,
     };
     setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
-    setEventTitle(""); setEventEmoji("📅"); setShowAddEvent(false);
+    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setShowAddEvent(false);
     markActivity("calendar");
     startTransition(() => {
-      addEvent({ coupleId, userId: me.id, title: optimistic.title, startAt, emoji: eventEmoji });
+      addEvent({ coupleId, userId: me.id, title: optimistic.title, startAt, endAt, emoji: eventEmoji });
     });
   }
 
@@ -148,7 +160,8 @@ export default function CalendarClient() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
-  const todayStr = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const cells: (number | null)[] = [
     ...Array(startOffset).fill(null),
@@ -259,12 +272,9 @@ export default function CalendarClient() {
                     )
                   )}
                 </div>
-                {/* Event / countdown dots */}
+                {/* Event / countdown indicator — single neutral dot */}
                 {(dayEvents.length > 0 || dayCds.length > 0) && (
-                  <div className="flex gap-0.5 mt-0.5">
-                    {dayEvents.length > 0 && <div className="w-1 h-1 rounded-full bg-foreground/40" />}
-                    {dayCds.length > 0 && <div className="w-1 h-1 rounded-full bg-amber-400/70" />}
-                  </div>
+                  <div className="w-1 h-1 rounded-full bg-foreground/30 mt-0.5" />
                 )}
               </button>
             );
@@ -273,43 +283,39 @@ export default function CalendarClient() {
       )}
 
       {/* Legend */}
-      <div className="mt-5 space-y-2">
-        {/* Who's who */}
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex items-center gap-1.5">
+      <div className="mt-4 bg-secondary/50 rounded-2xl px-4 py-3 space-y-2.5">
+        {/* Two-dot system explanation */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 items-center flex-shrink-0">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-            <span className="text-[11px] text-muted-foreground">you — free</span>
+            {partner
+              ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
+              : <div className="w-2 h-2 rounded-full bg-border/40" />
+            }
           </div>
-          {partner && (
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-              <span className="text-[11px] text-muted-foreground">{partnerName} — free</span>
-            </div>
-          )}
+          <span className="text-[11px] text-muted-foreground">
+            left dot = you · right dot = {partner ? partnerName : "partner"}
+          </span>
+        </div>
+        {/* Status shapes */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-foreground/25" />
+            <span className="text-[11px] text-muted-foreground">free</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 rounded-full bg-terracotta" />
+            <span className="text-[11px] text-muted-foreground">busy</span>
+          </div>
           {partner && (
             <div className="flex items-center gap-1.5">
               <div className="w-2.5 h-2.5 rounded bg-sage-light border border-sage/30" />
               <span className="text-[11px] text-muted-foreground">both free</span>
             </div>
           )}
-        </div>
-        {/* Shape meaning */}
-        <div className="flex items-center justify-center gap-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-foreground/20" />
-            <span className="text-[11px] text-muted-foreground">free day</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-0.5 rounded-full bg-terracotta" />
-            <span className="text-[11px] text-muted-foreground">busy day</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-foreground/40" />
-            <span className="text-[11px] text-muted-foreground">event</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400/70" />
-            <span className="text-[11px] text-muted-foreground">countdown</span>
+            <div className="w-2 h-2 rounded-full bg-foreground/30" />
+            <span className="text-[11px] text-muted-foreground">event / countdown</span>
           </div>
         </div>
       </div>
@@ -386,6 +392,10 @@ export default function CalendarClient() {
                         <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
                         <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
                           {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                          {evt.end_at && (() => {
+                            const endD = new Date(evt.end_at!);
+                            return ` – ${endD.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+                          })()}
                         </p>
                       </div>
                       {isMe && (
@@ -447,12 +457,27 @@ export default function CalendarClient() {
               className="h-11 rounded-xl bg-white border-border/60"
               autoFocus
             />
-            <Input
-              type="date"
-              value={eventDate}
-              onChange={(e) => setEventDate(e.target.value)}
-              className="h-11 rounded-xl bg-white border-border/60"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">start date</p>
+                <Input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="h-11 rounded-xl bg-white border-border/60"
+                />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
+                <Input
+                  type="date"
+                  value={eventEndDate}
+                  min={eventDate}
+                  onChange={(e) => setEventEndDate(e.target.value)}
+                  className="h-11 rounded-xl bg-white border-border/60"
+                />
+              </div>
+            </div>
             <div>
               <p className="text-xs text-muted-foreground mb-2">pick an emoji</p>
               <div className="flex flex-wrap gap-2">

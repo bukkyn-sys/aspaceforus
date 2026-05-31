@@ -22,15 +22,17 @@ export async function addEvent(data: {
   userId: string;
   title: string;
   startAt: string;
+  endAt?: string | null;
   emoji?: string;
 }) {
   const supabase = await createClient();
-  await supabase.rpc("add_event", {
-    p_couple_id: data.coupleId,
-    p_user_id: data.userId,
-    p_title: data.title,
-    p_start_at: data.startAt,
-    p_emoji: data.emoji || "📅",
+  await supabase.from("events").insert({
+    couple_id: data.coupleId,
+    created_by: data.userId,
+    title: data.title,
+    start_at: data.startAt,
+    end_at: data.endAt ?? null,
+    emoji: data.emoji ?? "📅",
   });
 }
 
