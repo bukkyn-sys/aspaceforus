@@ -7,13 +7,11 @@ export async function saveProfile(data: {
   userId: string;
   name: string;
   accentColor: string;
-  role: "him" | "her";
   avatarUrl: string | null;
 }) {
   const supabase = await createClient();
   await supabase.rpc("update_my_display_name", { p_user_id: data.userId, p_name: data.name.trim() });
   await supabase.rpc("update_my_accent_color", { p_user_id: data.userId, p_color: data.accentColor });
-  await supabase.rpc("update_my_role", { p_user_id: data.userId, p_role: data.role });
   if (data.avatarUrl) {
     await supabase.rpc("update_my_avatar", { p_user_id: data.userId, p_url: data.avatarUrl });
   }

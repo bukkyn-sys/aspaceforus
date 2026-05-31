@@ -30,42 +30,139 @@ function CropModal({
 }) {
   const FRAME = { w: 260, h: 260 };
   const OUTPUT = { w: 800, h: 800 };
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 4;
+
   const [objectUrl] = useState(() => URL.createObjectURL(file));
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+
+  const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null);
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  // Refs so native event handlers always see current values without re-registering
+  const zoomRef = useRef(1);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const swRef = useRef(FRAME.w);
+  const shRef = useRef(FRAME.h);
 
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
 
-  const scale = imgNatural ? Math.max(FRAME.w / imgNatural.w, FRAME.h / imgNatural.h) : 1;
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const baseScale = imgNatural ? Math.max(FRAME.w / imgNatural.w, FRAME.h / imgNatural.h) : 1;
+  const scale = baseScale * zoom;
   const sw = imgNatural ? imgNatural.w * scale : FRAME.w;
   const sh = imgNatural ? imgNatural.h * scale : FRAME.h;
 
-  function clamp(ox: number, oy: number) {
+  // Keep refs in sync on every render
+  zoomRef.current = zoom;
+  offsetRef.current = offset;
+  swRef.current = sw;
+  shRef.current = sh;
+
+  function clamp(ox: number, oy: number, w: number, h: number) {
     return {
-      x: Math.min(0, Math.max(ox, FRAME.w - sw)),
-      y: Math.min(0, Math.max(oy, FRAME.h - sh)),
+      x: Math.min(0, Math.max(ox, FRAME.w - w)),
+      y: Math.min(0, Math.max(oy, FRAME.h - h)),
     };
   }
+
+  // Re-clamp offset whenever zoom changes so image never leaves frame
+  useEffect(() => {
+    if (!imgNatural) return;
+    setOffset((prev) => clamp(prev.x, prev.y, swRef.current, shRef.current));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
 
   function onImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const img = e.currentTarget;
     const nat = { w: img.naturalWidth, h: img.naturalHeight };
     setImgNatural(nat);
     const sc = Math.max(FRAME.w / nat.w, FRAME.h / nat.h);
-    setOffset(clamp((FRAME.w - nat.w * sc) / 2, (FRAME.h - nat.h * sc) / 2));
+    const initW = nat.w * sc;
+    const initH = nat.h * sc;
+    setOffset(clamp((FRAME.w - initW) / 2, (FRAME.h - initH) / 2, initW, initH));
   }
 
-  function startDrag(x: number, y: number) {
-    dragRef.current = { startX: x, startY: y, ox: offset.x, oy: offset.y };
+  // Non-passive touch + wheel listeners so we can call preventDefault
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    function onTouchStart(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length === 1) {
+        const { x, y } = offsetRef.current;
+        dragRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, ox: x, oy: y };
+        pinchRef.current = null;
+      } else if (e.touches.length === 2) {
+        dragRef.current = null;
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY,
+        );
+        pinchRef.current = { startDist: dist, startZoom: zoomRef.current };
+      }
+    }
+
+    function onTouchMove(e: TouchEvent) {
+      e.preventDefault();
+      if (e.touches.length === 1 && dragRef.current) {
+        const d = dragRef.current;
+        setOffset(clamp(
+          d.ox + e.touches[0].clientX - d.startX,
+          d.oy + e.touches[0].clientY - d.startY,
+          swRef.current, shRef.current,
+        ));
+      } else if (e.touches.length === 2 && pinchRef.current) {
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY,
+        );
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
+          pinchRef.current.startZoom * (dist / pinchRef.current.startDist),
+        ));
+        setZoom(newZoom);
+      }
+    }
+
+    function onTouchEnd() { dragRef.current = null; pinchRef.current = null; }
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - e.deltaY * 0.005)));
+    }
+
+    el.addEventListener("touchstart", onTouchStart, { passive: false });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []); // empty — all live values accessed via refs
+
+  // Mouse drag (desktop)
+  function onMouseDown(e: React.MouseEvent) {
+    dragRef.current = { startX: e.clientX, startY: e.clientY, ox: offset.x, oy: offset.y };
   }
-  function moveDrag(x: number, y: number) {
+  function onMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return;
     const d = dragRef.current;
-    setOffset(clamp(d.ox + x - d.startX, d.oy + y - d.startY));
+    setOffset(clamp(d.ox + e.clientX - d.startX, d.oy + e.clientY - d.startY, sw, sh));
   }
-  function endDrag() { dragRef.current = null; }
+  function onMouseUp() { dragRef.current = null; }
 
   function confirm() {
     const canvas = document.createElement("canvas");
@@ -85,19 +182,17 @@ function CropModal({
       <div className="bg-background rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-6 space-y-5">
         <div>
           <p className="font-semibold text-foreground">position photo</p>
-          <p className="text-xs text-muted-foreground mt-0.5">drag to choose what shows in the circle</p>
+          <p className="text-xs text-muted-foreground mt-0.5">drag to reposition · pinch or scroll to zoom</p>
         </div>
         <div className="flex justify-center">
           <div
-            className="relative overflow-hidden bg-secondary touch-none cursor-grab active:cursor-grabbing select-none rounded-full"
+            ref={containerRef}
+            className="relative overflow-hidden bg-secondary cursor-grab active:cursor-grabbing select-none rounded-full"
             style={{ width: FRAME.w, height: FRAME.h }}
-            onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
-            onMouseMove={(e) => { if (dragRef.current) moveDrag(e.clientX, e.clientY); }}
-            onMouseUp={endDrag}
-            onMouseLeave={endDrag}
-            onTouchStart={(e) => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
-            onTouchMove={(e) => moveDrag(e.touches[0].clientX, e.touches[0].clientY)}
-            onTouchEnd={endDrag}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -109,6 +204,22 @@ function CropModal({
               className="absolute top-0 left-0 pointer-events-none"
               style={{ width: sw, height: sh, transform: `translate(${offset.x}px, ${offset.y}px)` }}
             />
+          </div>
+        </div>
+        {/* Zoom slider */}
+        <div className="px-1">
+          <input
+            type="range"
+            min={MIN_ZOOM}
+            max={MAX_ZOOM}
+            step={0.05}
+            value={zoom}
+            onChange={(e) => setZoom(parseFloat(e.target.value))}
+            className="w-full accent-foreground"
+          />
+          <div className="flex justify-between text-[10px] text-muted-foreground/50 mt-0.5 px-0.5">
+            <span>zoom out</span>
+            <span>zoom in</span>
           </div>
         </div>
         <div className="flex gap-3">
@@ -126,7 +237,6 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
   // Step 1
   const [name, setName] = useState(firstName);
-  const [role, setRole] = useState<"him" | "her" | null>(null);
   const [accentColor, setAccentColor] = useState("sage");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(avatar);
   const [cropFile, setCropFile] = useState<File | null>(null);
@@ -172,7 +282,6 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
   function handleProfileContinue() {
     if (!name.trim()) { setError("enter your name"); return; }
-    if (!role) { setError("select him or her"); return; }
     setError(null);
     setStep("couple");
   }
@@ -182,7 +291,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     startTransition(async () => {
       try {
         const avatarUrl = croppedBlob ? await uploadAvatar(croppedBlob) : avatarPreview;
-        await saveProfile({ userId, name, accentColor, role: role!, avatarUrl });
+        await saveProfile({ userId, name, accentColor, avatarUrl });
         const result = await createCouple(userId);
         if ("error" in result) { setError(result.error ?? "something went wrong"); return; }
         setInviteCode(result.inviteCode);
@@ -199,7 +308,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     setError(null);
     startTransition(async () => {
       const avatarUrl = croppedBlob ? await uploadAvatar(croppedBlob) : avatarPreview;
-      await saveProfile({ userId, name, accentColor, role: role!, avatarUrl });
+      await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
       if (result?.error) setError(result.error);
     });
@@ -256,7 +365,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
             </button>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
             <div className="text-center">
-              <h1 className="font-heading text-3xl text-foreground tracking-tight">hey, welcome.</h1>
+              <h1 className="font-heading text-3xl text-foreground tracking-tight">welcome.</h1>
               <p className="text-muted-foreground text-sm mt-0.5">let&apos;s set you up.</p>
             </div>
           </div>
@@ -271,28 +380,6 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
               maxLength={30}
               className="h-12 rounded-xl bg-white border-border/60 text-base"
             />
-          </div>
-
-          {/* Role */}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-2">you are...</label>
-            <div className="flex gap-3">
-              {(["him", "her"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={cn(
-                    "flex-1 h-12 rounded-xl border text-sm font-medium transition-all",
-                    role === r
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border/50 bg-white text-muted-foreground hover:border-foreground/30"
-                  )}
-                >
-                  {r === "him" ? "him ♂" : "her ♀"}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Accent colour */}
