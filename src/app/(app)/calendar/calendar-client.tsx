@@ -44,6 +44,10 @@ export default function CalendarClient() {
   useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    document.body.style.overflow = showAddEvent ? "hidden" : "";
+  }, [showAddEvent]);
+
+  useEffect(() => {
     const key = `cal:${coupleId}:${year}:${month}`;
     const cached = getCache<CalCache>(key);
     if (cached) {
@@ -474,47 +478,44 @@ export default function CalendarClient() {
 
       {/* Add event sheet */}
       {showAddEvent && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddEvent(false)} />
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl overflow-y-auto"
-            style={{ maxHeight: "92dvh", paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}
-          >
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">add event</p>
-                <button onClick={() => setShowAddEvent(false)} className="text-muted-foreground">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddEvent(false)} />
+          <div className="relative bg-background rounded-t-[28px] flex flex-col" style={{ maxHeight: "90dvh" }}>
+            {/* Drag handle */}
+            <div className="flex justify-center pt-3 flex-shrink-0">
+              <div className="w-9 h-1 rounded-full bg-border/60" />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
+              <p className="text-base font-semibold">new event</p>
+              <button
+                onClick={() => setShowAddEvent(false)}
+                className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">
+              {/* Title */}
               <Input
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="what's happening?"
-                className="h-11 rounded-xl bg-white border-border/60"
+                className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
                 autoFocus
               />
-              <div className="grid grid-cols-2 gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1.5">start date</p>
-                  <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full text-sm" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1.5">end date <span className="opacity-50">(optional)</span></p>
-                  <Input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} className="h-11 rounded-xl bg-white border-border/60 w-full text-sm" />
-                </div>
-              </div>
+              {/* Emoji */}
               <div>
-                <p className="text-xs text-muted-foreground mb-2">pick an emoji</p>
-                {/* Single scrolling row — never wraps, consistent on all screen sizes */}
-                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">emoji</p>
+                <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
                   {EVENT_EMOJIS.map((e) => (
                     <button
                       key={e}
                       onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
                       className={cn(
-                        "w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all flex-shrink-0",
-                        eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary hover:bg-secondary/70"
+                        "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
+                        eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary"
                       )}
                     >
                       {e}
@@ -524,11 +525,28 @@ export default function CalendarClient() {
                 <Input
                   value={eventCustomEmoji}
                   onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
-                  placeholder="or type your own emoji"
-                  className="h-9 rounded-xl bg-white border-border/60 text-sm mt-2"
+                  placeholder="or type a custom emoji"
+                  className="h-9 rounded-xl bg-secondary border-0 text-sm mt-2.5"
                 />
               </div>
-              <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-11 rounded-xl">
+              {/* Dates */}
+              <div>
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">dates</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">starts</p>
+                    <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
+                    <Input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Pinned submit */}
+            <div className="px-6 pt-3 flex-shrink-0" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.25rem)" }}>
+              <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
                 add event
               </Button>
             </div>
