@@ -98,11 +98,18 @@ export default function CalendarClient() {
   }
 
   function getEvents(dateStr: string): CalEvent[] {
-    return events.filter((e) => e.start_at.startsWith(dateStr));
+    return events.filter((e) => {
+      const start = e.start_at.slice(0, 10);
+      const end = e.end_at ? e.end_at.slice(0, 10) : start;
+      return dateStr >= start && dateStr <= end;
+    });
   }
 
   function getCountdownsForDate(dateStr: string): Countdown[] {
-    return countdowns.filter((c) => c.target_date === dateStr);
+    return countdowns.filter((c) => {
+      const end = c.end_date ?? c.target_date;
+      return dateStr >= c.target_date && dateStr <= end;
+    });
   }
 
   function daysUntil(dateStr: string): number {
