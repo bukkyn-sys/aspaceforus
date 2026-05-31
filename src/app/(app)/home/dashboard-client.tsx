@@ -274,76 +274,6 @@ export default function DashboardClient() {
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
-  const DeleteBtn = ({ id, size = "md" }: { id: string; size?: "sm" | "md" }) => (
-    <button
-      onClick={() => handleDeleteCountdown(id)}
-      className={cn(
-        "rounded-full flex items-center justify-center bg-black/5 hover:bg-black/10 transition-colors flex-shrink-0",
-        size === "sm" ? "w-6 h-6" : "w-7 h-7"
-      )}
-    >
-      <X className={cn("text-foreground/40", size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5")} />
-    </button>
-  );
-
-  const RectCard = ({ cd }: { cd: Countdown }) => {
-    const t = timeUntil(cd.target_date);
-    return (
-      <div className="bg-white border border-border/50 rounded-3xl overflow-hidden shadow-card">
-        <div className="h-1 bg-foreground/10" />
-        <div className="p-5">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-2 flex-1 min-w-0 pr-3">
-              <span className="text-lg leading-none flex-shrink-0">{cd.emoji}</span>
-              <h2 className="font-heading text-lg text-foreground leading-tight truncate">{cd.title}</h2>
-            </div>
-            <DeleteBtn id={cd.id} />
-          </div>
-          <div className="flex items-baseline gap-x-2 flex-wrap">
-            <span className="font-heading text-7xl leading-none text-foreground">{t.days}</span>
-            <span className="font-heading text-2xl text-foreground/25 mr-3">days</span>
-            <span className="font-heading text-7xl leading-none text-foreground">{t.hours}</span>
-            <span className="font-heading text-2xl text-foreground/25">hours</span>
-          </div>
-          <p className="text-xs text-muted-foreground/35 mt-3 tabular-nums">
-            {new Date(cd.target_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: cd.end_date ? undefined : "numeric" })}
-            {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`}
-          </p>
-        </div>
-      </div>
-    );
-  };
-
-  const SquareCard = ({ cd, small }: { cd: Countdown; small?: boolean }) => {
-    const t = timeUntil(cd.target_date);
-    return (
-      <div
-        className={cn(
-          "bg-white border border-border/50 rounded-2xl overflow-hidden shadow-card",
-          small && "w-36 flex-shrink-0"
-        )}
-      >
-        <div className="h-1 bg-foreground/10" />
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xl leading-none">{cd.emoji}</span>
-            <DeleteBtn id={cd.id} size="sm" />
-          </div>
-          <div className="flex items-baseline gap-1 mb-1">
-            <span
-              className={cn("font-heading leading-none text-foreground", small ? "text-4xl" : "text-5xl")}
-            >
-              {t.days}
-            </span>
-            <span className={cn("font-heading text-foreground/25", small ? "text-base" : "text-xl")}>days</span>
-          </div>
-          <p className={cn("text-foreground/50 font-medium truncate", small ? "text-[10px]" : "text-xs")}>
-            {cd.title}
-          </p>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
@@ -507,23 +437,39 @@ export default function DashboardClient() {
             onClick={() => setShowCountdownSheet(true)}
             className="w-full rounded-3xl border border-dashed border-border/60 p-8 text-center transition-colors hover:border-border bg-secondary/40"
           >
-            <Plane className="w-6 h-6 mx-auto mb-2 text-muted-foreground/30" strokeWidth={1.5} />
+            <Plane className="w-5 h-5 mx-auto mb-2 text-muted-foreground/30" strokeWidth={1.5} />
             <p className="text-sm text-muted-foreground">nothing to look forward to yet</p>
             <p className="text-xs text-muted-foreground/40 mt-0.5">tap + to add a countdown</p>
           </button>
-        ) : data.countdowns.length === 1 ? (
-          <RectCard cd={data.countdowns[0]} />
-        ) : data.countdowns.length === 2 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {data.countdowns.map((cd) => <SquareCard key={cd.id} cd={cd} />)}
-          </div>
         ) : (
-          <>
-            <RectCard cd={data.countdowns[0]} />
-            <div className="flex gap-3 overflow-x-auto -mx-4 px-4 mt-3 pb-1" style={{ scrollbarWidth: "none" }}>
-              {data.countdowns.slice(1).map((cd) => <SquareCard key={cd.id} cd={cd} small />)}
-            </div>
-          </>
+          <div className="bg-white border border-border/50 rounded-3xl shadow-card overflow-hidden">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider px-5 pt-4 pb-2">coming up</p>
+            {data.countdowns.map((cd, i) => {
+              const { days } = timeUntil(cd.target_date);
+              return (
+                <div key={cd.id} className={cn("flex items-center gap-3 px-5 py-3.5", i > 0 && "border-t border-border/30")}>
+                  <span className="text-2xl flex-shrink-0">{cd.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
+                    <p className="text-xs text-muted-foreground/60 mt-0.5 tabular-nums">
+                      {new Date(cd.target_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`}
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-lg font-semibold tabular-nums leading-none">{days}</p>
+                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">days</p>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteCountdown(cd.id)}
+                    className="w-6 h-6 rounded-full flex items-center justify-center bg-black/5 flex-shrink-0 ml-1"
+                  >
+                    <X className="w-3 h-3 text-foreground/40" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         )
       )}
 
