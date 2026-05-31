@@ -512,34 +512,38 @@ export default function CalendarClient() {
                   {EVENT_EMOJIS.map((e) => (
                     <button
                       key={e}
-                      onClick={() => { setEventEmoji(e); setEventCustomEmoji(""); }}
+                      onClick={() => setEventEmoji(e)}
                       className={cn(
                         "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
-                        eventEmoji === e && !eventCustomEmoji ? "bg-foreground" : "bg-secondary"
+                        eventEmoji === e ? "bg-foreground" : "bg-secondary"
                       )}
                     >
                       {e}
                     </button>
                   ))}
                 </div>
-                <Input
-                  value={eventCustomEmoji}
-                  onChange={(e) => { const v = e.target.value; setEventCustomEmoji(v); if (v.trim()) setEventEmoji(v.trim()); }}
-                  placeholder="or type a custom emoji"
-                  className="h-9 rounded-xl bg-secondary border-0 text-sm mt-2.5"
-                />
               </div>
               {/* Dates */}
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">dates</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">starts</p>
-                    <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  <div className="relative rounded-2xl overflow-hidden">
+                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">starts</p>
+                      <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
+                        {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                      </p>
+                    </div>
+                    <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
-                    <Input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  <div className="relative rounded-2xl overflow-hidden">
+                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                      <p className={cn("text-sm font-medium", eventEndDate ? "text-foreground" : "text-muted-foreground/40")}>
+                        {eventEndDate ? new Date(eventEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                      </p>
+                    </div>
+                    <input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
                   </div>
                 </div>
               </div>

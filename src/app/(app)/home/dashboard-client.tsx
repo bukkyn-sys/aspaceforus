@@ -635,13 +635,23 @@ export default function DashboardClient() {
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">dates</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">starts</p>
-                    <Input type="date" value={cdDate} min={today} onChange={(e) => setCdDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  <div className="relative rounded-2xl overflow-hidden">
+                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">starts</p>
+                      <p className={cn("text-sm font-medium", cdDate ? "text-foreground" : "text-muted-foreground/40")}>
+                        {cdDate ? new Date(cdDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                      </p>
+                    </div>
+                    <input type="date" value={cdDate} min={today} onChange={(e) => setCdDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
-                    <Input type="date" value={cdEndDate} min={cdDate || today} onChange={(e) => setCdEndDate(e.target.value)} className="h-11 rounded-2xl bg-secondary border-0 w-full text-sm" />
+                  <div className="relative rounded-2xl overflow-hidden">
+                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                      <p className={cn("text-sm font-medium", cdEndDate ? "text-foreground" : "text-muted-foreground/40")}>
+                        {cdEndDate ? new Date(cdEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                      </p>
+                    </div>
+                    <input type="date" value={cdEndDate} min={cdDate || today} onChange={(e) => setCdEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
                   </div>
                 </div>
               </div>
