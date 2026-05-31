@@ -622,7 +622,7 @@ export default function DashboardClient() {
             />
             {/* Start / end dates */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="min-w-0 overflow-hidden">
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-1.5">starts</p>
                 <Input
                   type="date"
@@ -632,7 +632,7 @@ export default function DashboardClient() {
                   className="h-11 rounded-xl bg-white border-border/60 w-full text-sm"
                 />
               </div>
-              <div className="min-w-0 overflow-hidden">
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-1.5">ends <span className="opacity-50">(optional)</span></p>
                 <Input
                   type="date"
