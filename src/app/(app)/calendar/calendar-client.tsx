@@ -31,7 +31,6 @@ export default function CalendarClient() {
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddEvent, setShowAddEvent] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -231,7 +230,7 @@ export default function CalendarClient() {
           <p className="text-sm text-muted-foreground">loading…</p>
         </div>
       ) : (
-        <div className="grid grid-cols-7 gap-y-px px-2">
+        <div className="grid grid-cols-7 gap-y-2 px-2">
           {cells.map((day, i) => {
             if (!day) return <div key={i} />;
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -258,9 +257,9 @@ export default function CalendarClient() {
             const roundLeft = !isEventDay || isRangeStart || isWeekStart;
             const roundRight = !isEventDay || isRangeEnd || isWeekEnd;
             const eventRounding =
-              roundLeft && roundRight ? "rounded-xl" :
-              roundLeft ? "rounded-l-xl rounded-r-none" :
-              roundRight ? "rounded-l-none rounded-r-xl" :
+              roundLeft && roundRight ? "rounded-lg" :
+              roundLeft ? "rounded-l-lg rounded-r-none" :
+              roundRight ? "rounded-l-none rounded-r-lg" :
               "rounded-none";
 
             // Show emoji only on the true start of each event/countdown range
@@ -273,10 +272,10 @@ export default function CalendarClient() {
                 onClick={() => !isPast && !isEventDay && handleDay(ds)}
                 disabled={isPast}
                 className={cn(
-                  "h-[52px] flex flex-col items-center justify-center relative transition-all select-none",
+                  "aspect-square w-full flex flex-col items-center justify-center relative transition-all select-none",
                   isEventDay
                     ? cn(eventRounding, "cursor-default")
-                    : cn("rounded-xl", overlap && "bg-sage-light"),
+                    : cn("rounded-lg", overlap && "bg-sage-light"),
                   isPast && "opacity-30 cursor-default",
                 )}
                 style={
@@ -331,54 +330,34 @@ export default function CalendarClient() {
         </div>
       )}
 
-      {/* ── Hint + legend toggle ────────────────────────────── */}
-      <div className="px-5 mt-4 flex items-center justify-between">
-        <p className="text-[11px] text-muted-foreground/40">tap · free → busy → clear</p>
-        <button
-          onClick={() => setShowLegend(s => !s)}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
-        >
-          <span className="w-4 h-4 rounded-full border border-current inline-flex items-center justify-center text-[9px] font-bold">i</span>
-          key
-        </button>
-      </div>
-
-      {showLegend && (
-        <div className="mx-5 mt-2 bg-secondary/60 rounded-2xl px-4 py-3 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-0.5 items-center flex-shrink-0">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-              {partner
-                ? <div className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-                : <div className="w-2 h-2 rounded-full bg-foreground/10" />
-              }
-            </div>
-            <span className="text-[11px] text-muted-foreground">
-              left = you · right = {partner ? partnerName : "partner"}
-            </span>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-              <span className="text-[11px] text-muted-foreground">free</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <X className="w-3 h-3 text-terracotta" strokeWidth={3} />
-              <span className="text-[11px] text-muted-foreground">busy</span>
-            </div>
-            {partner && (
-              <div className="flex items-center gap-1.5">
-                <div className="w-4 h-4 rounded-lg bg-sage-light" />
-                <span className="text-[11px] text-muted-foreground">both free</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded-lg bg-amber-100" />
-              <span className="text-[11px] text-muted-foreground">event</span>
-            </div>
-          </div>
+      {/* ── Always-visible compact legend ──────────────────── */}
+      <div className="px-5 mt-4 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+          <span className="text-[11px] text-muted-foreground/60">you free</span>
         </div>
-      )}
+        {partner && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
+            <span className="text-[11px] text-muted-foreground/60">{partnerName} free</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1">
+          <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
+          <span className="text-[11px] text-muted-foreground/60">busy</span>
+        </div>
+        {partner && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-sage-light" />
+            <span className="text-[11px] text-muted-foreground/60">both free</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded bg-amber-100" />
+          <span className="text-[11px] text-muted-foreground/60">event</span>
+        </div>
+      </div>
+      <p className="px-5 mt-1 text-[10px] text-muted-foreground/30">tap a day · free → busy → clear</p>
 
       {/* ── Events this month ──────────────────────────────── */}
       <div className="px-5 mt-8">
