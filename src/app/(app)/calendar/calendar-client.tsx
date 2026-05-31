@@ -298,27 +298,29 @@ export default function CalendarClient() {
                   </span>
                 )}
 
-                {/* Status dots */}
-                <div className={cn("flex gap-0.5 items-center", isEventDay && "opacity-40")}>
-                  {mine === "busy" ? (
-                    <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
-                  ) : (
-                    <div
-                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
-                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                    />
-                  )}
-                  {partner && (
-                    theirs === "busy" ? (
-                      <X className="w-2.5 h-2.5 text-terracotta/50" strokeWidth={3} />
+                {/* Status dots — not shown on event days */}
+                {!isEventDay && (
+                  <div className="flex gap-0.5 items-center">
+                    {mine === "busy" ? (
+                      <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
                     ) : (
                       <div
-                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
-                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
+                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
                       />
-                    )
-                  )}
-                </div>
+                    )}
+                    {partner && (
+                      theirs === "busy" ? (
+                        <X className="w-2.5 h-2.5 text-terracotta/50" strokeWidth={3} />
+                      ) : (
+                        <div
+                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
+                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                        />
+                      )
+                    )}
+                  </div>
+                )}
 
                 {/* Event band: emoji label on first cell of each row segment */}
                 {showBandEmoji && bandEmoji && (
