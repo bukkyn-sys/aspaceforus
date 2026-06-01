@@ -55,7 +55,7 @@ interface VaultItem {
 
 interface OgPreview { image: string | null; title: string | null }
 
-const CURRENCIES = ["£", "$", "€", "₦"] as const;
+const CURRENCIES = ["£", "$", "€"] as const;
 type Currency = typeof CURRENCIES[number];
 
 const STAGE_LABEL: Record<Stage, string> = { ideas: "idea", planned: "planned", completed: "done" };
