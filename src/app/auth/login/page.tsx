@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy, Check } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -17,12 +17,58 @@ function GoogleIcon() {
   );
 }
 
+// Returns true when running inside a WebView / in-app browser (Instagram,
+// WhatsApp, Facebook, TikTok, etc.) where Google OAuth is blocked.
+function isWebView(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return (
+    /Instagram|FBAN|FBAV|FB_IAB|Twitter|TikTok|Snapchat|WhatsApp|LinkedInApp|MicroMessenger/i.test(ua) ||
+    // Android WebView
+    (/Android/.test(ua) && /wv\)/.test(ua)) ||
+    // iOS in-app browser: has WebKit but not Safari in UA
+    (/iPhone|iPad/.test(ua) && !/Safari/.test(ua) && /AppleWebKit/.test(ua))
+  );
+}
+
+function WebViewBanner() {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="w-full max-w-xs space-y-4 text-center">
+      <div className="bg-secondary rounded-2xl px-5 py-5 space-y-3">
+        <p className="text-sm font-semibold text-foreground">open in your browser</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Google sign-in doesn&apos;t work inside in-app browsers.
+          Copy the link and paste it into Safari or Chrome.
+        </p>
+        <button
+          onClick={copy}
+          className="flex items-center justify-center gap-2 w-full h-10 rounded-xl bg-foreground text-background text-sm font-medium transition-opacity active:opacity-70"
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          {copied ? "copied!" : "copy link"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inWebView, setInWebView] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    setInWebView(isWebView());
     const urlError = searchParams.get("error");
     if (urlError) setError(decodeURIComponent(urlError));
   }, [searchParams]);
@@ -37,6 +83,8 @@ function LoginForm() {
     });
     if (error) { setError(error.message); setLoading(false); }
   }
+
+  if (inWebView) return <WebViewBanner />;
 
   return (
     <div className="w-full max-w-xs space-y-4">
