@@ -67,8 +67,8 @@ For couple-scoped reads like `get_partner_profile(p_couple_id, p_my_id)`: assert
 
 ---
 
-### [~] 2. Committed schema can't rebuild the database (schema drift)
-**Status:** PARTIAL — `security_hardening.sql` now reconstructs all 16 RPCs (incl. the dashboard-only ones) so they're at least in version control. The missing *columns* (`profiles.accent_color/current_mood/mood_updated_at/activity_at/push_subscription`, `couples.shared_note/started_at/banner_url`) are still undocumented. ⚠️ USER ACTION: run `supabase db dump --schema public > supabase/schema_dump.sql` (or copy live SQL) to make the file fully authoritative. Cannot be done without DB access.
+### [x] 2. Committed schema can't rebuild the database (schema drift)
+**Status:** ✅ DONE (2026-06-02). Captured the live DB via SQL-editor introspection (CLI `db dump` needs Docker, which isn't installed). `schema.sql` now has a "PRODUCTION REALITY CAPTURE" appendix with the real `profiles`/`couples` columns, the `push_subscriptions` table, and notes on legacy unused tables/functions. NOTE: profiles has NO `push_subscription` column — push lives in the `push_subscriptions` table. This caused a regression — see item #21.
 **Severity:** Critical (operational/DR risk)
 **File:** `supabase/schema.sql`
 
@@ -276,6 +276,19 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ---
 
+## 🔴 ITEMS DISCOVERED DURING THE LIVE-SCHEMA CAPTURE (2026-06-02)
+
+### [ ] 21. Push functions broke — fixed in `push_fix.sql` (⚠️ run it)
+**Status:** CODE DONE — ⚠️ USER MUST RUN `supabase/push_fix.sql`. The item-1 hardening patch reconstructed `save_push_subscription` (3-arg jsonb) and `get_partner_push_subscription` to read/write a `profiles.push_subscription` column that DOESN'T EXIST (push data lives in the `push_subscriptions` table: `user_id, endpoint, p256dh, auth`). plpgsql doesn't validate column refs until runtime, so they were created OK but fail when push runs. `push_fix.sql` re-implements both against the real table (still hardened). `security_hardening.sql` updated to point at it. Until run, push notifications are broken.
+
+### [ ] 20. ~20 legacy security-definer functions are unhardened (unused by app)
+**Status:** NOT STARTED (logged). The live DB has many `security definer` functions the app never calls (it drives that CRUD through direct `.from().insert/update/delete` + RLS): `add_countdown, add_event, add_ledger_entry, add_savings_pot, add_vault_item(x2), contribute_to_pot, delete_countdown, delete_event, delete_savings_pot, delete_vault_item, settle_all, update_vault_item(x2), update_vault_stage, update_my_role, my_couple_id`, and the old 4-arg `save_push_subscription`. Most lack an `auth.uid()` guard; some (e.g. `delete_*`, `settle_all`, `contribute_to_pot`, `update_my_role`) only filter by couple_id. Risk is LOW (unreachable from UI; couple ids are unguessable UUIDs) but it's loose. RECOMMEND: `drop function` the unused ones (cleanest) — verify against `grep -rho 'rpc("[a-z_]*"' src` first (current live RPC list is in the 2026-06-02 progress note). Also legacy unused TABLES: `expenses, mood_checkins, mood_reveal, notes, tasks`.
+
+---
+
 ## PROGRESS LOG
 <!-- Append: date · item# · what changed · commit -->
 - 2026-06-01 · Review authored & saved.
+- 2026-06-01 · Items 1,3,4,5,6,8,9,16,19 done; 10,15 by-design. SQL (security_hardening.sql) applied to live DB.
+- 2026-06-02 · Live schema captured → item 2 done. Found + fixed push regression (item 21, push_fix.sql). Logged legacy-RPC cleanup (item 20).
+- 2026-06-02 · RPCs the app actually calls (keep these): get_my_profile, get_session_data, get_partner_profile, save_push_subscription(3-arg), get_partner_push_subscription, set_availability, update_my_accent_color, update_my_display_name, update_my_avatar, update_my_mood, update_shared_note, update_couple_banner, update_couple_started_at, update_couple_currency, create_couple_for_user, join_couple_for_user, leave_couple_for_user, mark_section_activity.

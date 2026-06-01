@@ -153,33 +153,9 @@ begin
     where id = p_user_id;
 end; $$;
 
--- save_push_subscription(p_user_id, p_couple_id, p_subscription)
--- VERIFY the target column (push_subscription) matches.
-create or replace function save_push_subscription(p_user_id uuid, p_couple_id uuid, p_subscription jsonb)
-returns void language plpgsql security definer
-set search_path = public as $$
-begin
-  if p_user_id <> auth.uid() or not is_couple_member(p_couple_id) then
-    raise exception 'forbidden';
-  end if;
-  update profiles set push_subscription = p_subscription where id = p_user_id;
-end; $$;
-
--- get_partner_push_subscription(p_couple_id, p_my_id) — server-only (push send).
--- Guard: caller must be a member + themselves. VERIFY column name.
-create or replace function get_partner_push_subscription(p_couple_id uuid, p_my_id uuid)
-returns jsonb language plpgsql security definer
-set search_path = public as $$
-begin
-  if p_my_id <> auth.uid() or not is_couple_member(p_couple_id) then
-    raise exception 'forbidden';
-  end if;
-  return (
-    select push_subscription from profiles
-    where couple_id = p_couple_id and id <> p_my_id and push_subscription is not null
-    limit 1
-  );
-end; $$;
+-- save_push_subscription / get_partner_push_subscription — CORRECTED in
+-- supabase/push_fix.sql (push data lives in the push_subscriptions table, not a
+-- profiles column). See that file for the authoritative versions.
 
 -- update_shared_note(p_couple_id, p_user_id, p_note)
 create or replace function update_shared_note(p_couple_id uuid, p_user_id uuid, p_note text)

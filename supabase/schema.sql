@@ -461,3 +461,48 @@ create policy "vault_update" on storage.objects
 
 create policy "vault_delete" on storage.objects
   for delete to authenticated using (bucket_id = 'vault');
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- PRODUCTION REALITY CAPTURE (2026-06-02)
+-- Captured from the live DB to close schema drift (APP_REVIEW item #2). The
+-- blocks above were the historical migration record; the statements below
+-- reconcile this file with what actually exists in production.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- Real columns added over time to profiles / couples (idempotent).
+alter table profiles add column if not exists current_mood    integer;
+alter table profiles add column if not exists mood_updated_at  timestamptz;
+alter table profiles add column if not exists activity_at      jsonb not null default '{}'::jsonb;
+alter table profiles add column if not exists accent_color     text default 'sage';
+alter table profiles add column if not exists role             text; -- legacy, unused by the app
+
+alter table couples  add column if not exists shared_note text;
+alter table couples  add column if not exists started_at  date;
+alter table couples  add column if not exists banner_url  text;
+-- couples.currency added above.
+
+-- Web-push subscriptions (one row per device). Push functions live in push_fix.sql.
+create table if not exists push_subscriptions (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references profiles(id) on delete cascade,
+  endpoint   text not null unique,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz default now()
+);
+alter table push_subscriptions enable row level security;
+
+-- NOTE — security definer functions NOT used by the app (legacy; superseded by
+-- direct table access + RLS). They are unhardened (no auth.uid() guard). Because
+-- they are unreachable from the client UI and couple ids are unguessable UUIDs,
+-- risk is low — but consider DROPPING them to shrink attack surface:
+--   add_countdown, add_event, add_ledger_entry, add_savings_pot,
+--   add_vault_item(x2), contribute_to_pot, delete_countdown, delete_event,
+--   delete_savings_pot, delete_vault_item, settle_all, update_vault_item(x2),
+--   update_vault_stage, update_my_role, my_couple_id,
+--   save_push_subscription(p_user_id, p_endpoint, p_p256dh, p_auth)  -- old 4-arg overload
+-- See APP_REVIEW item #20.
+
+-- NOTE — legacy TABLES not used by the current app (safe to ignore / drop later):
+--   expenses, mood_checkins, mood_reveal, notes, tasks
+-- (The app uses ledger_entries, profiles.current_mood, couples.shared_note, etc.)
