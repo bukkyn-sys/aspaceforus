@@ -146,8 +146,9 @@
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }
 
-  /* Clean inset accent stripe — a centred rounded pill that never clips into
-     an arc the way `border-left` + `border-radius` does. Set --accent-bar. */
+  /* Accent identity — a soft full-height edge that hugs the card's rounded
+     corner (overflow-hidden clips it cleanly, so no `border-left` arc and no
+     floating pill). A gentle gradient fade keeps it refined. Set --accent-bar. */
   .accent-bar {
     position: relative;
     overflow: hidden;
@@ -156,12 +157,14 @@
     content: "";
     position: absolute;
     left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 56%;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: var(--accent-bar, transparent);
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background: linear-gradient(
+      to right,
+      var(--accent-bar, transparent),
+      color-mix(in srgb, var(--accent-bar, transparent) 55%, transparent)
+    );
   }
 }
 
