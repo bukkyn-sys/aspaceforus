@@ -36,7 +36,7 @@ export default async function Icon() {
             fontSize: 240,
             fontWeight: 400,
             color: "#2C2C2B",
-            letterSpacing: "-0.04em",
+            letterSpacing: "-0.025em",
             lineHeight: 1,
           }}
         >
