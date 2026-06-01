@@ -19,6 +19,8 @@ import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown } from "lu
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SheetClose } from "@/components/ui/sheet-close";
+import { OwnerAvatars } from "@/components/ui/owner-avatars";
+import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -225,31 +227,11 @@ function OwnerButtons({
   );
 }
 
-/** Owner avatar(s) — one circle for a person, two overlapped for shared. */
-function OwnerAvatars({ people }: { people: { url: string | null; name: string; hex: string }[] }) {
-  return (
-    <div className="flex -space-x-1.5 flex-shrink-0">
-      {people.map((p, i) => (
-        <div
-          key={i}
-          className="w-5 h-5 rounded-full overflow-hidden border-2 border-white flex items-center justify-center bg-secondary"
-          style={{ boxShadow: `0 0 0 1.5px ${p.hex}` }}
-        >
-          {p.url ? (
-            <img src={p.url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-[8px] font-semibold text-muted-foreground">{p.name[0]?.toUpperCase()}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function VaultClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
+  const resolveOwner = useOwnerIdentity();
 
   // Navigation
   const [view, setView] = useState<"folders" | "items">("folders");
@@ -298,7 +280,6 @@ export default function VaultClient() {
   const [, startTransition] = useTransition();
 
   const myAccent = getAccent(me.accent_color);
-  const partnerAccent = getAccent(partner?.accent_color);
 
   useScrollLock(showNewFolder || showAdd || editingItem !== null);
 
@@ -419,24 +400,6 @@ export default function VaultClient() {
     });
 
 
-  // Resolve the people an item belongs to (drives avatars + ombre colour).
-  function ownerPeople(owner: string | null) {
-    const meEntry = { url: me.avatar_url, name: myName, hex: myAccent.hex, light: myAccent.light };
-    const partnerEntry = partner
-      ? { url: partner.avatar_url, name: partnerName, hex: partnerAccent.hex, light: partnerAccent.light }
-      : null;
-    if (owner === me.id) return { people: [meEntry], shared: false };
-    if (partnerEntry && owner === partner!.id) return { people: [partnerEntry], shared: false };
-    // shared / null / legacy 'his'/'hers'
-    return { people: partnerEntry ? [meEntry, partnerEntry] : [meEntry], shared: true };
-  }
-
-  function cardOmbre(o: ReturnType<typeof ownerPeople>) {
-    if (!o.shared) return `linear-gradient(100deg, ${o.people[0].light} 0%, #ffffff 46%)`;
-    const a = o.people[0].light;
-    const b = o.people[1]?.light ?? a;
-    return `linear-gradient(100deg, ${a} 0%, ${b} 22%, #ffffff 58%)`;
-  }
 
   // ── Folder actions ──────────────────────────────────────────────────────────
 
@@ -779,7 +742,7 @@ export default function VaultClient() {
         ) : (
           <div className="space-y-2">
             {filteredItems.map((item) => {
-              const o = ownerPeople(item.owner);
+              const o = resolveOwner(item.owner);
               const ombre = cardOmbre(o);
               const hasOgImage = !item.item_emoji && !!item.og_image;
               const hasEmoji   = !!item.item_emoji;

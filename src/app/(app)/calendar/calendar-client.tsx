@@ -12,6 +12,8 @@ import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SheetClose } from "@/components/ui/sheet-close";
+import { OwnerAvatars } from "@/components/ui/owner-avatars";
+import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -27,6 +29,7 @@ type CalCache = { rows: Row[]; events: CalEvent[]; countdowns: Countdown[] };
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
+  const resolveOwner = useOwnerIdentity();
   const [current, setCurrent] = useState(() => new Date());
   const [rows, setRows] = useState<Row[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -402,31 +405,15 @@ export default function CalendarClient() {
                     const evt = item.data;
                     const d = new Date(evt.start_at);
                     const isMe = evt.created_by === me.id;
-                    const creatorAccent = isMe ? myAccent : partnerAccent;
-                    const creatorAvatar = isMe ? me.avatar_url : partner?.avatar_url;
-                    const creatorInitial = isMe
-                      ? (me.display_name?.[0] ?? "?").toUpperCase()
-                      : (partner?.display_name?.[0] ?? "?").toUpperCase();
+                    const o = resolveOwner(evt.created_by);
                     return (
                       <div
                         key={evt.id}
-                        className="card-row accent-bar px-4 py-3 flex items-center gap-3"
-                        style={{ "--accent-bar": creatorAccent.hex } as React.CSSProperties}
+                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3"
+                        style={{ background: cardOmbre(o) }}
                       >
                         <span className="text-xl flex-shrink-0">{evt.emoji}</span>
-                        <div
-                          className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0 bg-secondary"
-                          style={{ boxShadow: `0 0 0 1.5px ${creatorAccent.hex}` }}
-                        >
-                          {creatorAvatar ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={creatorAvatar} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[9px] font-semibold text-muted-foreground">
-                              {creatorInitial}
-                            </div>
-                          )}
-                        </div>
+                        <OwnerAvatars people={o.people} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">

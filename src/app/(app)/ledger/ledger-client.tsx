@@ -15,6 +15,8 @@ import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SheetClose } from "@/components/ui/sheet-close";
+import { OwnerAvatars } from "@/components/ui/owner-avatars";
+import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -96,6 +98,7 @@ export default function LedgerClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
+  const resolveOwner = useOwnerIdentity();
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
@@ -344,22 +347,25 @@ export default function LedgerClient() {
     const ratio = parseFloat(e.split_ratio ?? "0.5");
     const paidByMe = e.paid_by === me.id;
     const myShare = paidByMe ? amt * (1 - ratio) : amt * ratio;
-    const payerAccent = paidByMe ? myAccent : partnerAccent;
+    const o = resolveOwner(e.paid_by);
     const cat = catById(e.category);
     return (
-      <div className={cn("card-row accent-bar p-4 flex items-center gap-3", archived && "opacity-60")}
-        style={{ "--accent-bar": payerAccent.hex } as React.CSSProperties}>
+      <div className={cn("card-row overflow-hidden p-4 flex items-center gap-3", archived && "opacity-60")}
+        style={{ background: cardOmbre(o) }}>
         {cat && (
-          <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-base flex-shrink-0">{cat.emoji}</div>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: o.people[0].light }}>{cat.emoji}</div>
         )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium text-foreground truncate">{e.title}</p>
             {e.recurrence !== "none" && <Repeat className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {paidByMe ? myName : partnerName} paid £{amt.toFixed(2)} · your share £{myShare.toFixed(2)}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <OwnerAvatars people={o.people} />
+            <p className="text-xs text-muted-foreground">
+              {paidByMe ? myName : partnerName} paid £{amt.toFixed(2)} · your share £{myShare.toFixed(2)}
+            </p>
+          </div>
         </div>
         {archived ? (
           <button onClick={() => handleDeleteEntry(e.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0">
