@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import OnboardingClient from "./onboarding-client";
 
@@ -16,6 +17,7 @@ export default async function OnboardingPage() {
 
   const firstName = profile?.display_name?.split(" ")[0] ?? "";
   const avatar = profile?.avatar_url ?? null;
+  const initialInvite = (await cookies()).get("pending_invite")?.value ?? null;
 
-  return <OnboardingClient userId={user.id} firstName={firstName} avatar={avatar} />;
+  return <OnboardingClient userId={user.id} firstName={firstName} avatar={avatar} initialInvite={initialInvite} />;
 }

@@ -32,7 +32,8 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
-  const isPublicRoute = pathname === "/";
+  // "/join" must run even when signed out so the invite cookie gets set.
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/join");
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();

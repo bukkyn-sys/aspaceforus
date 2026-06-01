@@ -3,7 +3,8 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, leaveCouple } from "./actions";
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -337,6 +338,9 @@ export default function ProfileClient({
   const [cropState, setCropState] = useState<{ file: File; purpose: "avatar" | "banner" } | null>(null);
   const [showLeave, setShowLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
   const [, startTransition] = useTransition();
 
   async function handleLeaveCouple() {
@@ -489,7 +493,7 @@ export default function ProfileClient({
       {/* Accent color */}
       <div className="card p-4 mb-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">your colour</p>
-        <div className="flex gap-3">
+        <div className="flex justify-between">
           {ACCENT_COLORS.map((color) => {
             const isMine = profile.accentColor === color.name;
             const isPartners = partnerAccentColor === color.name;
@@ -567,19 +571,41 @@ export default function ProfileClient({
                 {couple.inviteCode}
               </p>
             </div>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(couple.inviteCode!);
-                setCodeCopied(true);
-                setTimeout(() => setCodeCopied(false), 2000);
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {codeCopied ? "copied!" : "copy"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowQR(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" /> QR
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(couple.inviteCode!);
+                  setCodeCopied(true);
+                  setTimeout(() => setCodeCopied(false), 2000);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {codeCopied ? "copied!" : "copy"}
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Invite QR */}
+      <Dialog open={showQR} onClose={() => setShowQR(false)}>
+        <div className="p-6 text-center">
+          <p className="font-heading text-xl text-foreground tracking-tight mb-1">scan to join</p>
+          <p className="text-sm text-muted-foreground mb-5">your partner can scan this to join you.</p>
+          {couple.inviteCode && origin && (
+            <div className="inline-flex p-4 bg-white rounded-2xl border border-border/40 mb-4">
+              <QRCodeSVG value={`${origin}/join?code=${couple.inviteCode}`} size={200} bgColor="#ffffff" fgColor="#2C2C2B" level="M" />
+            </div>
+          )}
+          <p className="font-mono text-lg font-semibold tracking-[0.25em] text-foreground">{couple.inviteCode}</p>
+        </div>
+      </Dialog>
 
       {/* Notifications */}
       <NotificationSettings userId={profile.id} coupleId={profile.coupleId} />

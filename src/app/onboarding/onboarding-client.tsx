@@ -9,6 +9,7 @@ import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus
 import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
+import { QRCodeSVG } from "qrcode.react";
 
 type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "install";
 type Tab = "create" | "join";
@@ -153,6 +154,7 @@ interface Props {
   userId: string;
   firstName: string;
   avatar: string | null;
+  initialInvite?: string | null;
 }
 
 // The app deliberately has no single brand colour — pre-colour screens use ink.
@@ -513,7 +515,7 @@ function CropModal({
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function OnboardingClient({ userId, firstName, avatar }: Props) {
+export default function OnboardingClient({ userId, firstName, avatar, initialInvite }: Props) {
   // The "add to home screen" prompt comes first for the full web-app feel.
   const [step, setStep] = useState<Step>("install");
   const [pillar, setPillar] = useState(0);
@@ -528,8 +530,8 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Couple
-  const [tab, setTab] = useState<Tab>("create");
-  const [joinCode, setJoinCode] = useState("");
+  const [tab, setTab] = useState<Tab>(initialInvite ? "join" : "create");
+  const [joinCode, setJoinCode] = useState(initialInvite ?? "");
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -540,6 +542,8 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   // Capture the install prompt early so it's ready by the install step.
   useEffect(() => {
@@ -646,7 +650,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
         return (
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col items-center justify-center text-center">
-              <motion.p variants={rise} className="font-heading text-2xl text-muted-foreground/50 tracking-tight mb-2">us.</motion.p>
+              <motion.p variants={rise} className="font-heading text-2xl text-muted-foreground/50 tracking-tight mb-2">aspaceforus.</motion.p>
               <motion.h1 variants={rise} className="font-heading text-5xl text-foreground tracking-tight">hello, {greetName}.</motion.h1>
               <motion.p variants={rise} className="text-[15px] text-muted-foreground mt-4 max-w-[17rem] leading-relaxed">
                 welcome to <span className="font-heading">us.</span> — a calm little home for the two of you.
@@ -811,7 +815,12 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
                 </div>
               </motion.div>
               <motion.div variants={rise} className="bg-white border border-border/60 rounded-2xl p-5 text-center shadow-card">
-                <p className="text-xs text-muted-foreground mb-2">share this code so your partner can join</p>
+                <p className="text-xs text-muted-foreground mb-3">scan or share so your partner can join</p>
+                {inviteCode && origin && (
+                  <div className="inline-flex p-3 bg-white rounded-2xl border border-border/40 mb-3">
+                    <QRCodeSVG value={`${origin}/join?code=${inviteCode}`} size={144} bgColor="#ffffff" fgColor="#2C2C2B" level="M" />
+                  </div>
+                )}
                 <p className="font-mono text-3xl font-semibold tracking-[0.3em] text-foreground mb-3">{inviteCode}</p>
                 <Button variant="outline" size="sm" onClick={copyCode} className="rounded-xl gap-2 border-border/60 h-9 text-xs">{copied ? <><Check className="w-3.5 h-3.5 text-sage" /> copied!</> : <><Copy className="w-3.5 h-3.5" /> copy code</>}</Button>
               </motion.div>
