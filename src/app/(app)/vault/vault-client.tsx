@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
@@ -15,7 +16,7 @@ import {
   deleteVaultItem,
   fetchOgPreview,
 } from "./actions";
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SheetClose } from "@/components/ui/sheet-close";
@@ -26,7 +27,7 @@ import { getAccent } from "@/lib/accent-colors";
 
 type VaultKind = "date_idea" | "wishlist" | "general";
 type Stage = "ideas" | "planned" | "completed";
-type SortBy = "newest" | "oldest" | "az" | "price";
+type SortBy = "newest" | "oldest" | "az" | "za" | "price_low" | "price_high";
 
 interface VaultFolder {
   id: string;
@@ -82,9 +83,19 @@ const SORT_LABELS: Record<SortBy, string> = {
   newest: "newest",
   oldest: "oldest",
   az: "a – z",
-  price: "price",
+  za: "z – a",
+  price_low: "price: low → high",
+  price_high: "price: high → low",
 };
-const SORT_CYCLE: SortBy[] = ["newest", "oldest", "az", "price"];
+const SORT_CYCLE: SortBy[] = ["newest", "oldest", "az", "za", "price_low", "price_high"];
+
+// Numeric value of a stored price string ("£45", "free", "$10") for sorting.
+function priceValue(p: string | null): number {
+  if (!p) return Number.POSITIVE_INFINITY; // unpriced items sink to the bottom
+  if (p === "free") return 0;
+  const n = parseFloat(p.replace(/[^0-9.]/g, ""));
+  return isNaN(n) ? Number.POSITIVE_INFINITY : n;
+}
 
 const EMOJI_OPTIONS = ["📁", "🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎪", "💫", "📌"];
 const ITEM_EMOJIS   = ["🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎭", "🎬", "🛍️", "📚", "🎵", "🍷", "💎", "🎮", "🌿", "🧁"];
@@ -146,52 +157,72 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
 }
 
 function VisualPicker({
-  value, onChange, ogImage, ogTitle, loading,
+  emoji, onEmojiChange, image, imageTitle, scraping, uploading, onPickFile, onRemoveImage,
 }: {
-  value: "og" | string | null;
-  onChange: (v: "og" | string | null) => void;
-  ogImage?: string | null;
-  ogTitle?: string | null;
-  loading?: boolean;
+  emoji: string | null;
+  onEmojiChange: (v: string | null) => void;
+  image: string | null;
+  imageTitle: string | null;
+  scraping?: boolean;
+  uploading?: boolean;
+  onPickFile: (file: File) => void;
+  onRemoveImage: () => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
   return (
-    <div className="space-y-2">
-      {loading && (
-        <div className="flex items-center gap-2 p-2 bg-secondary rounded-xl">
-          <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
-          <span className="text-xs text-muted-foreground">fetching preview…</span>
+    <div className="space-y-3">
+      {/* Photo — auto from a link's preview, or upload your own */}
+      <div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ""; }}
+        />
+        {scraping || uploading ? (
+          <div className="flex items-center gap-2 p-2.5 bg-secondary rounded-xl">
+            <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
+            <span className="text-xs text-muted-foreground">{uploading ? "uploading…" : "fetching preview…"}</span>
+          </div>
+        ) : image ? (
+          <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl">
+            <img src={image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              {imageTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{imageTitle}</p>}
+              <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-medium text-foreground mt-0.5">change photo</button>
+            </div>
+            <button type="button" onClick={onRemoveImage} className="w-7 h-7 rounded-full bg-white/70 flex items-center justify-center text-muted-foreground hover:text-foreground flex-shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => fileRef.current?.click()}
+            className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-border/60 text-muted-foreground hover:border-border/90 transition-colors">
+            <Camera className="w-4 h-4" />
+            <span className="text-sm">add a photo</span>
+          </button>
+        )}
+      </div>
+
+      {/* Emoji — shown on the card tile */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">emoji</p>
+        <div className="grid grid-cols-6 gap-2">
+          {ITEM_EMOJIS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => onEmojiChange(emoji === e ? null : e)}
+              className={cn(
+                "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                emoji === e
+                  ? "bg-foreground/10 ring-2 ring-foreground/40"
+                  : "bg-secondary hover:bg-secondary/70"
+              )}
+            >{e}</button>
+          ))}
         </div>
-      )}
-      {!loading && ogImage && (
-        <button
-          type="button"
-          onClick={() => onChange(value === "og" ? null : "og")}
-          className={cn(
-            "w-full flex items-center gap-3 p-2.5 rounded-xl border-2 transition-all text-left",
-            value === "og"
-              ? "border-foreground bg-secondary"
-              : "border-border/40 bg-secondary/50 hover:bg-secondary"
-          )}
-        >
-          <img src={ogImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-          {ogTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2 flex-1">{ogTitle}</p>}
-          <span className="text-[10px] text-muted-foreground/50 flex-shrink-0">thumbnail</span>
-        </button>
-      )}
-      <div className="grid grid-cols-6 gap-2">
-        {ITEM_EMOJIS.map((e) => (
-          <button
-            key={e}
-            type="button"
-            onClick={() => onChange(value === e ? null : e)}
-            className={cn(
-              "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
-              value === e
-                ? "bg-foreground/10 ring-2 ring-foreground/40"
-                : "bg-secondary hover:bg-secondary/70"
-            )}
-          >{e}</button>
-        ))}
       </div>
     </div>
   );
@@ -232,6 +263,8 @@ export default function VaultClient() {
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
   const resolveOwner = useOwnerIdentity();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Navigation
   const [view, setView] = useState<"folders" | "items">("folders");
@@ -252,6 +285,7 @@ export default function VaultClient() {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<VaultItem | null>(null);
+  const [actionItem, setActionItem] = useState<VaultItem | null>(null);
 
   // New folder form
   const [folderName, setFolderName] = useState("");
@@ -265,7 +299,8 @@ export default function VaultClient() {
   const [priceRange, setPriceRange] = useState<string | null>(null);
   const [ogPreview, setOgPreview] = useState<OgPreview | null>(null);
   const [fetchingOg, setFetchingOg] = useState(false);
-  const [selectedVisual, setSelectedVisual] = useState<"og" | string | null>(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [emoji, setEmoji] = useState<string | null>(null);
 
   // Edit item form
   const [editTitle, setEditTitle] = useState("");
@@ -275,13 +310,14 @@ export default function VaultClient() {
   const [editPriceRange, setEditPriceRange] = useState<string | null>(null);
   const [editOgPreview, setEditOgPreview] = useState<OgPreview | null>(null);
   const [fetchingEditOg, setFetchingEditOg] = useState(false);
-  const [editSelectedVisual, setEditSelectedVisual] = useState<"og" | string | null>(null);
+  const [editUploadingImg, setEditUploadingImg] = useState(false);
+  const [editEmoji, setEditEmoji] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
 
   const myAccent = getAccent(me.accent_color);
 
-  useScrollLock(showNewFolder || showAdd || editingItem !== null);
+  useScrollLock(showNewFolder || showAdd || editingItem !== null || actionItem !== null);
 
   // FAB wires to the correct action per view
   useEffect(() => {
@@ -327,7 +363,15 @@ export default function VaultClient() {
         return acc;
       }, {});
 
-      setFolders(folderList.map((f) => ({ ...f, item_count: counts[f.id] ?? 0 })));
+      const withCounts = folderList.map((f) => ({ ...f, item_count: counts[f.id] ?? 0 }));
+      setFolders(withCounts);
+
+      // Restore the open folder from the URL so a refresh stays in the folder.
+      const folderParam = searchParams.get("folder");
+      if (folderParam) {
+        const f = withCounts.find((x) => x.id === folderParam);
+        if (f) { setActiveFolder(f); setView("items"); }
+      }
       setFoldersLoading(false);
     };
     load();
@@ -357,12 +401,14 @@ export default function VaultClient() {
     setOwnerFilter("all");
     setSortBy("newest");
     setView("items");
+    router.replace(`/vault?folder=${folder.id}`, { scroll: false });
   }
 
   function goBack() {
     setView("folders");
     setActiveFolder(null);
     setItems([]);
+    router.replace("/vault", { scroll: false });
     // Refresh counts
     createClient()
       .from("vault_items")
@@ -389,14 +435,15 @@ export default function VaultClient() {
   const filteredItems = items
     .filter((i) => ownerFilter === "all" || i.owner === ownerFilter)
     .sort((a, b) => {
-      if (sortBy === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      if (sortBy === "az")     return a.title.localeCompare(b.title);
-      if (sortBy === "price") {
-        const order: Record<string, number> = { "£": 1, "££": 2, "£££": 3 };
-        return (order[a.price_range ?? ""] ?? 4) - (order[b.price_range ?? ""] ?? 4);
+      switch (sortBy) {
+        case "newest":     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "oldest":     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "az":         return a.title.localeCompare(b.title);
+        case "za":         return b.title.localeCompare(a.title);
+        case "price_low":  return priceValue(a.price_range) - priceValue(b.price_range);
+        case "price_high": return priceValue(b.price_range) - priceValue(a.price_range);
+        default:           return 0;
       }
-      return 0;
     });
 
 
@@ -433,30 +480,48 @@ export default function VaultClient() {
 
   function closeAdd() {
     setShowAdd(false);
-    setTitle(""); setUrl(""); setNotes(""); setPriceRange(null); setOgPreview(null); setSelectedVisual(null);
+    setTitle(""); setUrl(""); setNotes(""); setPriceRange(null);
+    setOgPreview(null); setEmoji(null); setUploadingImg(false);
   }
 
+  async function uploadVaultImage(file: File): Promise<string | null> {
+    const supabase = createClient();
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${coupleId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("vault").upload(path, file);
+    if (error) return null;
+    return supabase.storage.from("vault").getPublicUrl(path).data.publicUrl;
+  }
+
+  async function handlePickFile(file: File, isEdit: boolean) {
+    if (isEdit) setEditUploadingImg(true); else setUploadingImg(true);
+    const uploaded = await uploadVaultImage(file);
+    if (uploaded) {
+      if (isEdit) setEditOgPreview({ image: uploaded, title: null });
+      else setOgPreview({ image: uploaded, title: null });
+    }
+    if (isEdit) setEditUploadingImg(false); else setUploadingImg(false);
+  }
+
+  // Auto-fill the photo from a link's preview only when one isn't already set.
   async function handleUrlBlur(val: string) {
-    if (!val.trim()) { setOgPreview(null); setSelectedVisual((v) => v === "og" ? null : v); return; }
+    if (!val.trim() || ogPreview) return;
     setFetchingOg(true);
     const preview = await fetchOgPreview(val.trim());
-    setOgPreview(preview);
-    if (preview?.image) setSelectedVisual("og"); // auto-select thumbnail when found
+    if (preview?.image) setOgPreview(preview);
     setFetchingOg(false);
   }
 
   async function handleEditUrlBlur(val: string) {
-    if (!val.trim()) { setEditOgPreview(null); setEditSelectedVisual((v) => v === "og" ? null : v); return; }
+    if (!val.trim() || editOgPreview) return;
     setFetchingEditOg(true);
     const preview = await fetchOgPreview(val.trim());
-    setEditOgPreview(preview);
-    if (preview?.image) setEditSelectedVisual("og");
+    if (preview?.image) setEditOgPreview(preview);
     setFetchingEditOg(false);
   }
 
   function handleAdd() {
     if (!title.trim() || !activeFolder) return;
-    const itemEmoji = selectedVisual && selectedVisual !== "og" ? selectedVisual : null;
     const optimistic: VaultItem = {
       id: crypto.randomUUID(),
       folder_id: activeFolder.id,
@@ -470,7 +535,7 @@ export default function VaultClient() {
       price_range: priceRange,
       og_image: ogPreview?.image ?? null,
       og_title: ogPreview?.title ?? null,
-      item_emoji: itemEmoji,
+      item_emoji: emoji,
     };
     setItems((prev) => [optimistic, ...prev]);
     markActivity("vault");
@@ -484,13 +549,14 @@ export default function VaultClient() {
         priceRange: priceRange ?? undefined,
         ogImage: ogPreview?.image ?? undefined,
         ogTitle: ogPreview?.title ?? undefined,
-        itemEmoji: itemEmoji ?? undefined,
+        itemEmoji: emoji ?? undefined,
       })
     );
     closeAdd();
   }
 
   function openEdit(item: VaultItem) {
+    setActionItem(null);
     setEditingItem(item);
     setEditTitle(item.title);
     setEditOwner(item.owner ?? "shared");
@@ -498,26 +564,27 @@ export default function VaultClient() {
     setEditNotes(item.notes ?? "");
     setEditPriceRange(item.price_range ?? null);
     setEditOgPreview(item.og_image ? { image: item.og_image, title: item.og_title } : null);
-    setEditSelectedVisual(item.item_emoji ?? (item.og_image ? "og" : null));
+    setEditEmoji(item.item_emoji);
+    setEditUploadingImg(false);
   }
 
   function handleEdit() {
     if (!editingItem || !editTitle.trim()) return;
-    const itemEmoji = editSelectedVisual && editSelectedVisual !== "og" ? editSelectedVisual : null;
     setItems((prev) =>
       prev.map((i) =>
         i.id === editingItem.id
           ? { ...i, title: editTitle.trim(), owner: editOwner, url: editUrl.trim() || null,
               notes: editNotes.trim() || null, price_range: editPriceRange,
               og_image: editOgPreview?.image ?? null, og_title: editOgPreview?.title ?? null,
-              item_emoji: itemEmoji }
+              item_emoji: editEmoji }
           : i
       )
     );
+    const id = editingItem.id;
     setEditingItem(null);
     startTransition(() =>
       updateVaultItem({
-        id: editingItem.id, coupleId,
+        id, coupleId, userId: me.id,
         title: editTitle.trim(),
         url: editUrl.trim() || undefined,
         notes: editNotes.trim() || undefined,
@@ -525,20 +592,29 @@ export default function VaultClient() {
         priceRange: editPriceRange,
         ogImage: editOgPreview?.image ?? null,
         ogTitle: editOgPreview?.title ?? null,
-        itemEmoji: itemEmoji,
+        itemEmoji: editEmoji,
       })
     );
   }
 
   function handleStage(item: VaultItem) {
+    if (item.created_by !== me.id) return; // only the creator can advance stage
     const next = STAGE_NEXT[item.stage];
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, stage: next } : i));
-    startTransition(() => updateVaultStage(item.id, coupleId, next));
+    startTransition(() => updateVaultStage(item.id, coupleId, me.id, next));
   }
 
   function handleDelete(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
-    startTransition(() => deleteVaultItem(id, coupleId));
+    setActionItem(null);
+    startTransition(() => deleteVaultItem(id, coupleId, me.id));
+  }
+
+  // Tap a card: the creator gets the edit/remove prompt; anyone else can only
+  // open the link (they can't edit a partner's entry).
+  function handleCardTap(item: VaultItem) {
+    if (item.created_by === me.id) { setActionItem(item); return; }
+    if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
   }
 
   // ── FOLDERS VIEW ─────────────────────────────────────────────────────────────
@@ -743,71 +819,15 @@ export default function VaultClient() {
           <div className="space-y-2">
             {filteredItems.map((item) => {
               const o = resolveOwner(item.owner);
-              const ombre = cardOmbre(o);
-              const hasOgImage = !item.item_emoji && !!item.og_image;
-              const hasEmoji   = !!item.item_emoji;
-
-              // Shared meta row
-              const meta = (
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <OwnerAvatars people={o.people} />
-                  {item.price_range && (
-                    <>
-                      <span className="text-muted-foreground/25 text-[10px]">·</span>
-                      <span className="text-xs font-semibold text-foreground/70">{item.price_range}</span>
-                    </>
-                  )}
-                  {activeFolder?.kind === "date_idea" && (
-                    <>
-                      <span className="text-muted-foreground/25 text-[10px]">·</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleStage(item); }}
-                        className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
-                      >
-                        {STAGE_LABEL[item.stage]}
-                      </button>
-                    </>
-                  )}
-                  {item.url && (
-                    <>
-                      <span className="text-muted-foreground/25 text-[10px]">·</span>
-                      <a href={item.url} target="_blank" rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs text-blue-400 hover:text-blue-600 transition-colors"
-                      >link</a>
-                    </>
-                  )}
-                </div>
-              );
-
-              if (hasOgImage) {
-                // ── Rich card: right-side OG thumbnail ──────────────────
-                return (
-                  <div key={item.id}
-                    onClick={() => openEdit(item)}
-                    className="card-row overflow-hidden flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ background: ombre }}
-                  >
-                    <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col justify-center">
-                      <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{item.title}</p>
-                      {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
-                      {meta}
-                    </div>
-                    <div className="w-[36%] flex-shrink-0 relative">
-                      <img src={item.og_image!} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                    </div>
-                  </div>
-                );
-              }
-
-              if (hasEmoji) {
-                // ── Emoji card: left anchor ──────────────────────────────
-                return (
-                  <div key={item.id}
-                    onClick={() => openEdit(item)}
-                    className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ background: ombre }}
-                  >
+              const isMine = item.created_by === me.id;
+              return (
+                <div key={item.id}
+                  onClick={() => handleCardTap(item)}
+                  className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                  style={{ background: cardOmbre(o) }}
+                >
+                  {/* Emoji tile (kept even when a photo is set) */}
+                  {item.item_emoji && (
                     <div className="flex-shrink-0 pl-3.5 py-3">
                       <div
                         className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none"
@@ -816,29 +836,61 @@ export default function VaultClient() {
                         {item.item_emoji}
                       </div>
                     </div>
-                    <div className="flex-1 min-w-0 px-3 py-3">
-                      <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
-                      {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
-                      {meta}
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
-                  </div>
-                );
-              }
+                  )}
 
-              // ── Minimal card: text only ──────────────────────────────
-              return (
-                <div key={item.id}
-                  onClick={() => openEdit(item)}
-                  className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                  style={{ background: ombre }}
-                >
-                  <div className="flex-1 min-w-0 px-4 py-3">
+                  {/* Content */}
+                  <div className={cn("flex-1 min-w-0 py-3", item.item_emoji ? "px-3" : "px-4")}>
                     <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
                     {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
-                    {meta}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <OwnerAvatars people={o.people} />
+                      {item.price_range && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          <span className="text-xs font-semibold text-foreground/70">{item.price_range}</span>
+                        </>
+                      )}
+                      {activeFolder?.kind === "date_idea" && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          {isMine ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleStage(item); }}
+                              className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
+                            >
+                              {STAGE_LABEL[item.stage]}
+                            </button>
+                          ) : (
+                            <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", STAGE_COLOR[item.stage])}>
+                              {STAGE_LABEL[item.stage]}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {item.url && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          <a href={item.url} target="_blank" rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-blue-400 hover:text-blue-600 transition-colors"
+                          >link</a>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
+
+                  {/* Thumbnail (smaller — sits alongside the emoji) */}
+                  {item.og_image && (
+                    <img src={item.og_image} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
+                  )}
+
+                  {isMine ? (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
+                  ) : item.url ? (
+                    <Link2 className="w-4 h-4 text-muted-foreground/30 flex-shrink-0 mr-3.5" />
+                  ) : (
+                    <div className="mr-3.5" />
+                  )}
                 </div>
               );
             })}
@@ -874,13 +926,16 @@ export default function VaultClient() {
               type="url"
             />
             <div>
-              <p className="text-xs text-muted-foreground mb-2">visual <span className="opacity-50">(optional)</span></p>
+              <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
               <VisualPicker
-                value={selectedVisual}
-                onChange={setSelectedVisual}
-                ogImage={ogPreview?.image}
-                ogTitle={ogPreview?.title}
-                loading={fetchingOg}
+                emoji={emoji}
+                onEmojiChange={setEmoji}
+                image={ogPreview?.image ?? null}
+                imageTitle={ogPreview?.title ?? null}
+                scraping={fetchingOg}
+                uploading={uploadingImg}
+                onPickFile={(f) => handlePickFile(f, false)}
+                onRemoveImage={() => setOgPreview(null)}
               />
             </div>
             <textarea
@@ -930,13 +985,16 @@ export default function VaultClient() {
               type="url"
             />
             <div>
-              <p className="text-xs text-muted-foreground mb-2">visual <span className="opacity-50">(optional)</span></p>
+              <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
               <VisualPicker
-                value={editSelectedVisual}
-                onChange={setEditSelectedVisual}
-                ogImage={editOgPreview?.image}
-                ogTitle={editOgPreview?.title}
-                loading={fetchingEditOg}
+                emoji={editEmoji}
+                onEmojiChange={setEditEmoji}
+                image={editOgPreview?.image ?? null}
+                imageTitle={editOgPreview?.title ?? null}
+                scraping={fetchingEditOg}
+                uploading={editUploadingImg}
+                onPickFile={(f) => handlePickFile(f, true)}
+                onRemoveImage={() => setEditOgPreview(null)}
               />
             </div>
             <textarea
@@ -964,6 +1022,30 @@ export default function VaultClient() {
               <Button onClick={handleEdit} disabled={!editTitle.trim()} className="flex-1 h-11 rounded-xl">
                 save
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action prompt — creator only (edit / remove) */}
+      {actionItem && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setActionItem(null)} />
+          <div className="relative bg-background rounded-3xl p-6 w-full max-w-xs shadow-lg">
+            <p className="font-semibold text-foreground text-center truncate">{actionItem.title}</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
+            <div className="space-y-2">
+              <Button onClick={() => openEdit(actionItem)} className="w-full h-11 rounded-xl">
+                <Pencil className="w-4 h-4 mr-1.5" /> edit
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleDelete(actionItem.id)}
+                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> remove from list
+              </Button>
+              <button onClick={() => setActionItem(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
             </div>
           </div>
         </div>

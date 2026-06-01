@@ -78,9 +78,12 @@ export async function addVaultItem(data: {
   );
 }
 
+// Stage / edit / delete are restricted to the item's creator — partners can't
+// modify each other's entries (the created_by filter enforces this server-side).
 export async function updateVaultStage(
   id: string,
   coupleId: string,
+  userId: string,
   stage: "ideas" | "planned" | "completed"
 ) {
   const supabase = await createClient();
@@ -88,12 +91,14 @@ export async function updateVaultStage(
     .from("vault_items")
     .update({ stage, updated_at: new Date().toISOString() })
     .eq("id", id)
-    .eq("couple_id", coupleId);
+    .eq("couple_id", coupleId)
+    .eq("created_by", userId);
 }
 
 export async function updateVaultItem(data: {
   id: string;
   coupleId: string;
+  userId: string;
   title: string;
   url?: string;
   notes?: string;
@@ -118,16 +123,18 @@ export async function updateVaultItem(data: {
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)
-    .eq("couple_id", data.coupleId);
+    .eq("couple_id", data.coupleId)
+    .eq("created_by", data.userId);
 }
 
-export async function deleteVaultItem(id: string, coupleId: string) {
+export async function deleteVaultItem(id: string, coupleId: string, userId: string) {
   const supabase = await createClient();
   await supabase
     .from("vault_items")
     .delete()
     .eq("id", id)
-    .eq("couple_id", coupleId);
+    .eq("couple_id", coupleId)
+    .eq("created_by", userId);
 }
 
 export async function fetchOgPreview(url: string): Promise<{ image: string | null; title: string | null }> {

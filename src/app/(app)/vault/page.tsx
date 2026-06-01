@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import VaultClient from "./vault-client";
 
 export default function VaultPage() {
-  return <VaultClient />;
+  return (
+    <Suspense>
+      <VaultClient />
+    </Suspense>
+  );
 }

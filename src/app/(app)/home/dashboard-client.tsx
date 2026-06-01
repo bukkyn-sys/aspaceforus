@@ -118,6 +118,12 @@ export default function DashboardClient() {
 
   useScrollLock(showCountdownSheet || showDatePicker);
 
+  // Keep the cache in sync with optimistic updates (add/delete countdown, mood,
+  // note) so a refresh shows the current state instead of resurrecting items.
+  useEffect(() => {
+    if (!loading) setCache(`dash:${coupleId}`, { data, hasPartner });
+  }, [data, hasPartner, loading, coupleId]);
+
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
