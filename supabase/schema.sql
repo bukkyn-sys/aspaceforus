@@ -400,3 +400,29 @@ alter table ledger_entries add column if not exists settled_at timestamptz; -- g
 
 alter table savings_pots add column if not exists target_date date;
 alter table savings_pots add column if not exists currency    text not null default '£';
+
+-- ── Storage buckets ───────────────────────────────────────────────────────────
+-- Run this block so vault photo uploads work (avatars/banners already exist).
+-- Creates the public "vault" bucket and policies allowing any authenticated user
+-- to upload/read/update/delete. (App scopes paths by couple id at write time.)
+
+insert into storage.buckets (id, name, public)
+values ('vault', 'vault', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "vault_read"   on storage.objects;
+drop policy if exists "vault_insert" on storage.objects;
+drop policy if exists "vault_update" on storage.objects;
+drop policy if exists "vault_delete" on storage.objects;
+
+create policy "vault_read" on storage.objects
+  for select using (bucket_id = 'vault');
+
+create policy "vault_insert" on storage.objects
+  for insert to authenticated with check (bucket_id = 'vault');
+
+create policy "vault_update" on storage.objects
+  for update to authenticated using (bucket_id = 'vault');
+
+create policy "vault_delete" on storage.objects
+  for delete to authenticated using (bucket_id = 'vault');

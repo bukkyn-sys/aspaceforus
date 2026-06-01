@@ -163,7 +163,7 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
 }
 
 function VisualPicker({
-  emoji, onEmojiChange, image, imageTitle, scraping, uploading, onPickFile, onRemoveImage,
+  emoji, onEmojiChange, image, imageTitle, scraping, uploading, error, onPickFile, onRemoveImage,
 }: {
   emoji: string | null;
   onEmojiChange: (v: string | null) => void;
@@ -171,6 +171,7 @@ function VisualPicker({
   imageTitle: string | null;
   scraping?: boolean;
   uploading?: boolean;
+  error?: string | null;
   onPickFile: (file: File) => void;
   onRemoveImage: () => void;
 }) {
@@ -206,9 +207,10 @@ function VisualPicker({
           <button type="button" onClick={() => fileRef.current?.click()}
             className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-border/60 text-muted-foreground hover:border-border/90 transition-colors">
             <Camera className="w-4 h-4" />
-            <span className="text-sm">add a photo</span>
+            <span className="text-sm">{error ? "try another photo" : "add a photo"}</span>
           </button>
         )}
+        {error && <p className="text-[11px] text-terracotta mt-1.5 px-0.5">{error}</p>}
       </div>
 
       {/* Emoji — shown on the card tile */}
@@ -307,6 +309,7 @@ export default function VaultClient() {
   const [fetchingOg, setFetchingOg] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [emoji, setEmoji] = useState<string | null>(null);
+  const [imgError, setImgError] = useState<string | null>(null);
 
   // Edit item form
   const [editTitle, setEditTitle] = useState("");
@@ -487,24 +490,29 @@ export default function VaultClient() {
   function closeAdd() {
     setShowAdd(false);
     setTitle(""); setUrl(""); setNotes(""); setPriceRange(null);
-    setOgPreview(null); setEmoji(null); setUploadingImg(false);
+    setOgPreview(null); setEmoji(null); setUploadingImg(false); setImgError(null);
   }
 
-  async function uploadVaultImage(file: File): Promise<string | null> {
+  async function uploadVaultImage(file: File): Promise<{ url: string | null; error: string | null }> {
     const supabase = createClient();
-    const ext = file.name.split(".").pop() || "jpg";
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
     const path = `${coupleId}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from("vault").upload(path, file);
-    if (error) return null;
-    return supabase.storage.from("vault").getPublicUrl(path).data.publicUrl;
+    const { error } = await supabase.storage
+      .from("vault")
+      .upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
+    if (error) return { url: null, error: error.message };
+    return { url: supabase.storage.from("vault").getPublicUrl(path).data.publicUrl, error: null };
   }
 
   async function handlePickFile(file: File, isEdit: boolean) {
+    setImgError(null);
     if (isEdit) setEditUploadingImg(true); else setUploadingImg(true);
-    const uploaded = await uploadVaultImage(file);
-    if (uploaded) {
-      if (isEdit) setEditOgPreview({ image: uploaded, title: null });
-      else setOgPreview({ image: uploaded, title: null });
+    const { url, error } = await uploadVaultImage(file);
+    if (url) {
+      if (isEdit) setEditOgPreview({ image: url, title: null });
+      else setOgPreview({ image: url, title: null });
+    } else {
+      setImgError(error ?? "upload failed — please try again");
     }
     if (isEdit) setEditUploadingImg(false); else setUploadingImg(false);
   }
@@ -933,6 +941,7 @@ export default function VaultClient() {
             imageTitle={ogPreview?.title ?? null}
             scraping={fetchingOg}
             uploading={uploadingImg}
+            error={imgError}
             onPickFile={(f) => handlePickFile(f, false)}
             onRemoveImage={() => setOgPreview(null)}
           />
@@ -997,6 +1006,7 @@ export default function VaultClient() {
             imageTitle={editOgPreview?.title ?? null}
             scraping={fetchingEditOg}
             uploading={editUploadingImg}
+            error={imgError}
             onPickFile={(f) => handlePickFile(f, true)}
             onRemoveImage={() => setEditOgPreview(null)}
           />
