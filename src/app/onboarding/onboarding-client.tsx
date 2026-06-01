@@ -4,13 +4,108 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Home, CalendarDays, Bookmark, Receipt } from "lucide-react";
+import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Home, CalendarDays, Bookmark, Receipt, Smartphone, Share, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
 
-type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish";
+type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "install";
 type Tab = "create" | "join";
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+// "Add to home screen" step. Uses the native install prompt on Android/Chrome,
+// shows the Share → Add to Home Screen steps on iOS, and is always skippable.
+function InstallStep({
+  prompt, accentHex, onDone,
+}: {
+  prompt: BeforeInstallPromptEvent | null;
+  accentHex: string;
+  onDone: () => void;
+}) {
+  const [isIOS, setIsIOS] = useState(false);
+  const [standalone, setStandalone] = useState(false);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setIsIOS(/iphone|ipad|ipod/i.test(navigator.userAgent));
+    setStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true
+    );
+  }, []);
+
+  async function install() {
+    if (!prompt) return;
+    await prompt.prompt();
+    await prompt.userChoice;
+    setDone(true);
+  }
+
+  // Already installed — nothing to do.
+  if (standalone) {
+    return (
+      <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
+        <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto">
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7" style={{ backgroundColor: `${accentHex}22` }}>
+            <Check className="w-9 h-9" strokeWidth={1.5} style={{ color: accentHex }} />
+          </div>
+          <h1 className="font-heading text-3xl text-foreground tracking-tight">you&apos;re all set.</h1>
+          <p className="text-[15px] text-muted-foreground mt-3">enjoy your shared space.</p>
+        </div>
+        <div className="max-w-sm w-full mx-auto">
+          <Button onClick={onDone} className="w-full h-12 rounded-xl text-white text-[15px] font-medium" style={{ backgroundColor: accentHex }}>enter your space</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
+      <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto">
+        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7" style={{ backgroundColor: `${accentHex}22` }}>
+          <Smartphone className="w-9 h-9" strokeWidth={1.5} style={{ color: accentHex }} />
+        </div>
+        <h1 className="font-heading text-3xl text-foreground tracking-tight">add us. to your home screen</h1>
+        <p className="text-[15px] text-muted-foreground mt-3 leading-relaxed">
+          so it&apos;s one tap away and feels like a real app — no app store needed.
+        </p>
+
+        {isIOS && !prompt && (
+          <div className="mt-7 w-full bg-white border border-border/50 rounded-2xl p-4 text-left shadow-card space-y-2.5">
+            <div className="flex items-center gap-2.5 text-sm text-foreground">
+              <Share className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+              <span>tap the <span className="font-medium">share</span> icon in your browser bar</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-foreground">
+              <Plus className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+              <span>choose <span className="font-medium">add to home screen</span></span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="max-w-sm w-full mx-auto space-y-3">
+        {prompt && !done && (
+          <Button onClick={install} className="w-full h-12 rounded-xl text-white text-[15px] font-medium" style={{ backgroundColor: accentHex }}>
+            <Plus className="w-4 h-4 mr-1" /> add to home screen
+          </Button>
+        )}
+        <Button
+          onClick={onDone}
+          variant={prompt && !done ? "outline" : "default"}
+          className={cn("w-full h-12 rounded-xl text-[15px] font-medium", !(prompt && !done) && "text-white")}
+          style={!(prompt && !done) ? { backgroundColor: accentHex } : undefined}
+        >
+          {done ? "enter your space" : prompt ? "maybe later" : "enter your space"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   userId: string;
@@ -183,8 +278,13 @@ function CropModal({
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
           pinchRef.current.startZoom * (dist / pinchRef.current.startDist),
         ));
-        // Re-clamp offset with new zoom inline so it's immediate
-        const newOffset = clampOffset(offsetRef.current.x, offsetRef.current.y, newZoom, bw, bh);
+        // Anchor the zoom to the centre of the crop frame so it grows from the
+        // middle of the circle rather than the top-left corner.
+        const z0 = zoomRef.current;
+        const cx = FRAME.w / 2, cy = FRAME.h / 2;
+        const ax = cx - ((cx - offsetRef.current.x) / z0) * newZoom;
+        const ay = cy - ((cy - offsetRef.current.y) / z0) * newZoom;
+        const newOffset = clampOffset(ax, ay, newZoom, bw, bh);
         setZoom(newZoom);
         setOffset(newOffset);
         zoomRef.current = newZoom;
@@ -303,6 +403,14 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  // Capture the install prompt early so it's ready by the install step.
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as BeforeInstallPromptEvent); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   const selectedAccent = ACCENT_COLORS.find((c) => c.name === accentColor) ?? ACCENT_COLORS[0];
 
@@ -353,7 +461,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
       if (result?.error) { setError(result.error); return; }
-      window.location.href = "/home";
+      setStep("install");
     });
   }
 
@@ -367,7 +475,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
   function handleFinish() {
     startTransition(async () => {
       if (startDate && coupleId) await setOnboardingStartDate(userId, coupleId, startDate);
-      window.location.href = "/home";
+      setStep("install");
     });
   }
 
@@ -597,6 +705,11 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     );
   }
 
+  // ── Add to home screen ────────────────────────────────────────────────────
+  if (step === "install") {
+    return <InstallStep prompt={installPrompt} accentHex={selectedAccent.hex} onDone={() => { window.location.href = "/home"; }} />;
+  }
+
   // ── Finish (after create) ─────────────────────────────────────────────────
   return (
     <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
@@ -607,13 +720,15 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
         {/* Start date */}
         <div className="mb-5">
           <label className="text-xs text-muted-foreground block mb-1.5">when did you get together?</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            max={new Date().toISOString().split("T")[0]}
-            className="w-full h-12 rounded-xl border border-border/60 bg-white px-4 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/20"
-          />
+          <div className="h-12 rounded-xl border border-border/60 bg-white overflow-hidden flex items-center">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              className="w-full min-w-0 box-border bg-transparent px-4 text-sm text-foreground appearance-none focus:outline-none"
+            />
+          </div>
         </div>
 
         {/* Invite code */}
@@ -628,7 +743,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
       <div className="max-w-sm w-full mx-auto">
         <Button onClick={handleFinish} disabled={isPending} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
-          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "enter your space"}
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue"}
         </Button>
       </div>
     </div>
