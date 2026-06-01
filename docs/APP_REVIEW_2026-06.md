@@ -19,8 +19,8 @@ Tech stack: Next.js 14 App Router, Supabase (Postgres + RLS + Realtime + Storage
 
 ## 🔴 CRITICAL
 
-### [~] 1. Security-definer RPCs trust a client-supplied user ID (IDOR / privilege escalation)
-**Status:** CODE DONE — ⚠️ USER MUST RUN `supabase/security_hardening.sql` IN SUPABASE SQL EDITOR. The repo (`schema.sql`) is patched and a paste-ready `security_hardening.sql` covers all 16 functions (Pattern B / assert). The dashboard-only functions in that file are reconstructions — user should verify each body against the live function before/after running. Until the SQL is run in the live DB, the vulnerability remains OPEN.
+### [x] 1. Security-definer RPCs trust a client-supplied user ID (IDOR / privilege escalation)
+**Status:** ✅ DONE & APPLIED (2026-06-01). `security_hardening.sql` ran successfully in the live Supabase DB — all 16 RPCs now assert `auth.uid()` + pin `search_path`. Repo `schema.sql` also patched. IDOR closed.
 **Severity:** Critical
 **Files:** `supabase/schema.sql` (functions at lines ~182, 197, 227, 235, 251, 265, 274) + all the *uncommitted* RPCs (see item 2).
 
@@ -137,7 +137,7 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 ---
 
 ### [x] 6. Currency inconsistency — expenses hardcoded £, pots multi-currency
-**Status:** DONE (commit pending). DECISION: couple-level default. Added `couples.currency` column + `update_couple_currency` RPC (in schema.sql + security_hardening.sql). Currency flows via CoupleContext (loaded in (app)/layout). Ledger expenses (balance, rows, history, placeholder) now use it; new pots default to it (still overridable per-pot). Currency selector added to profile couple card. ⚠️ USER must run the new SQL (column + RPC) — it's in security_hardening.sql.
+**Status:** ✅ DONE & APPLIED (2026-06-01). `couples.currency` column + `update_couple_currency` RPC live in the DB. Currency flows via CoupleContext; ledger expenses + new pots use it; selector in profile couple card.
 **Severity:** Medium
 **Files:** `src/app/(app)/ledger/ledger-client.tsx` — `£` literals at :438, :443, :711, :761, :771, :828 etc.; pots use `pot.currency` (£/$/€).
 
