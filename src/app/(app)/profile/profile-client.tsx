@@ -418,7 +418,7 @@ export default function ProfileClient({
           {profile.avatarUrl ? (
             <img src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center font-heading text-3xl text-muted-foreground">
+            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-muted-foreground">
               {profile.displayName?.[0]?.toUpperCase() ?? "?"}
             </div>
           )}

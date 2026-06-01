@@ -178,7 +178,7 @@ export default function LedgerClient() {
           balanced ? "bg-secondary" : net > 0 ? "bg-sage-light" : "bg-terracotta-light"
         )}>
           <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
-          <p className={cn("font-heading text-4xl mb-1",
+          <p className={cn("text-4xl font-bold tabular-nums mb-1",
             balanced ? "text-muted-foreground" : net > 0 ? "text-sage" : "text-terracotta"
           )}>
             {balanced ? "all clear" : net > 0 ? `+£${net.toFixed(2)}` : `-£${Math.abs(net).toFixed(2)}`}

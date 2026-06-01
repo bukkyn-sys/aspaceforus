@@ -577,7 +577,7 @@ export default function VaultClient() {
 
                 {/* Name + count */}
                 <div className="flex-1 min-w-0 px-4 py-4">
-                  <p className="font-heading text-lg text-foreground leading-snug">{folder.name}</p>
+                  <p className="text-base font-semibold text-foreground leading-snug">{folder.name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {folder.item_count === 0
                       ? "nothing added yet"
@@ -677,7 +677,7 @@ export default function VaultClient() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-heading text-2xl text-foreground tracking-tight flex-1 truncate">
+          <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
             <span className="mr-1.5">{activeFolder?.emoji}</span>{activeFolder?.name}
           </h1>
         </div>
