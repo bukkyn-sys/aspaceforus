@@ -225,6 +225,27 @@ function OwnerButtons({
   );
 }
 
+/** Owner avatar(s) — one circle for a person, two overlapped for shared. */
+function OwnerAvatars({ people }: { people: { url: string | null; name: string; hex: string }[] }) {
+  return (
+    <div className="flex -space-x-1.5 flex-shrink-0">
+      {people.map((p, i) => (
+        <div
+          key={i}
+          className="w-5 h-5 rounded-full overflow-hidden border-2 border-white flex items-center justify-center bg-secondary"
+          style={{ boxShadow: `0 0 0 1.5px ${p.hex}` }}
+        >
+          {p.url ? (
+            <img src={p.url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[8px] font-semibold text-muted-foreground">{p.name[0]?.toUpperCase()}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function VaultClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
@@ -398,11 +419,23 @@ export default function VaultClient() {
     });
 
 
-  function resolveOwnerName(o: string | null) {
-    if (!o || o === "shared")                  return "shared";
-    if (o === me.id)                           return myName;
-    if (partner && o === partner.id)           return partnerName;
-    return o; // legacy 'his'/'hers' fallback
+  // Resolve the people an item belongs to (drives avatars + ombre colour).
+  function ownerPeople(owner: string | null) {
+    const meEntry = { url: me.avatar_url, name: myName, hex: myAccent.hex, light: myAccent.light };
+    const partnerEntry = partner
+      ? { url: partner.avatar_url, name: partnerName, hex: partnerAccent.hex, light: partnerAccent.light }
+      : null;
+    if (owner === me.id) return { people: [meEntry], shared: false };
+    if (partnerEntry && owner === partner!.id) return { people: [partnerEntry], shared: false };
+    // shared / null / legacy 'his'/'hers'
+    return { people: partnerEntry ? [meEntry, partnerEntry] : [meEntry], shared: true };
+  }
+
+  function cardOmbre(o: ReturnType<typeof ownerPeople>) {
+    if (!o.shared) return `linear-gradient(100deg, ${o.people[0].light} 0%, #ffffff 46%)`;
+    const a = o.people[0].light;
+    const b = o.people[1]?.light ?? a;
+    return `linear-gradient(100deg, ${a} 0%, ${b} 22%, #ffffff 58%)`;
   }
 
   // ── Folder actions ──────────────────────────────────────────────────────────
@@ -746,14 +779,15 @@ export default function VaultClient() {
         ) : (
           <div className="space-y-2">
             {filteredItems.map((item) => {
-              const itemAccent = item.created_by === me.id ? myAccent : partnerAccent;
+              const o = ownerPeople(item.owner);
+              const ombre = cardOmbre(o);
               const hasOgImage = !item.item_emoji && !!item.og_image;
               const hasEmoji   = !!item.item_emoji;
 
               // Shared meta row
               const meta = (
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-xs text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
+                  <OwnerAvatars people={o.people} />
                   {item.price_range && (
                     <>
                       <span className="text-muted-foreground/25 text-[10px]">·</span>
@@ -788,8 +822,8 @@ export default function VaultClient() {
                 return (
                   <div key={item.id}
                     onClick={() => openEdit(item)}
-                    className="card-row accent-bar flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
+                    className="card-row overflow-hidden flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ background: ombre }}
                   >
                     <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col justify-center">
                       <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{item.title}</p>
@@ -808,11 +842,14 @@ export default function VaultClient() {
                 return (
                   <div key={item.id}
                     onClick={() => openEdit(item)}
-                    className="card-row accent-bar flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
+                    className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ background: ombre }}
                   >
                     <div className="flex-shrink-0 pl-3.5 py-3">
-                      <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none">
+                      <div
+                        className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none"
+                        style={{ background: o.shared ? undefined : o.people[0].light }}
+                      >
                         {item.item_emoji}
                       </div>
                     </div>
@@ -830,8 +867,8 @@ export default function VaultClient() {
               return (
                 <div key={item.id}
                   onClick={() => openEdit(item)}
-                  className="card-row accent-bar flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                  style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
+                  className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                  style={{ background: ombre }}
                 >
                   <div className="flex-1 min-w-0 px-4 py-3">
                     <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
