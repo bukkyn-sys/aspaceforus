@@ -143,7 +143,8 @@ alter table sounding_board  enable row level security;
 
 -- Helper: is the user in this couple?
 create or replace function is_couple_member(target_couple_id uuid)
-returns boolean language sql security definer as $$
+returns boolean language sql security definer
+set search_path = public as $$
   select exists (
     select 1 from profiles
     where id = auth.uid() and couple_id = target_couple_id
@@ -180,8 +181,11 @@ end $$;
 
 -- Returns a profile row by user id
 create or replace function get_my_profile(p_user_id uuid)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer
+set search_path = public as $$
 begin
+  -- SECURITY: callers may only read their own profile.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   return (
     select row_to_json(p)
     from (
@@ -195,12 +199,15 @@ $$;
 
 -- Returns my profile + partner profile in one round trip
 create or replace function get_session_data(p_user_id uuid)
-returns json language plpgsql security definer as $$
+returns json language plpgsql security definer
+set search_path = public as $$
 declare
   v_couple_id uuid;
   v_me        json;
   v_partner   json;
 begin
+  -- SECURITY: callers may only read their own session.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   select row_to_json(p) into v_me
   from (
     select id, couple_id, display_name, avatar_url, accent_color
@@ -225,19 +232,25 @@ $$;
 
 -- Updates mood for a user (security definer bypasses RLS)
 create or replace function update_my_mood(p_user_id uuid, p_mood int)
-returns void language plpgsql security definer as $$
+returns void language plpgsql security definer
+set search_path = public as $$
 begin
+  -- SECURITY: callers may only update their own mood.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   update profiles set current_mood = p_mood where id = p_user_id;
 end;
 $$;
 
 -- Creates a couple and links the given user to it; returns the invite code
 create or replace function create_couple_for_user(p_user_id uuid)
-returns text language plpgsql security definer as $$
+returns text language plpgsql security definer
+set search_path = public as $$
 declare
   v_couple_id uuid;
   v_code      text;
 begin
+  -- SECURITY: callers may only create a couple for themselves.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   insert into couples default values
   returning id, invite_code into v_couple_id, v_code;
 
@@ -249,10 +262,13 @@ $$;
 
 -- Joins an existing couple by invite code; returns 'ok' or 'not_found'
 create or replace function join_couple_for_user(p_user_id uuid, p_code text)
-returns text language plpgsql security definer as $$
+returns text language plpgsql security definer
+set search_path = public as $$
 declare
   v_couple_id uuid;
 begin
+  -- SECURITY: callers may only join a couple as themselves.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   select id into v_couple_id from couples where invite_code = p_code;
   if not found then return 'not_found'; end if;
 
@@ -263,8 +279,11 @@ $$;
 
 -- Updates a user's display name
 create or replace function update_my_display_name(p_user_id uuid, p_name text)
-returns void language plpgsql security definer as $$
+returns void language plpgsql security definer
+set search_path = public as $$
 begin
+  -- SECURITY: callers may only rename themselves.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   update profiles set display_name = p_name where id = p_user_id;
 end;
 $$;
@@ -272,8 +291,11 @@ $$;
 -- Leaves the current couple (clears the user's couple link). The couple and its
 -- data remain for the partner.
 create or replace function leave_couple_for_user(p_user_id uuid)
-returns void language plpgsql security definer as $$
+returns void language plpgsql security definer
+set search_path = public as $$
 begin
+  -- SECURITY: callers may only remove themselves from a couple.
+  if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
   update profiles set couple_id = null where id = p_user_id;
 end;
 $$;
