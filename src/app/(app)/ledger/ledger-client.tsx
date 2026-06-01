@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
-  addLedgerEntry, settleAll, addSavingsPot, contributeToPot, deleteSavingsPot,
-  addPotFolder, deletePotFolder,
+  addLedgerEntry, settleAll, deleteLedgerEntry, addSavingsPot, contributeToPot,
+  deleteSavingsPot, addPotFolder, deletePotFolder,
 } from "./actions";
-import { Plus, X, Check, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, X, Check, Trash2, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { useScrollLock } from "@/lib/use-scroll-lock";
@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
+
+type Recurrence = "none" | "weekly" | "monthly";
 
 interface Entry {
   id: string;
@@ -25,6 +27,8 @@ interface Entry {
   split_ratio: string;
   settled: boolean;
   created_at: string;
+  category: string | null;
+  recurrence: Recurrence;
 }
 
 interface Pot {
@@ -35,6 +39,8 @@ interface Pot {
   hers_amount: string;
   folder_id: string | null;
   created_by?: string | null;
+  target_date: string | null;
+  currency: string;
 }
 
 interface PotFolder {
@@ -49,9 +55,41 @@ interface PotFolder {
 
 type LedgerCache = { entries: Entry[]; pots: Pot[]; folders: PotFolder[] };
 
+const CATEGORIES = [
+  { id: "food",      emoji: "🍽️", label: "food" },
+  { id: "travel",    emoji: "✈️", label: "travel" },
+  { id: "home",      emoji: "🏡", label: "home" },
+  { id: "fun",       emoji: "🎉", label: "fun" },
+  { id: "shopping",  emoji: "🛍️", label: "shopping" },
+  { id: "bills",     emoji: "📄", label: "bills" },
+  { id: "transport", emoji: "🚗", label: "transport" },
+  { id: "other",     emoji: "💸", label: "other" },
+] as const;
+const catById = (id: string | null) => CATEGORIES.find((c) => c.id === id);
+
+const CURRENCIES = ["£", "$", "€"] as const;
+const RECURRENCES: { id: Recurrence; label: string }[] = [
+  { id: "none", label: "one-off" },
+  { id: "weekly", label: "weekly" },
+  { id: "monthly", label: "monthly" },
+];
+
 const FOLDER_EMOJIS = ["🫙", "💰", "🏦", "✈️", "🏡", "💍", "🎓", "🚗", "🎁", "🏖️", "💻", "🛋️"];
 const POT_PANEL_COLORS = ["#E8F0EA", "#F5EDD3", "#E3EEF8", "#EDE9F5", "#F5E3E5"];
 const potPanelColor = (sortOrder: number) => POT_PANEL_COLORS[sortOrder % POT_PANEL_COLORS.length];
+
+function fmtDate(d: string) {
+  return new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function pacePace(saved: number, goal: number, target: string | null, cur: string): string | null {
+  if (saved >= goal) return "goal reached 🎉";
+  if (!target) return null;
+  const daysLeft = Math.ceil((new Date(target + "T12:00:00").getTime() - Date.now()) / 86400000);
+  if (daysLeft <= 0) return "target date passed";
+  const perWeek = (goal - saved) / (daysLeft / 7);
+  return `${cur}${perWeek.toFixed(0)}/wk to reach by ${fmtDate(target)}`;
+}
 
 export default function LedgerClient() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
@@ -71,6 +109,11 @@ export default function LedgerClient() {
   // Pot folder navigation
   const [activePotFolder, setActivePotFolder] = useState<PotFolder | null>(null);
 
+  // Expense filters / history
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [showHistory, setShowHistory] = useState(false);
+  const [settledEntries, setSettledEntries] = useState<Entry[] | null>(null);
+
   // Sheets
   const [showAdd, setShowAdd] = useState(false);
   const [showPot, setShowPot] = useState(false);
@@ -82,18 +125,22 @@ export default function LedgerClient() {
   const [amount, setAmount] = useState("");
   const [paidBy, setPaidBy] = useState<"me" | "partner">("me");
   const [split, setSplit] = useState("50");
+  const [category, setCategory] = useState<string | null>(null);
+  const [recurrence, setRecurrence] = useState<Recurrence>("none");
 
   // Add pot form
   const [potTitle, setPotTitle] = useState("");
   const [potGoal, setPotGoal] = useState("");
   const [potFolderId, setPotFolderId] = useState<string | null>(null);
+  const [potTarget, setPotTarget] = useState("");
+  const [potCurrency, setPotCurrency] = useState<string>("£");
 
   // New folder form
   const [folderName, setFolderName] = useState("");
   const [folderEmoji, setFolderEmoji] = useState("🫙");
 
   // Contribute sheet
-  const [myContrib, setMyContrib] = useState("");
+  const [contribDelta, setContribDelta] = useState("");
 
   const defaultFolderId = folders.find((f) => f.is_default)?.id ?? folders[0]?.id ?? null;
 
@@ -101,7 +148,6 @@ export default function LedgerClient() {
 
   useEffect(() => { markSeen("ledger"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // FAB: expenses → expense form, pots → pot form (targeting current/default folder)
   useEffect(() => {
     setAction(() => {
       if (tab === "entries") { setShowAdd(true); return; }
@@ -115,14 +161,13 @@ export default function LedgerClient() {
     const supabase = createClient();
     Promise.all([
       supabase.from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", false).order("created_at", { ascending: false }),
-      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by").eq("couple_id", coupleId).order("created_at", { ascending: false }),
+      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency").eq("couple_id", coupleId).order("created_at", { ascending: false }),
       supabase.from("pot_folders").select("id, name, emoji, is_default, sort_order, created_by, created_at").eq("couple_id", coupleId).order("sort_order").order("created_at"),
     ]).then(async ([{ data: e }, { data: p }, { data: f }]) => {
       const entries = (e as Entry[]) ?? [];
       const pots = (p as Pot[]) ?? [];
       let folders = (f as PotFolder[]) ?? [];
 
-      // Seed default folder for couples that don't have one yet
       if (folders.length === 0) {
         await addPotFolder({ coupleId, userId: me.id, name: "savings", emoji: "🫙", isDefault: true });
         const { data: refetched } = await supabase
@@ -139,7 +184,15 @@ export default function LedgerClient() {
     });
   }, [coupleId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Net balance
+  async function loadHistory() {
+    if (settledEntries) return;
+    const { data } = await createClient()
+      .from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", true)
+      .order("created_at", { ascending: false }).limit(100);
+    setSettledEntries((data as Entry[]) ?? []);
+  }
+
+  // Net balance (unsettled only)
   let youOwe = 0, theyOwe = 0;
   for (const e of entries) {
     const amt = parseFloat(e.amount);
@@ -152,6 +205,10 @@ export default function LedgerClient() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  function resetEntryForm() {
+    setTitle(""); setAmount(""); setSplit("50"); setCategory(null); setRecurrence("none");
+  }
+
   function handleAddEntry() {
     if (!title.trim() || !amount) return;
     const amt = parseFloat(amount);
@@ -159,17 +216,25 @@ export default function LedgerClient() {
     const paidById = paidBy === "me" ? me.id : partner?.id ?? me.id;
     const optimistic: Entry = {
       id: crypto.randomUUID(), title: title.trim(), amount: amt.toString(),
-      paid_by: paidById, split_ratio: ratio.toString(), settled: false, created_at: new Date().toISOString(),
+      paid_by: paidById, split_ratio: ratio.toString(), settled: false,
+      created_at: new Date().toISOString(), category, recurrence,
     };
     setEntries((prev) => [optimistic, ...prev]);
-    setTitle(""); setAmount(""); setSplit("50"); setShowAdd(false);
+    resetEntryForm(); setShowAdd(false);
     markActivity("ledger");
-    startTransition(() => { addLedgerEntry({ coupleId, userId: me.id, title: optimistic.title, amount: amt, paidBy: paidById, splitRatio: ratio }); });
+    startTransition(() => { addLedgerEntry({ coupleId, userId: me.id, title: optimistic.title, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); });
   }
 
   function handleSettle() {
-    setEntries([]);
+    // Only non-recurring entries clear; recurring stay as ongoing splits.
+    setEntries((prev) => prev.filter((e) => e.recurrence !== "none"));
+    setSettledEntries(null); // invalidate history cache
     startTransition(() => { settleAll(coupleId); });
+  }
+
+  function handleDeleteEntry(id: string) {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    startTransition(() => { deleteLedgerEntry(id, coupleId); });
   }
 
   function handleAddPot() {
@@ -179,24 +244,26 @@ export default function LedgerClient() {
     const optimistic: Pot = {
       id: crypto.randomUUID(), title: potTitle.trim(), goal_amount: goal.toString(),
       his_amount: "0", hers_amount: "0", folder_id: folderId, created_by: me.id,
+      target_date: potTarget || null, currency: potCurrency,
     };
     setPots((prev) => [optimistic, ...prev]);
-    setPotTitle(""); setPotGoal(""); setShowPot(false);
+    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency("£"); setShowPot(false);
     markActivity("ledger");
-    startTransition(() => { addSavingsPot({ coupleId, userId: me.id, title: optimistic.title, goalAmount: goal, folderId }); });
+    startTransition(() => { addSavingsPot({ coupleId, userId: me.id, title: optimistic.title, goalAmount: goal, folderId, targetDate: potTarget || null, currency: potCurrency }); });
   }
 
   function handleContribute() {
-    if (!selectedPot || !myContrib) return;
-    const amount = parseFloat(myContrib);
+    if (!selectedPot || !contribDelta) return;
+    const delta = parseFloat(contribDelta);
     const iAmCreator = selectedPot.created_by === me.id;
-    setPots((prev) => prev.map((p) =>
-      p.id === selectedPot.id
-        ? iAmCreator ? { ...p, his_amount: amount.toString() } : { ...p, hers_amount: amount.toString() }
-        : p
-    ));
-    setSelectedPot(null); setMyContrib("");
-    startTransition(() => { contributeToPot(selectedPot.id, coupleId, me.id, amount); });
+    setPots((prev) => prev.map((p) => {
+      if (p.id !== selectedPot.id) return p;
+      const cur = parseFloat((iAmCreator ? p.his_amount : p.hers_amount) ?? "0");
+      const next = Math.max(0, cur + delta).toString();
+      return iAmCreator ? { ...p, his_amount: next } : { ...p, hers_amount: next };
+    }));
+    setSelectedPot(null); setContribDelta("");
+    startTransition(() => { contributeToPot(selectedPot.id, coupleId, me.id, delta); });
   }
 
   function handleDeletePot(pot: Pot) {
@@ -217,79 +284,94 @@ export default function LedgerClient() {
   }
 
   function handleDeleteFolder(folder: PotFolder) {
+    if (!defaultFolderId || folder.id === defaultFolderId) return;
+    // Pots move to the default folder — never deleted.
+    setPots((prev) => prev.map((p) => p.folder_id === folder.id ? { ...p, folder_id: defaultFolderId } : p));
     setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-    setPots((prev) => prev.filter((p) => p.folder_id !== folder.id));
-    startTransition(() => { deletePotFolder(folder.id, coupleId); });
+    startTransition(() => { deletePotFolder(folder.id, coupleId, defaultFolderId); });
   }
 
-  // ── Detail view: pots within a folder ───────────────────────────────────────
-
-  if (tab === "pots" && activePotFolder) {
-    const folderPots = pots.filter((p) => p.folder_id === activePotFolder.id);
-    return (
-      <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
-        <div className="flex items-center gap-2 mb-6">
-          <button onClick={() => setActivePotFolder(null)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
-            <span className="mr-1.5">{activePotFolder.emoji}</span>{activePotFolder.name}
-          </h1>
-        </div>
-
-        {folderPots.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground text-sm">no pots in here yet</p>
-            <p className="text-muted-foreground/60 text-xs mt-1">tap + to create one</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {folderPots.map((pot) => <PotCard key={pot.id} pot={pot} />)}
-          </div>
-        )}
-
-        {renderSheets()}
-      </div>
-    );
-  }
-
-  // ── Pot card (shared) ───────────────────────────────────────────────────────
+  // ── Pot card (split bar + pace) ─────────────────────────────────────────────
 
   function PotCard({ pot }: { pot: Pot }) {
     const goal = parseFloat(pot.goal_amount);
     const his = parseFloat(pot.his_amount ?? "0");
     const hers = parseFloat(pot.hers_amount ?? "0");
     const total = his + hers;
-    const pct = Math.min(100, (total / goal) * 100);
+    const cur = pot.currency ?? "£";
+    const pct = Math.min(100, Math.round((total / goal) * 100));
     const iAmCreator = pot.created_by === me.id;
+    const creatorAccent = iAmCreator ? myAccent : partnerAccent;
+    const otherAccent = iAmCreator ? partnerAccent : myAccent;
+    const hisW = Math.min(100, (his / goal) * 100);
+    const hersW = Math.min(100 - hisW, (hers / goal) * 100);
     const myAmount = iAmCreator ? his : hers;
     const theirAmount = iAmCreator ? hers : his;
+    const paceText = pacePace(total, goal, pot.target_date, cur);
     return (
       <button
-        onClick={() => { setSelectedPot(pot); setMyContrib(myAmount.toString()); }}
+        onClick={() => { setSelectedPot(pot); setContribDelta(""); }}
         className="w-full bg-white border border-border/50 rounded-2xl p-4 shadow-card text-left active:scale-[0.99] transition-transform"
       >
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium text-foreground">{pot.title}</p>
-          <p className="text-sm font-semibold text-foreground tabular-nums">£{total.toFixed(0)} / £{goal.toFixed(0)}</p>
+          <p className="text-sm font-semibold text-foreground tabular-nums">{cur}{total.toFixed(0)} / {cur}{goal.toFixed(0)}</p>
         </div>
-        <div className="h-2 bg-secondary rounded-full overflow-hidden mb-3">
-          <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2 flex">
+          <div className="h-full transition-all" style={{ width: `${hisW}%`, backgroundColor: creatorAccent.hex }} />
+          <div className="h-full transition-all" style={{ width: `${hersW}%`, backgroundColor: otherAccent.hex }} />
         </div>
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex gap-2">
-            <span>{myName}: £{myAmount.toFixed(0)}</span>
+            <span>{myName}: {cur}{myAmount.toFixed(0)}</span>
             <span>·</span>
-            <span>{partnerName}: £{theirAmount.toFixed(0)}</span>
+            <span>{partnerName}: {cur}{theirAmount.toFixed(0)}</span>
           </div>
-          <span className="text-muted-foreground/50">tap to update</span>
+          <span className="font-medium text-foreground/70 tabular-nums">{pct}%</span>
         </div>
+        {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
       </button>
     );
   }
 
-  // ── Sheets (shared across views) ────────────────────────────────────────────
+  // ── Expense row ─────────────────────────────────────────────────────────────
+
+  function ExpenseRow({ e, archived }: { e: Entry; archived?: boolean }) {
+    const amt = parseFloat(e.amount);
+    const ratio = parseFloat(e.split_ratio ?? "0.5");
+    const paidByMe = e.paid_by === me.id;
+    const myShare = paidByMe ? amt * (1 - ratio) : amt * ratio;
+    const payerAccent = paidByMe ? myAccent : partnerAccent;
+    const cat = catById(e.category);
+    return (
+      <div className={cn("bg-white border border-border/50 rounded-2xl p-4 shadow-card flex items-center gap-3", archived && "opacity-60")}
+        style={{ borderLeftColor: payerAccent.hex, borderLeftWidth: "3px" }}>
+        {cat && (
+          <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-base flex-shrink-0">{cat.emoji}</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-foreground truncate">{e.title}</p>
+            {e.recurrence !== "none" && <Repeat className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />}
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {paidByMe ? myName : partnerName} paid £{amt.toFixed(2)} · your share £{myShare.toFixed(2)}
+          </p>
+        </div>
+        {archived ? (
+          <button onClick={() => handleDeleteEntry(e.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
+            {paidByMe ? `+£${(amt * (1 - ratio)).toFixed(2)}` : `-£${(amt * ratio).toFixed(2)}`}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Sheets (shared) ──────────────────────────────────────────────────────────
 
   function renderSheets() {
     return (
@@ -298,7 +380,7 @@ export default function LedgerClient() {
         {showAdd && (
           <div className="fixed inset-0 z-[60]">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowAdd(false)} />
-            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
+            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4 max-h-[88dvh] overflow-y-auto"
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">log expense</p>
@@ -306,6 +388,17 @@ export default function LedgerClient() {
               </div>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
               <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">category</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {CATEGORIES.map((c) => (
+                    <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
+                      className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
+                        category === c.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                      )}><span>{c.emoji}</span>{c.label}</button>
+                  ))}
+                </div>
+              </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-2">who paid?</p>
                 <div className="flex gap-2">
@@ -321,6 +414,18 @@ export default function LedgerClient() {
                 <p className="text-xs text-muted-foreground mb-2">your share: {split}%</p>
                 <input type="range" min="0" max="100" value={split} onChange={(e) => setSplit(e.target.value)} className="w-full accent-foreground" />
               </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">repeats?</p>
+                <div className="flex gap-2">
+                  {RECURRENCES.map((r) => (
+                    <button key={r.id} onClick={() => setRecurrence(r.id)}
+                      className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
+                        recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                      )}>{r.label}</button>
+                  ))}
+                </div>
+                {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5">recurring expenses stay on the ledger after you settle up</p>}
+              </div>
               <Button onClick={handleAddEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">add</Button>
             </div>
           </div>
@@ -329,10 +434,15 @@ export default function LedgerClient() {
         {/* Contribute / manage pot */}
         {selectedPot && (() => {
           const goal = parseFloat(selectedPot.goal_amount);
+          const cur = selectedPot.currency ?? "£";
           const iAmCreator = selectedPot.created_by === me.id;
-          const myAmt = parseFloat(myContrib || "0");
-          const theirAmt = iAmCreator ? parseFloat(selectedPot.hers_amount ?? "0") : parseFloat(selectedPot.his_amount ?? "0");
-          const pct = Math.min(100, ((myAmt + theirAmt) / goal) * 100);
+          const myCurrent = parseFloat((iAmCreator ? selectedPot.his_amount : selectedPot.hers_amount) ?? "0");
+          const theirAmt = parseFloat((iAmCreator ? selectedPot.hers_amount : selectedPot.his_amount) ?? "0");
+          const delta = parseFloat(contribDelta || "0");
+          const myNew = Math.max(0, myCurrent + delta);
+          const totalNew = myNew + theirAmt;
+          const pct = Math.min(100, Math.round((totalNew / goal) * 100));
+          const paceText = pacePace(totalNew, goal, selectedPot.target_date, cur);
           return (
             <div className="fixed inset-0 z-[60]">
               <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedPot(null)} />
@@ -344,21 +454,22 @@ export default function LedgerClient() {
                 </div>
                 <div>
                   <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                    <span>£{(myAmt + theirAmt).toFixed(0)} saved</span>
-                    <span>goal £{goal.toFixed(0)}</span>
+                    <span>{cur}{totalNew.toFixed(0)} saved · {pct}%</span>
+                    <span>goal {cur}{goal.toFixed(0)}</span>
                   </div>
                   <div className="h-2 bg-secondary rounded-full overflow-hidden">
                     <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
+                  {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">your contribution (£)</p>
-                  <Input value={myContrib} onChange={(e) => setMyContrib(e.target.value)} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+                  <p className="text-xs text-muted-foreground mb-1.5">you&apos;ve put in {cur}{myCurrent.toFixed(0)} — add or remove ({cur})</p>
+                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" step="0.01" placeholder={`e.g. 20 (or -10 to withdraw)`} className="h-11 rounded-xl bg-white border-border/60" autoFocus />
                 </div>
                 <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
-                  {partnerName}: £{theirAmt.toFixed(0)}
+                  {partnerName}: {cur}{theirAmt.toFixed(0)}
                 </div>
-                <Button onClick={handleContribute} disabled={!myContrib} className="w-full h-11 rounded-xl">save</Button>
+                <Button onClick={handleContribute} disabled={!contribDelta || delta === 0} className="w-full h-11 rounded-xl">update</Button>
                 <button onClick={() => handleDeletePot(selectedPot)}
                   className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
                   <Trash2 className="w-3.5 h-3.5" /> delete pot
@@ -372,14 +483,29 @@ export default function LedgerClient() {
         {showPot && (
           <div className="fixed inset-0 z-[60]">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowPot(false)} />
-            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
+            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4 max-h-[88dvh] overflow-y-auto"
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">new savings pot</p>
                 <button onClick={() => setShowPot(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
               </div>
               <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-              <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder="goal amount (£)" type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">currency</p>
+                <div className="flex gap-2">
+                  {CURRENCIES.map((c) => (
+                    <button key={c} onClick={() => setPotCurrency(c)}
+                      className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
+                        potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                      )}>{c}</button>
+                  ))}
+                </div>
+              </div>
+              <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
+                <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-white border-border/60" />
+              </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-2">folder</p>
                 <div className="flex gap-2 flex-wrap">
@@ -387,9 +513,7 @@ export default function LedgerClient() {
                     <button key={f.id} onClick={() => setPotFolderId(f.id)}
                       className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
                         (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}>
-                      <span>{f.emoji}</span>{f.name}
-                    </button>
+                      )}><span>{f.emoji}</span>{f.name}</button>
                   ))}
                 </div>
               </div>
@@ -428,28 +552,86 @@ export default function LedgerClient() {
     );
   }
 
+  // ── Detail view: pots within a folder ───────────────────────────────────────
+
+  if (tab === "pots" && activePotFolder) {
+    const folderPots = pots.filter((p) => p.folder_id === activePotFolder.id);
+    const avgPct = folderPots.length
+      ? Math.round(folderPots.reduce((s, p) => {
+          const g = parseFloat(p.goal_amount) || 1;
+          const t = parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0");
+          return s + Math.min(100, (t / g) * 100);
+        }, 0) / folderPots.length)
+      : 0;
+    return (
+      <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
+        <div className="flex items-center gap-2 mb-5">
+          <button onClick={() => setActivePotFolder(null)}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
+            <span className="mr-1.5">{activePotFolder.emoji}</span>{activePotFolder.name}
+          </h1>
+        </div>
+
+        {folderPots.length > 0 && (
+          <div className="bg-white border border-border/50 rounded-2xl p-4 shadow-card mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground font-medium tracking-wide">overall progress</p>
+              <p className="text-sm font-semibold text-foreground tabular-nums">{avgPct}%</p>
+            </div>
+            <div className="h-2 bg-secondary rounded-full overflow-hidden">
+              <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${avgPct}%` }} />
+            </div>
+            <p className="text-[11px] text-muted-foreground/60 mt-2">{folderPots.length} {folderPots.length === 1 ? "pot" : "pots"} in this folder</p>
+          </div>
+        )}
+
+        {folderPots.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">no pots in here yet</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">tap + to create one</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {folderPots.map((pot) => <PotCard key={pot.id} pot={pot} />)}
+          </div>
+        )}
+
+        {renderSheets()}
+      </div>
+    );
+  }
+
   // ── Main view ───────────────────────────────────────────────────────────────
+
+  const presentCategories = Array.from(new Set(entries.map((e) => e.category).filter(Boolean))) as string[];
+  const visibleEntries = categoryFilter === "all" ? entries : entries.filter((e) => e.category === categoryFilter);
 
   return (
     <div className="px-4 pt-10 pb-6 max-w-lg mx-auto">
       <h1 className="font-heading text-3xl text-foreground tracking-tight mb-6">ledger.</h1>
 
-      {/* Balance card */}
+      {/* Balance — slim pill when settled, full card when owing */}
       {!loading && (
-        <div className={cn("rounded-3xl p-5 mb-5", balanced ? "bg-secondary" : net > 0 ? "bg-sage-light" : "bg-terracotta-light")}>
-          <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
-          <p className={cn("text-4xl font-bold tabular-nums mb-1", balanced ? "text-muted-foreground" : net > 0 ? "text-sage" : "text-terracotta")}>
-            {balanced ? "all clear" : net > 0 ? `+£${net.toFixed(2)}` : `-£${Math.abs(net).toFixed(2)}`}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {balanced ? "you're all settled up" : net > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}
-          </p>
-          {!balanced && (
+        balanced ? (
+          <div className="flex items-center justify-center gap-2 bg-secondary rounded-2xl py-3 mb-5">
+            <Check className="w-4 h-4 text-sage" />
+            <p className="text-sm font-medium text-muted-foreground">all settled up</p>
+          </div>
+        ) : (
+          <div className={cn("rounded-3xl p-5 mb-5", net > 0 ? "bg-sage-light" : "bg-terracotta-light")}>
+            <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
+            <p className={cn("text-4xl font-bold tabular-nums mb-1", net > 0 ? "text-sage" : "text-terracotta")}>
+              {net > 0 ? `+£${net.toFixed(2)}` : `-£${Math.abs(net).toFixed(2)}`}
+            </p>
+            <p className="text-sm text-muted-foreground">{net > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}</p>
             <button onClick={handleSettle} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground bg-white/70 rounded-xl px-3 py-1.5">
               <Check className="w-3 h-3" /> settle up
             </button>
-          )}
-        </div>
+          </div>
+        )
       )}
 
       {/* Tabs */}
@@ -465,36 +647,62 @@ export default function LedgerClient() {
       {loading ? (
         <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
       ) : tab === "entries" ? (
-        entries.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground text-sm">no unsettled expenses</p>
-            <p className="text-muted-foreground/60 text-xs mt-1">tap + to log one</p>
+        <>
+          {/* History toggle */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground font-medium tracking-wide">
+              {showHistory ? "settled history" : "active expenses"}
+            </p>
+            <button
+              onClick={() => { const next = !showHistory; setShowHistory(next); if (next) loadHistory(); }}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showHistory ? "← back to active" : "history"}
+            </button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {entries.map((e) => {
-              const amt = parseFloat(e.amount);
-              const ratio = parseFloat(e.split_ratio ?? "0.5");
-              const paidByMe = e.paid_by === me.id;
-              const myShare = paidByMe ? amt * (1 - ratio) : amt * ratio;
-              const payerAccent = e.paid_by === me.id ? myAccent : partnerAccent;
-              return (
-                <div key={e.id} className="bg-white border border-border/50 rounded-2xl p-4 shadow-card flex items-center gap-3"
-                  style={{ borderLeftColor: payerAccent.hex, borderLeftWidth: "3px" }}>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{e.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {paidByMe ? myName : partnerName} paid £{amt.toFixed(2)} · your share £{myShare.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
-                    {paidByMe ? `+£${(amt * (1 - ratio)).toFixed(2)}` : `-£${(amt * ratio).toFixed(2)}`}
-                  </div>
+
+          {showHistory ? (
+            settledEntries === null ? (
+              <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
+            ) : settledEntries.length === 0 ? (
+              <div className="text-center py-16">
+                <p className="text-muted-foreground text-sm">nothing settled yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {settledEntries.map((e) => <ExpenseRow key={e.id} e={e} archived />)}
+              </div>
+            )
+          ) : entries.length === 0 ? (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground text-sm">no unsettled expenses</p>
+              <p className="text-muted-foreground/60 text-xs mt-1">tap + to log one</p>
+            </div>
+          ) : (
+            <>
+              {presentCategories.length > 0 && (
+                <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+                  <button onClick={() => setCategoryFilter("all")}
+                    className={cn("flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all",
+                      categoryFilter === "all" ? "bg-foreground text-background" : "bg-white border border-border/50 text-muted-foreground"
+                    )}>all</button>
+                  {presentCategories.map((cid) => {
+                    const c = catById(cid);
+                    return (
+                      <button key={cid} onClick={() => setCategoryFilter(cid)}
+                        className={cn("flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1",
+                          categoryFilter === cid ? "bg-foreground text-background" : "bg-white border border-border/50 text-muted-foreground"
+                        )}><span>{c?.emoji}</span>{c?.label ?? cid}</button>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        )
+              )}
+              <div className="space-y-2">
+                {visibleEntries.map((e) => <ExpenseRow key={e.id} e={e} />)}
+              </div>
+            </>
+          )}
+        </>
       ) : (
         // ── Pot folders list ──
         <div className="space-y-2.5">

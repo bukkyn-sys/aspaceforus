@@ -381,3 +381,12 @@ begin
       where couple_id = c.couple_id and folder_id is null;
   end loop;
 end $$;
+
+-- ── Ledger enhancements: categories, recurrence, pot targets/currency ─────────
+
+alter table ledger_entries add column if not exists category   text;
+alter table ledger_entries add column if not exists recurrence text not null default 'none'
+  check (recurrence in ('none', 'weekly', 'monthly'));
+
+alter table savings_pots add column if not exists target_date date;
+alter table savings_pots add column if not exists currency    text not null default '£';

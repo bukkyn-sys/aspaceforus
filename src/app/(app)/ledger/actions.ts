@@ -10,22 +10,38 @@ export async function addLedgerEntry(data: {
   amount: number;
   paidBy: string;
   splitRatio: number;
+  category?: string | null;
+  recurrence?: "none" | "weekly" | "monthly";
 }) {
   const supabase = await createClient();
-  await supabase.rpc("add_ledger_entry", {
-    p_couple_id: data.coupleId,
-    p_user_id: data.userId,
-    p_paid_by: data.paidBy,
-    p_title: data.title,
-    p_amount: data.amount,
-    p_split_ratio: data.splitRatio,
+  await supabase.from("ledger_entries").insert({
+    couple_id: data.coupleId,
+    created_by: data.userId,
+    paid_by: data.paidBy,
+    title: data.title,
+    amount: data.amount,
+    split_ratio: data.splitRatio,
+    category: data.category || null,
+    recurrence: data.recurrence ?? "none",
+    settled: false,
   });
   await notifyPartner(data.coupleId, data.userId, "us.", `your partner logged "${data.title}" — £${data.amount.toFixed(2)}`, "/ledger");
 }
 
+// Settle only non-recurring expenses. Recurring ones persist as ongoing splits.
 export async function settleAll(coupleId: string) {
   const supabase = await createClient();
-  await supabase.rpc("settle_all", { p_couple_id: coupleId });
+  await supabase
+    .from("ledger_entries")
+    .update({ settled: true })
+    .eq("couple_id", coupleId)
+    .eq("settled", false)
+    .eq("recurrence", "none");
+}
+
+export async function deleteLedgerEntry(id: string, coupleId: string) {
+  const supabase = await createClient();
+  await supabase.from("ledger_entries").delete().eq("id", id).eq("couple_id", coupleId);
 }
 
 export async function addSavingsPot(data: {
@@ -34,6 +50,8 @@ export async function addSavingsPot(data: {
   title: string;
   goalAmount: number;
   folderId: string;
+  targetDate?: string | null;
+  currency?: string;
 }) {
   const supabase = await createClient();
   await supabase.from("savings_pots").insert({
@@ -42,9 +60,36 @@ export async function addSavingsPot(data: {
     folder_id: data.folderId,
     title: data.title,
     goal_amount: data.goalAmount,
+    target_date: data.targetDate || null,
+    currency: data.currency || "£",
     his_amount: 0,
     hers_amount: 0,
   });
+}
+
+// Adds the given delta to the contributor's running total (atomic on the server).
+export async function contributeToPot(potId: string, coupleId: string, userId: string, delta: number) {
+  const supabase = await createClient();
+  const { data: pot } = await supabase
+    .from("savings_pots")
+    .select("his_amount, hers_amount, created_by")
+    .eq("id", potId)
+    .eq("couple_id", coupleId)
+    .single();
+  if (!pot) return;
+  const iAmCreator = pot.created_by === userId;
+  const current = parseFloat((iAmCreator ? pot.his_amount : pot.hers_amount) ?? "0");
+  const next = Math.max(0, current + delta);
+  await supabase
+    .from("savings_pots")
+    .update(iAmCreator ? { his_amount: next } : { hers_amount: next })
+    .eq("id", potId)
+    .eq("couple_id", coupleId);
+}
+
+export async function deleteSavingsPot(potId: string, coupleId: string) {
+  const supabase = await createClient();
+  await supabase.from("savings_pots").delete().eq("id", potId).eq("couple_id", coupleId);
 }
 
 export async function addPotFolder(data: {
@@ -69,27 +114,20 @@ export async function addPotFolder(data: {
   return folder?.id as string | undefined;
 }
 
-export async function deletePotFolder(id: string, coupleId: string) {
+// Moves the folder's pots to the default folder, then deletes the folder.
+// Never deletes the default folder, and never deletes pots.
+export async function deletePotFolder(id: string, coupleId: string, defaultFolderId: string) {
   const supabase = await createClient();
+  if (id === defaultFolderId) return;
+  await supabase
+    .from("savings_pots")
+    .update({ folder_id: defaultFolderId })
+    .eq("folder_id", id)
+    .eq("couple_id", coupleId);
   await supabase
     .from("pot_folders")
     .delete()
     .eq("id", id)
     .eq("couple_id", coupleId)
     .eq("is_default", false);
-}
-
-export async function contributeToPot(potId: string, coupleId: string, userId: string, amount: number) {
-  const supabase = await createClient();
-  await supabase.rpc("contribute_to_pot", {
-    p_pot_id: potId,
-    p_couple_id: coupleId,
-    p_user_id: userId,
-    p_amount: amount,
-  });
-}
-
-export async function deleteSavingsPot(potId: string, coupleId: string) {
-  const supabase = await createClient();
-  await supabase.rpc("delete_savings_pot", { p_pot_id: potId, p_couple_id: coupleId });
 }
