@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
@@ -99,6 +100,8 @@ export default function LedgerClient() {
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
   const resolveOwner = useOwnerIdentity();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
@@ -107,11 +110,26 @@ export default function LedgerClient() {
   const [pots, setPots] = useState<Pot[]>(() => cached?.pots ?? []);
   const [folders, setFolders] = useState<PotFolder[]>(() => cached?.folders ?? []);
   const [loading, setLoading] = useState(() => cached === undefined);
-  const [tab, setTab] = useState<"entries" | "pots">("entries");
+  const [tab, setTabState] = useState<"entries" | "pots">(() => searchParams.get("tab") === "pots" ? "pots" : "entries");
   const [, startTransition] = useTransition();
 
   // Pot folder navigation
   const [activePotFolder, setActivePotFolder] = useState<PotFolder | null>(null);
+
+  // Keep tab + open folder in the URL so a refresh stays on the same view.
+  function openPotFolder(folder: PotFolder) {
+    setActivePotFolder(folder);
+    router.replace(`/ledger?tab=pots&folder=${folder.id}`, { scroll: false });
+  }
+  function closePotFolder() {
+    setActivePotFolder(null);
+    router.replace("/ledger?tab=pots", { scroll: false });
+  }
+  function setTab(t: "entries" | "pots") {
+    setTabState(t);
+    setActivePotFolder(null);
+    router.replace(t === "pots" ? "/ledger?tab=pots" : "/ledger", { scroll: false });
+  }
 
   // Expense filters / history
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
@@ -186,6 +204,13 @@ export default function LedgerClient() {
       setFolders(folders);
       setLoading(false);
       setCache(`ledger:${coupleId}`, { entries, pots, folders });
+
+      // Restore the open pot folder from the URL so a refresh stays put.
+      const folderParam = searchParams.get("folder");
+      if (folderParam) {
+        const f = folders.find((x) => x.id === folderParam);
+        if (f) setActivePotFolder(f);
+      }
     });
   }, [coupleId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -589,7 +614,7 @@ export default function LedgerClient() {
     return (
       <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
         <div className="flex items-center gap-2 mb-5">
-          <button onClick={() => setActivePotFolder(null)}
+          <button onClick={closePotFolder}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0">
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -734,7 +759,7 @@ export default function LedgerClient() {
             const folderPots = pots.filter((p) => p.folder_id === folder.id);
             const saved = folderPots.reduce((s, p) => s + parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0"), 0);
             return (
-              <button key={folder.id} onClick={() => setActivePotFolder(folder)}
+              <button key={folder.id} onClick={() => openPotFolder(folder)}
                 className="w-full bg-white rounded-2xl shadow-sm overflow-hidden flex items-stretch text-left active:scale-[0.99] transition-transform">
                 <div className="w-[76px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: potPanelColor(folder.sort_order) }}>
                   <span className="text-4xl leading-none">{folder.emoji}</span>

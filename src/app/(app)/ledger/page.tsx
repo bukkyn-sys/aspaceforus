@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import LedgerClient from "./ledger-client";
 
 export default function LedgerPage() {
-  return <LedgerClient />;
+  return (
+    <Suspense>
+      <LedgerClient />
+    </Suspense>
+  );
 }
