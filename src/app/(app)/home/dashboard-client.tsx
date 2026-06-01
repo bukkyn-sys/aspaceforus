@@ -12,6 +12,7 @@ import Link from "next/link";
 import { Plane, X, Heart, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SheetClose } from "@/components/ui/sheet-close";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -49,10 +50,6 @@ function timeUntil(dateStr: string) {
   const ms = Math.max(0, target.getTime() - Date.now());
   const totalHours = Math.floor(ms / 3_600_000);
   return { days: Math.floor(totalHours / 24), hours: totalHours % 24 };
-}
-
-function daysUntil(dateStr: string) {
-  return timeUntil(dateStr).days;
 }
 
 function duration(startedAt: string): string {
@@ -515,7 +512,7 @@ export default function DashboardClient() {
             style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">when did you get together?</p>
-              <button onClick={() => setShowDatePicker(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+              <SheetClose onClick={() => setShowDatePicker(false)} />
             </div>
             <Input
               type="date"
@@ -540,12 +537,7 @@ export default function DashboardClient() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
               <p className="text-base font-semibold">new countdown</p>
-              <button
-                onClick={() => setShowCountdownSheet(false)}
-                className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <SheetClose onClick={() => setShowCountdownSheet(false)} />
             </div>
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">

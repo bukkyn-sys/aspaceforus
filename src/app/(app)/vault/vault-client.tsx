@@ -18,6 +18,7 @@ import {
 import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SheetClose } from "@/components/ui/sheet-close";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -396,9 +397,6 @@ export default function VaultClient() {
       return 0;
     });
 
-  function cycleSort() {
-    setSortBy((prev) => SORT_CYCLE[(SORT_CYCLE.indexOf(prev) + 1) % SORT_CYCLE.length]);
-  }
 
   function resolveOwnerName(o: string | null) {
     if (!o || o === "shared")                  return "shared";
@@ -623,9 +621,7 @@ export default function VaultClient() {
             >
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">new folder</p>
-                <button onClick={() => setShowNewFolder(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2">
-                  <X className="w-5 h-5" />
-                </button>
+                <SheetClose onClick={() => setShowNewFolder(false)} />
               </div>
 
               <div>
@@ -860,7 +856,7 @@ export default function VaultClient() {
           >
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">add to {activeFolder?.name}</p>
-              <button onClick={closeAdd} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+              <SheetClose onClick={closeAdd} />
             </div>
             <Input
               value={title}
@@ -916,7 +912,7 @@ export default function VaultClient() {
           >
             <div className="flex items-center justify-between">
               <p className="font-semibold text-foreground">edit</p>
-              <button onClick={() => setEditingItem(null)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+              <SheetClose onClick={() => setEditingItem(null)} />
             </div>
             <Input
               value={editTitle}

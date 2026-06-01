@@ -5,12 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { setAvailability, addEvent, deleteEvent } from "./actions";
-import { ChevronLeft, ChevronRight, Plus, X, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SheetClose } from "@/components/ui/sheet-close";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -36,7 +37,6 @@ export default function CalendarClient() {
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
   const [eventEmoji, setEventEmoji] = useState("📅");
-  const [eventCustomEmoji, setEventCustomEmoji] = useState("");
   const [, startTransition] = useTransition();
 
   const year = current.getFullYear();
@@ -94,7 +94,7 @@ export default function CalendarClient() {
       setLoading(false);
       setCache(key, { rows, events, countdowns });
     });
-  }, [coupleId, year, month]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, year, month]);
 
   function getStatus(userId: string, dateStr: string): Status {
     return rows.find((r) => r.user_id === userId && r.date === dateStr)?.status ?? null;
@@ -156,7 +156,7 @@ export default function CalendarClient() {
       created_by: me.id,
     };
     setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
-    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setEventCustomEmoji(""); setShowAddEvent(false);
+    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setShowAddEvent(false);
     markActivity("calendar");
     startTransition(() => {
       addEvent({ coupleId, userId: me.id, title: optimistic.title, startAt, endAt, emoji: eventEmoji });
@@ -488,12 +488,7 @@ export default function CalendarClient() {
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
               <p className="text-base font-semibold">new event</p>
-              <button
-                onClick={() => setShowAddEvent(false)}
-                className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-muted-foreground"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <SheetClose onClick={() => setShowAddEvent(false)} />
             </div>
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">

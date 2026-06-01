@@ -14,6 +14,7 @@ import { useNotifications } from "@/contexts/notification-context";
 import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SheetClose } from "@/components/ui/sheet-close";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -82,7 +83,7 @@ function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-function pacePace(saved: number, goal: number, target: string | null, cur: string): string | null {
+function potPace(saved: number, goal: number, target: string | null, cur: string): string | null {
   if (saved >= goal) return "goal reached 🎉";
   if (!target) return null;
   const daysLeft = Math.ceil((new Date(target + "T12:00:00").getTime() - Date.now()) / 86400000);
@@ -309,7 +310,7 @@ export default function LedgerClient() {
     const hersW = Math.min(100 - hisW, (hers / goal) * 100);
     const myAmount = iAmCreator ? his : hers;
     const theirAmount = iAmCreator ? hers : his;
-    const paceText = pacePace(total, goal, pot.target_date, cur);
+    const paceText = potPace(total, goal, pot.target_date, cur);
     return (
       <button
         onClick={() => { setSelectedPot(pot); setContribDelta(""); setContribMode("add"); }}
@@ -386,7 +387,7 @@ export default function LedgerClient() {
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">log expense</p>
-                <button onClick={() => setShowAdd(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+                <SheetClose onClick={() => setShowAdd(false)} />
               </div>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
               <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
@@ -445,7 +446,7 @@ export default function LedgerClient() {
           const myNew = Math.max(0, myCurrent + delta);
           const totalNew = myNew + theirAmt;
           const pct = Math.min(100, Math.round((totalNew / goal) * 100));
-          const paceText = pacePace(totalNew, goal, selectedPot.target_date, cur);
+          const paceText = potPace(totalNew, goal, selectedPot.target_date, cur);
           return (
             <div className="fixed inset-0 z-[60]">
               <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedPot(null)} />
@@ -453,7 +454,7 @@ export default function LedgerClient() {
                 style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
                 <div className="flex items-center justify-between">
                   <p className="font-semibold text-foreground">{selectedPot.title}</p>
-                  <button onClick={() => setSelectedPot(null)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+                  <SheetClose onClick={() => setSelectedPot(null)} />
                 </div>
                 <div>
                   <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
@@ -503,7 +504,7 @@ export default function LedgerClient() {
               style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">new savings pot</p>
-                <button onClick={() => setShowPot(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+                <SheetClose onClick={() => setShowPot(false)} />
               </div>
               <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
               <div>
@@ -546,7 +547,7 @@ export default function LedgerClient() {
               style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-foreground">new folder</p>
-                <button onClick={() => setShowFolder(false)} className="w-10 h-10 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors -mr-2"><X className="w-5 h-5" /></button>
+                <SheetClose onClick={() => setShowFolder(false)} />
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-2">emoji</p>
