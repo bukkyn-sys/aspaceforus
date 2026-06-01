@@ -24,6 +24,13 @@ import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
+function proxyImg(src: string | null | undefined): string | null {
+  if (!src) return null;
+  // Supabase storage URLs are already on our domain — serve directly.
+  if (src.includes("supabase.co") || src.startsWith("/")) return src;
+  return `/api/img-proxy?src=${encodeURIComponent(src)}`;
+}
+
 type VaultKind = "date_idea" | "wishlist" | "general";
 type Stage = "ideas" | "planned" | "completed";
 type SortBy = "newest" | "oldest" | "az" | "za" | "price_low" | "price_high";
@@ -186,7 +193,7 @@ function VisualPicker({
           </div>
         ) : image ? (
           <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl">
-            <img src={image} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            <img src={proxyImg(image) ?? ""} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
             <div className="flex-1 min-w-0">
               {imageTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{imageTitle}</p>}
               <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-medium text-foreground mt-0.5">change photo</button>
@@ -878,7 +885,7 @@ export default function VaultClient() {
 
                   {/* Thumbnail (smaller — sits alongside the emoji) */}
                   {item.og_image && (
-                    <img src={item.og_image} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
+                    <img src={proxyImg(item.og_image) ?? ""} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
                   )}
 
                   {isMine ? (

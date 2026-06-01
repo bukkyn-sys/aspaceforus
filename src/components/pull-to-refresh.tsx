@@ -13,8 +13,9 @@ export default function PullToRefresh() {
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
-  // True once the user moves upward during the gesture — disqualifies it from
-  // becoming a pull-to-refresh so normal scrolling back up is never intercepted.
+  // Gesture is disqualified if:
+  // • the user moved upward at any point, OR
+  // • scrollTop was > 0 when the touch started (scrolling back up, not pulling down)
   const disqualified = useRef(false);
 
   useEffect(() => {
@@ -22,27 +23,38 @@ export default function PullToRefresh() {
     if (!main) return;
 
     function onTouchStart(e: TouchEvent) {
-      // Always reset state on a new touch so stale refs never carry over.
       startY.current = null;
       disqualified.current = false;
-      if (main!.scrollTop > 0) return;
+
+      if (document.querySelector("[data-sheet]")) return;
+
+      // Only track gestures that begin with the page already fully at the top.
+      // This prevents inertial-scroll overshoot from triggering PTR — if the
+      // user was mid-page and scrolled back up, scrollTop will be > 0 here.
+      if (main!.scrollTop > 0) {
+        disqualified.current = true;
+        return;
+      }
       startY.current = e.touches[0].clientY;
     }
 
     function onTouchMove(e: TouchEvent) {
       if (startY.current === null || refreshing || disqualified.current) return;
+      // If the page scrolled during this gesture (shouldn't happen, but guard it)
+      if (main!.scrollTop > 0) {
+        disqualified.current = true;
+        setPullY(0);
+        return;
+      }
       const delta = e.touches[0].clientY - startY.current;
       if (delta < 0) {
-        // User moved upward — disqualify the whole gesture.
         disqualified.current = true;
         setPullY(0);
         return;
       }
       if (delta === 0) return;
-      if (main!.scrollTop === 0) {
-        e.preventDefault();
-        setPullY(Math.min(delta * 0.55, MAX_PULL));
-      }
+      e.preventDefault();
+      setPullY(Math.min(delta * 0.55, MAX_PULL));
     }
 
     function onTouchEnd() {

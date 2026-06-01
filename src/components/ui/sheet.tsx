@@ -25,7 +25,7 @@ export function BottomSheet({
   useScrollLock(open);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+    <div data-sheet="" className="fixed inset-0 z-[60] flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div
         className="relative w-full max-w-lg mx-auto bg-background rounded-t-3xl flex flex-col shadow-[0_-8px_40px_rgba(0,0,0,0.12)]"
@@ -70,7 +70,7 @@ export function Dialog({
   useScrollLock(open);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
+    <div data-sheet="" className="fixed inset-0 z-[60] flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-xs bg-background rounded-3xl p-6 shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
         {children}

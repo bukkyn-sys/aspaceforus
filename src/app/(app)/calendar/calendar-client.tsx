@@ -290,7 +290,12 @@ export default function CalendarClient() {
               roundRight ? "rounded-l-none rounded-r-lg" :
               "rounded-none";
 
-            // Show emoji only on the true start of each event/countdown range
+            // Count how many distinct items start on this exact day (for collision badge)
+            const startsHere = [
+              ...dayEvents.filter(e => e.start_at.slice(0, 10) === ds),
+              ...dayCds.filter(c => c.target_date === ds),
+            ];
+            const collisionCount = startsHere.length;
             const showBandEmoji = isEventDay && isRangeStart;
             const bandEmoji = dayEvents[0]?.emoji ?? dayCds[0]?.emoji;
 
@@ -306,11 +311,15 @@ export default function CalendarClient() {
                     : cn("rounded-lg", overlap && "bg-sage-light"),
                   isPast && "opacity-30 cursor-default",
                 )}
-                style={
-                  isEventDay ? { backgroundColor: "#E4DFD4" }
-                  : undefined
-                }
+                style={isEventDay ? { backgroundColor: "#E4DFD4" } : undefined}
               >
+                {/* Collision badge — shows when 2+ items start on this day */}
+                {collisionCount > 1 && (
+                  <div className="absolute top-0.5 right-0.5 w-[14px] h-[14px] rounded-full bg-foreground/70 flex items-center justify-center">
+                    <span className="text-[8px] font-bold text-background leading-none">{collisionCount}</span>
+                  </div>
+                )}
+
                 {/* Day number — today gets a filled circle */}
                 {isToday ? (
                   <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center mb-1">

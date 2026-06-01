@@ -141,18 +141,36 @@ export async function fetchOgPreview(url: string): Promise<{ image: string | nul
   try {
     if (!url.startsWith("http://") && !url.startsWith("https://")) return { image: null, title: null };
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(5000),
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; bot/1.0)" },
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
     });
     if (!res.ok) return { image: null, title: null };
     const html = await res.text();
-    const getOg = (prop: string) => {
-      const m =
-        html.match(new RegExp(`<meta[^>]*property=["']${prop}["'][^>]*content=["']([^"']+)["']`, "i")) ??
-        html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*property=["']${prop}["']`, "i"));
-      return m?.[1]?.trim() ?? null;
+
+    const getMeta = (attrs: string[]) => {
+      for (const attr of attrs) {
+        const m =
+          html.match(new RegExp(`<meta[^>]*(?:property|name)=["']${attr}["'][^>]*content=["']([^"']+)["']`, "i")) ??
+          html.match(new RegExp(`<meta[^>]*content=["']([^"']+)["'][^>]*(?:property|name)=["']${attr}["']`, "i"));
+        const val = m?.[1]?.trim();
+        if (val) return val;
+      }
+      return null;
     };
-    return { image: getOg("og:image"), title: getOg("og:title") };
+
+    const rawImage = getMeta(["og:image", "og:image:url", "twitter:image", "twitter:image:src"]);
+    const title = getMeta(["og:title", "twitter:title"]);
+
+    // Resolve relative image URLs against the page origin.
+    let image: string | null = null;
+    if (rawImage) {
+      image = rawImage.startsWith("http") ? rawImage : new URL(rawImage, url).href;
+    }
+
+    return { image, title };
   } catch {
     return { image: null, title: null };
   }
