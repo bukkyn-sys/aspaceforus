@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Instrument_Serif, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PwaRegister from "@/components/pwa-register";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument",
@@ -53,6 +54,7 @@ export default function RootLayout({
       <body className="h-full antialiased">
         <PwaRegister />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
