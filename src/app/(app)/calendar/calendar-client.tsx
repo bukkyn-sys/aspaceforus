@@ -301,11 +301,12 @@ export default function CalendarClient() {
                   </span>
                 )}
 
-                {/* Status dots — not shown on event days */}
+                {/* Status dots — not shown on event days.
+                    free = accent dot · busy = muted dash · unset = faint dot */}
                 {!isEventDay && (
-                  <div className="flex gap-0.5 items-center">
+                  <div className="flex gap-0.5 items-center h-1.5">
                     {mine === "busy" ? (
-                      <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
+                      <div className="w-2 h-[3px] rounded-full bg-foreground/25" />
                     ) : (
                       <div
                         className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
@@ -314,7 +315,7 @@ export default function CalendarClient() {
                     )}
                     {partner && (
                       theirs === "busy" ? (
-                        <X className="w-2.5 h-2.5 text-terracotta/50" strokeWidth={3} />
+                        <div className="w-2 h-[3px] rounded-full bg-foreground/15" />
                       ) : (
                         <div
                           className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
@@ -347,8 +348,8 @@ export default function CalendarClient() {
             <span className="text-xs text-muted-foreground/60">{partnerName} free</span>
           </div>
         )}
-        <div className="flex items-center gap-1">
-          <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-[3px] rounded-full bg-foreground/25" />
           <span className="text-xs text-muted-foreground/60">busy</span>
         </div>
         {partner && (
@@ -362,7 +363,7 @@ export default function CalendarClient() {
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
-      <p className="px-5 mt-1 text-[10px] text-muted-foreground/30">tap a day · free → busy → clear</p>
+      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to cycle: free → busy → clear</p>
 
       {/* ── Events this month ──────────────────────────────── */}
       <div className="px-5 mt-8">
@@ -409,8 +410,8 @@ export default function CalendarClient() {
                     return (
                       <div
                         key={evt.id}
-                        className="bg-white border border-border/50 rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
-                        style={{ borderLeftColor: creatorAccent.hex, borderLeftWidth: "3px" }}
+                        className="card-row accent-bar px-4 py-3 flex items-center gap-3"
+                        style={{ "--accent-bar": creatorAccent.hex } as React.CSSProperties}
                       >
                         <span className="text-xl flex-shrink-0">{evt.emoji}</span>
                         <div
@@ -428,7 +429,7 @@ export default function CalendarClient() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                          <p className="text-xs mt-0.5" style={{ color: creatorAccent.hex }}>
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                             {evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
                           </p>
@@ -450,13 +451,13 @@ export default function CalendarClient() {
                     return (
                       <div
                         key={cd.id}
-                        className="bg-white border border-border/50 border-l-[3px] rounded-2xl px-4 py-3 shadow-card flex items-center gap-3"
-                        style={{ borderLeftColor: "#D4A427" }}
+                        className="card-row accent-bar px-4 py-3 flex items-center gap-3"
+                        style={{ "--accent-bar": "#D4A427" } as React.CSSProperties}
                       >
                         <span className="text-xl flex-shrink-0">{cd.emoji}</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
-                          <p className="text-xs text-amber-600/70 mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
                             {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
                           </p>

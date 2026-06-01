@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, X, Bell, BellOff } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff } from "lucide-react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner } from "./actions";
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -276,7 +276,7 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
   if (status === null) return null;
 
   return (
-    <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
+    <div className="card p-4 mb-4">
       <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">notifications</p>
       {status === "granted" && (
         <div className="flex items-center gap-2 text-sm text-foreground">
@@ -444,7 +444,7 @@ export default function ProfileClient({
       </div>
 
       {/* Display name */}
-      <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
+      <div className="card p-4 mb-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">display name</p>
         {editingName ? (
           <div className="flex gap-2">
@@ -478,7 +478,7 @@ export default function ProfileClient({
       </div>
 
       {/* Accent color */}
-      <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card mb-4">
+      <div className="card p-4 mb-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">your colour</p>
         <div className="flex gap-3">
           {ACCENT_COLORS.map((color) => {
@@ -499,7 +499,7 @@ export default function ProfileClient({
                 title={isPartners ? "your partner's colour" : color.name}
               >
                 {isMine && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
-                {isPartners && <X className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                {isPartners && <Lock className="w-3 h-3 text-white/90" strokeWidth={2.5} />}
               </button>
             );
           })}
@@ -513,7 +513,7 @@ export default function ProfileClient({
       </div>
 
       {/* Couple */}
-      <div className="bg-white border border-border/50 rounded-3xl overflow-hidden shadow-card mb-4">
+      <div className="card overflow-hidden mb-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide p-4 pb-3">couple</p>
 
         {/* Banner upload */}

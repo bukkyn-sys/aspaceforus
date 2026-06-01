@@ -317,20 +317,25 @@ export default function DashboardClient() {
         </div>
         <Link
           href="/profile"
-          className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          className="w-9 h-9 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0"
           aria-label="profile"
+          style={{ boxShadow: `0 0 0 1.5px ${myAccent.hex}` }}
         >
-          <User className="w-4 h-4" strokeWidth={1.5} />
+          {me.avatar_url ? (
+            <img src={me.avatar_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <User className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+          )}
         </Link>
       </div>
 
       {/* Mood card */}
-      <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card">
+      <div className="card p-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">how are you both?</p>
         <div className="space-y-3">
           {/* My mood */}
           <div className="flex items-center gap-3">
-            <div className="w-20 flex-shrink-0 flex items-center gap-2">
+            <div className="w-24 flex-shrink-0 flex items-center gap-2">
               <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0"
                 style={{ boxShadow: `0 0 0 2px ${myAccent.hex}` }}>
                 {me.avatar_url
@@ -342,14 +347,14 @@ export default function DashboardClient() {
                 {timeAgo(data.myMoodAt) && <p className="text-[9px] text-muted-foreground/50 leading-tight">{timeAgo(data.myMoodAt)}</p>}
               </div>
             </div>
-            <div className="flex gap-1.5 flex-1">
+            <div className="flex gap-1 flex-1 bg-secondary/40 rounded-2xl p-1">
               {MOODS.map((emoji, i) => (
                 <button
                   key={i}
                   onClick={() => handleMood(i + 1)}
                   className={cn(
                     "flex-1 text-lg py-1 rounded-xl transition-all",
-                    data.myMood === i + 1 ? "scale-110" : "opacity-40 hover:opacity-70"
+                    data.myMood === i + 1 ? "scale-110" : "opacity-50 hover:opacity-80"
                   )}
                   style={data.myMood === i + 1 ? { backgroundColor: myAccent.light } : undefined}
                 >
@@ -361,7 +366,7 @@ export default function DashboardClient() {
           {/* Partner mood */}
           {hasPartner && (
             <div className="flex items-center gap-3">
-              <div className="w-20 flex-shrink-0 flex items-center gap-2">
+              <div className="w-24 flex-shrink-0 flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0"
                   style={{ boxShadow: `0 0 0 2px ${partnerAccent.hex}` }}>
                   {partner?.avatar_url
@@ -373,7 +378,7 @@ export default function DashboardClient() {
                   {timeAgo(data.partnerMoodAt) && <p className="text-[9px] text-muted-foreground/50 leading-tight">{timeAgo(data.partnerMoodAt)}</p>}
                 </div>
               </div>
-              <div className="flex gap-1.5 flex-1">
+              <div className="flex gap-1 flex-1 p-1">
                 {MOODS.map((emoji, i) => (
                   <div
                     key={i}
@@ -414,11 +419,11 @@ export default function DashboardClient() {
       <div
         className="rounded-sm px-4 pt-4 pb-4 relative"
         style={{
-          backgroundColor: "#FEFCE8",
-          boxShadow: "3px 5px 16px rgba(0,0,0,0.10), inset 0 -1px 0 rgba(202,138,4,0.15)",
+          backgroundColor: "#FBF7E4",
+          boxShadow: "3px 5px 16px rgba(0,0,0,0.07), inset 0 -1px 0 rgba(180,140,60,0.10)",
         }}
       >
-        <div className="absolute top-0 left-0 right-0 h-2 rounded-t-sm" style={{ backgroundColor: "#FDE68A" }} />
+        <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE2B8" }} />
         <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2">shared note</p>
         <textarea
           value={data.sharedNote}
@@ -441,7 +446,7 @@ export default function DashboardClient() {
             <p className="text-xs text-muted-foreground/40 mt-0.5">tap + to add a countdown</p>
           </button>
         ) : (
-          <div className="bg-white border border-border/50 rounded-3xl shadow-card overflow-hidden">
+          <div className="card overflow-hidden">
             <p className="text-xs font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
             {data.countdowns.map((cd, i) => {
               const { days } = timeUntil(cd.target_date);
@@ -474,7 +479,7 @@ export default function DashboardClient() {
 
       {/* Next free days */}
       {!loading && hasPartner && (
-        <div className="bg-white border border-border/50 rounded-3xl p-4 shadow-card">
+        <div className="card p-4">
           <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">next free days</p>
           {data.freeDays.length === 0 ? (
             <div>

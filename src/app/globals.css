@@ -145,6 +145,38 @@
   .safe-bottom {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
   }
+
+  /* Clean inset accent stripe — a centred rounded pill that never clips into
+     an arc the way `border-left` + `border-radius` does. Set --accent-bar. */
+  .accent-bar {
+    position: relative;
+    overflow: hidden;
+  }
+  .accent-bar::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 56%;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent-bar, transparent);
+  }
+}
+
+/* ── Surface components — one radius/shadow language for every card ─────────── */
+@layer components {
+  /* Section/container cards (mood, balance, countdowns, etc.) */
+  .card {
+    @apply bg-white border border-border/40 rounded-3xl;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 0.06);
+  }
+  /* List rows (expenses, vault items, events) */
+  .card-row {
+    @apply bg-white border border-border/40 rounded-2xl;
+    box-shadow: 0 2px 16px rgb(0 0 0 / 0.06);
+  }
 }
 
 * { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }

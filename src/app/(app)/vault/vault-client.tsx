@@ -740,6 +740,7 @@ export default function VaultClient() {
           <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
         ) : filteredItems.length === 0 ? (
           <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl opacity-60">{activeFolder?.emoji}</div>
             <p className="text-muted-foreground text-sm">nothing here yet</p>
             <p className="text-muted-foreground/60 text-xs mt-1">
               tap + to add your first{" "}
@@ -791,8 +792,8 @@ export default function VaultClient() {
                 return (
                   <div key={item.id}
                     onClick={() => openEdit(item)}
-                    className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                    className="card-row accent-bar flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
                   >
                     <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col justify-center">
                       <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{item.title}</p>
@@ -811,8 +812,8 @@ export default function VaultClient() {
                 return (
                   <div key={item.id}
                     onClick={() => openEdit(item)}
-                    className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                    style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                    className="card-row accent-bar flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
                   >
                     <div className="flex-shrink-0 pl-3.5 py-3">
                       <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none">
@@ -833,8 +834,8 @@ export default function VaultClient() {
               return (
                 <div key={item.id}
                   onClick={() => openEdit(item)}
-                  className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                  style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                  className="card-row accent-bar flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                  style={{ "--accent-bar": itemAccent.hex } as React.CSSProperties}
                 >
                   <div className="flex-1 min-w-0 px-4 py-3">
                     <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>

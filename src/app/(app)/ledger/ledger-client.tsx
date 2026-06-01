@@ -141,6 +141,7 @@ export default function LedgerClient() {
 
   // Contribute sheet
   const [contribDelta, setContribDelta] = useState("");
+  const [contribMode, setContribMode] = useState<"add" | "withdraw">("add");
 
   const defaultFolderId = folders.find((f) => f.is_default)?.id ?? folders[0]?.id ?? null;
 
@@ -254,7 +255,8 @@ export default function LedgerClient() {
 
   function handleContribute() {
     if (!selectedPot || !contribDelta) return;
-    const delta = parseFloat(contribDelta);
+    const magnitude = Math.abs(parseFloat(contribDelta));
+    const delta = contribMode === "add" ? magnitude : -magnitude;
     const iAmCreator = selectedPot.created_by === me.id;
     setPots((prev) => prev.map((p) => {
       if (p.id !== selectedPot.id) return p;
@@ -310,8 +312,8 @@ export default function LedgerClient() {
     const paceText = pacePace(total, goal, pot.target_date, cur);
     return (
       <button
-        onClick={() => { setSelectedPot(pot); setContribDelta(""); }}
-        className="w-full bg-white border border-border/50 rounded-2xl p-4 shadow-card text-left active:scale-[0.99] transition-transform"
+        onClick={() => { setSelectedPot(pot); setContribDelta(""); setContribMode("add"); }}
+        className="w-full card-row p-4 text-left active:scale-[0.99] transition-transform"
       >
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-medium text-foreground">{pot.title}</p>
@@ -344,8 +346,8 @@ export default function LedgerClient() {
     const payerAccent = paidByMe ? myAccent : partnerAccent;
     const cat = catById(e.category);
     return (
-      <div className={cn("bg-white border border-border/50 rounded-2xl p-4 shadow-card flex items-center gap-3", archived && "opacity-60")}
-        style={{ borderLeftColor: payerAccent.hex, borderLeftWidth: "3px" }}>
+      <div className={cn("card-row accent-bar p-4 flex items-center gap-3", archived && "opacity-60")}
+        style={{ "--accent-bar": payerAccent.hex } as React.CSSProperties}>
         {cat && (
           <div className="w-9 h-9 rounded-xl bg-secondary flex items-center justify-center text-base flex-shrink-0">{cat.emoji}</div>
         )}
@@ -438,7 +440,8 @@ export default function LedgerClient() {
           const iAmCreator = selectedPot.created_by === me.id;
           const myCurrent = parseFloat((iAmCreator ? selectedPot.his_amount : selectedPot.hers_amount) ?? "0");
           const theirAmt = parseFloat((iAmCreator ? selectedPot.hers_amount : selectedPot.his_amount) ?? "0");
-          const delta = parseFloat(contribDelta || "0");
+          const magnitude = Math.abs(parseFloat(contribDelta || "0"));
+          const delta = contribMode === "add" ? magnitude : -magnitude;
           const myNew = Math.max(0, myCurrent + delta);
           const totalNew = myNew + theirAmt;
           const pct = Math.min(100, Math.round((totalNew / goal) * 100));
@@ -463,13 +466,26 @@ export default function LedgerClient() {
                   {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">you&apos;ve put in {cur}{myCurrent.toFixed(0)} — add or remove ({cur})</p>
-                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" step="0.01" placeholder={`e.g. 20 (or -10 to withdraw)`} className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+                  <p className="text-xs text-muted-foreground mb-2">you&apos;ve put in {cur}{myCurrent.toFixed(0)}</p>
+                  <div className="flex gap-2 mb-2">
+                    {(["add", "withdraw"] as const).map((m) => (
+                      <button key={m} onClick={() => setContribMode(m)}
+                        className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
+                          contribMode === m ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                        )}>{m}</button>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">{cur}</span>
+                    <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-white border-border/60 pl-8" autoFocus />
+                  </div>
                 </div>
                 <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
                   {partnerName}: {cur}{theirAmt.toFixed(0)}
                 </div>
-                <Button onClick={handleContribute} disabled={!contribDelta || delta === 0} className="w-full h-11 rounded-xl">update</Button>
+                <Button onClick={handleContribute} disabled={!magnitude} className="w-full h-11 rounded-xl">
+                  {contribMode === "add" ? "add to pot" : "withdraw"}
+                </Button>
                 <button onClick={() => handleDeletePot(selectedPot)}
                   className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
                   <Trash2 className="w-3.5 h-3.5" /> delete pot
@@ -576,7 +592,7 @@ export default function LedgerClient() {
         </div>
 
         {folderPots.length > 0 && (
-          <div className="bg-white border border-border/50 rounded-2xl p-4 shadow-card mb-4">
+          <div className="card-row p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-muted-foreground font-medium tracking-wide">overall progress</p>
               <p className="text-sm font-semibold text-foreground tabular-nums">{avgPct}%</p>
@@ -590,6 +606,7 @@ export default function LedgerClient() {
 
         {folderPots.length === 0 ? (
           <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl opacity-60">{activePotFolder.emoji}</div>
             <p className="text-muted-foreground text-sm">no pots in here yet</p>
             <p className="text-muted-foreground/60 text-xs mt-1">tap + to create one</p>
           </div>
