@@ -4,20 +4,13 @@ export const runtime = "edge";
 export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
-// Load the app's title font (Instrument Serif) so the icon's "us." matches the
-// brand. Falls back to Georgia if the font can't be fetched.
-async function loadTitleFont(): Promise<ArrayBuffer | null> {
-  try {
-    return await fetch(
-      "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentserif/InstrumentSerif-Regular.ttf"
-    ).then((r) => r.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
+// Instrument Serif (the app's title font) is bundled in the repo and loaded as
+// a local asset via import.meta.url — no network call, so the icon can never
+// fail to render. Matches the banner exactly.
+const fontPromise = fetch(new URL("./InstrumentSerif-Regular.ttf", import.meta.url)).then((r) => r.arrayBuffer());
 
 export default async function Icon() {
-  const font = await loadTitleFont();
+  const font = await fontPromise;
   return new ImageResponse(
     (
       <div
@@ -32,7 +25,7 @@ export default async function Icon() {
       >
         <span
           style={{
-            fontFamily: font ? "Instrument Serif" : "Georgia, 'Times New Roman', serif",
+            fontFamily: "Instrument Serif",
             fontSize: 240,
             fontWeight: 400,
             color: "#2C2C2B",
@@ -47,7 +40,7 @@ export default async function Icon() {
     {
       width: 512,
       height: 512,
-      fonts: font ? [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }] : undefined,
+      fonts: [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }],
     }
   );
 }

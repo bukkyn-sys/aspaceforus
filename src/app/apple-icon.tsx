@@ -4,18 +4,10 @@ export const runtime = "edge";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-async function loadTitleFont(): Promise<ArrayBuffer | null> {
-  try {
-    return await fetch(
-      "https://raw.githubusercontent.com/google/fonts/main/ofl/instrumentserif/InstrumentSerif-Regular.ttf"
-    ).then((r) => r.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
+const fontPromise = fetch(new URL("./InstrumentSerif-Regular.ttf", import.meta.url)).then((r) => r.arrayBuffer());
 
 export default async function AppleIcon() {
-  const font = await loadTitleFont();
+  const font = await fontPromise;
   return new ImageResponse(
     (
       <div
@@ -30,7 +22,7 @@ export default async function AppleIcon() {
       >
         <span
           style={{
-            fontFamily: font ? "Instrument Serif" : "Georgia, 'Times New Roman', serif",
+            fontFamily: "Instrument Serif",
             fontSize: 86,
             fontWeight: 400,
             color: "#2C2C2B",
@@ -45,7 +37,7 @@ export default async function AppleIcon() {
     {
       width: 180,
       height: 180,
-      fonts: font ? [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }] : undefined,
+      fonts: [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }],
     }
   );
 }
