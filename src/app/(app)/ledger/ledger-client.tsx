@@ -6,15 +6,15 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
-  addLedgerEntry, settleAll, addSavingsPot, contributeToPot,
+  addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder, deletePotFolder,
 } from "./actions";
-import { Plus, X, Check, Trash2, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
+import { Plus, X, Check, Trash2, Pencil, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BottomSheet } from "@/components/ui/sheet";
+import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,7 @@ interface Entry {
   split_ratio: string;
   settled: boolean;
   created_at: string;
+  created_by: string;
   category: string | null;
   recurrence: Recurrence;
   settled_at: string | null;
@@ -157,6 +158,8 @@ export default function LedgerClient() {
 
   // Sheets
   const [showAdd, setShowAdd] = useState(false);
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [actionEntry, setActionEntry] = useState<Entry | null>(null);
   const [showPot, setShowPot] = useState(false);
   const [showFolder, setShowFolder] = useState(false);
   const [selectedPot, setSelectedPot] = useState<Pot | null>(null);
@@ -191,7 +194,7 @@ export default function LedgerClient() {
 
   useEffect(() => {
     setAction(() => {
-      if (tab === "entries") { setShowAdd(true); return; }
+      if (tab === "entries") { resetEntryForm(); setEditingEntryId(null); setShowAdd(true); return; }
       setPotFolderId(activePotFolder?.id ?? defaultFolderId);
       setShowPot(true);
     });
@@ -254,23 +257,50 @@ export default function LedgerClient() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   function resetEntryForm() {
-    setTitle(""); setAmount(""); setSplit("50"); setCategory(null); setRecurrence("none");
+    setTitle(""); setAmount(""); setPaidBy("me"); setSplit("50"); setCategory(null); setRecurrence("none");
   }
 
-  function handleAddEntry() {
+  function handleSaveEntry() {
     if (!title.trim() || !amount) return;
     const amt = parseFloat(amount);
     const ratio = parseFloat(split) / 100;
     const paidById = paidBy === "me" ? me.id : partner?.id ?? me.id;
-    const optimistic: Entry = {
-      id: crypto.randomUUID(), title: title.trim(), amount: amt.toString(),
-      paid_by: paidById, split_ratio: ratio.toString(), settled: false,
-      created_at: new Date().toISOString(), category, recurrence, settled_at: null,
-    };
-    setEntries((prev) => [optimistic, ...prev]);
-    resetEntryForm(); setShowAdd(false);
-    markActivity("ledger");
-    startTransition(() => { addLedgerEntry({ coupleId, userId: me.id, title: optimistic.title, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); });
+    const t = title.trim();
+    if (editingEntryId) {
+      const id = editingEntryId;
+      setEntries((prev) => prev.map((e) => e.id === id
+        ? { ...e, title: t, amount: amt.toString(), paid_by: paidById, split_ratio: ratio.toString(), category, recurrence }
+        : e));
+      startTransition(() => { updateLedgerEntry({ id, coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); });
+    } else {
+      const optimistic: Entry = {
+        id: crypto.randomUUID(), title: t, amount: amt.toString(),
+        paid_by: paidById, split_ratio: ratio.toString(), settled: false,
+        created_at: new Date().toISOString(), created_by: me.id, category, recurrence, settled_at: null,
+      };
+      setEntries((prev) => [optimistic, ...prev]);
+      markActivity("ledger");
+      startTransition(() => { addLedgerEntry({ coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); });
+    }
+    resetEntryForm(); setEditingEntryId(null); setShowAdd(false);
+  }
+
+  function openEditEntry(e: Entry) {
+    setActionEntry(null);
+    setEditingEntryId(e.id);
+    setTitle(e.title);
+    setAmount(e.amount);
+    setPaidBy(e.paid_by === me.id ? "me" : "partner");
+    setSplit(String(Math.round(parseFloat(e.split_ratio ?? "0.5") * 100)));
+    setCategory(e.category);
+    setRecurrence(e.recurrence);
+    setShowAdd(true);
+  }
+
+  function handleDeleteEntry(id: string) {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+    setActionEntry(null);
+    startTransition(() => { deleteLedgerEntry(id, coupleId, me.id); });
   }
 
   function handleSettle() {
@@ -387,8 +417,13 @@ export default function LedgerClient() {
     const myShare = paidByMe ? amt * (1 - ratio) : amt * ratio;
     const o = resolveOwner(e.paid_by);
     const cat = catById(e.category);
+    const mine = e.created_by === me.id;
     return (
-      <div className="card-row overflow-hidden p-4 flex items-center gap-3" style={{ background: cardOmbre(o) }}>
+      <div
+        onClick={() => mine && setActionEntry(e)}
+        className={cn("card-row overflow-hidden p-4 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
+        style={{ background: cardOmbre(o) }}
+      >
         {cat && (
           <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: o.people[0].light }}>{cat.emoji}</div>
         )}
@@ -416,9 +451,10 @@ export default function LedgerClient() {
   function renderSheets() {
     return (
       <>
-        {/* Add entry */}
-        <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} title="log expense"
-          footer={<Button onClick={handleAddEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">add</Button>}>
+        {/* Add / edit entry */}
+        <BottomSheet open={showAdd} onClose={() => { setShowAdd(false); setEditingEntryId(null); }}
+          title={editingEntryId ? "edit expense" : "log expense"}
+          footer={<Button onClick={handleSaveEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">{editingEntryId ? "save" : "add"}</Button>}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
           <div>
@@ -572,6 +608,29 @@ export default function LedgerClient() {
           </div>
           <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
         </BottomSheet>
+
+        {/* Expense action prompt — creator only */}
+        <Dialog open={actionEntry !== null} onClose={() => setActionEntry(null)}>
+          {actionEntry && (
+            <>
+              <p className="font-semibold text-foreground text-center truncate">{actionEntry.title}</p>
+              <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
+              <div className="space-y-2">
+                <Button onClick={() => openEditEntry(actionEntry)} className="w-full h-11 rounded-xl">
+                  <Pencil className="w-4 h-4 mr-1.5" /> edit
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDeleteEntry(actionEntry.id)}
+                  className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" /> remove
+                </Button>
+                <button onClick={() => setActionEntry(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+              </div>
+            </>
+          )}
+        </Dialog>
       </>
     );
   }

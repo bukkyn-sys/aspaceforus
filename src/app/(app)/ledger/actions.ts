@@ -40,9 +40,42 @@ export async function settleAll(coupleId: string) {
     .eq("recurrence", "none");
 }
 
-export async function deleteLedgerEntry(id: string, coupleId: string) {
+// Edit / delete restricted to whoever logged the expense (created_by filter).
+export async function updateLedgerEntry(data: {
+  id: string;
+  coupleId: string;
+  userId: string;
+  title: string;
+  amount: number;
+  paidBy: string;
+  splitRatio: number;
+  category?: string | null;
+  recurrence?: "none" | "weekly" | "monthly";
+}) {
   const supabase = await createClient();
-  await supabase.from("ledger_entries").delete().eq("id", id).eq("couple_id", coupleId);
+  await supabase
+    .from("ledger_entries")
+    .update({
+      title: data.title,
+      amount: data.amount,
+      paid_by: data.paidBy,
+      split_ratio: data.splitRatio,
+      category: data.category || null,
+      recurrence: data.recurrence ?? "none",
+    })
+    .eq("id", data.id)
+    .eq("couple_id", data.coupleId)
+    .eq("created_by", data.userId);
+}
+
+export async function deleteLedgerEntry(id: string, coupleId: string, userId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("ledger_entries")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId)
+    .eq("created_by", userId);
 }
 
 export async function addSavingsPot(data: {
