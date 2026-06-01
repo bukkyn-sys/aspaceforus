@@ -29,11 +29,12 @@ export async function addLedgerEntry(data: {
 }
 
 // Settle only non-recurring expenses. Recurring ones persist as ongoing splits.
+// A shared settled_at timestamp groups this batch into one "receipt".
 export async function settleAll(coupleId: string) {
   const supabase = await createClient();
   await supabase
     .from("ledger_entries")
-    .update({ settled: true })
+    .update({ settled: true, settled_at: new Date().toISOString() })
     .eq("couple_id", coupleId)
     .eq("settled", false)
     .eq("recurrence", "none");

@@ -387,6 +387,7 @@ end $$;
 alter table ledger_entries add column if not exists category   text;
 alter table ledger_entries add column if not exists recurrence text not null default 'none'
   check (recurrence in ('none', 'weekly', 'monthly'));
+alter table ledger_entries add column if not exists settled_at timestamptz; -- groups a settle-up batch into one receipt
 
 alter table savings_pots add column if not exists target_date date;
 alter table savings_pots add column if not exists currency    text not null default '£';

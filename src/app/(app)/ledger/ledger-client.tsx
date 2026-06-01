@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
-  addLedgerEntry, settleAll, deleteLedgerEntry, addSavingsPot, contributeToPot,
+  addLedgerEntry, settleAll, addSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder, deletePotFolder,
 } from "./actions";
 import { Plus, X, Check, Trash2, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
@@ -32,6 +32,7 @@ interface Entry {
   created_at: string;
   category: string | null;
   recurrence: Recurrence;
+  settled_at: string | null;
 }
 
 interface Pot {
@@ -80,6 +81,25 @@ const RECURRENCES: { id: Recurrence; label: string }[] = [
 const FOLDER_EMOJIS = ["🫙", "💰", "🏦", "✈️", "🏡", "💍", "🎓", "🚗", "🎁", "🏖️", "💻", "🛋️"];
 const POT_PANEL_COLORS = ["#E8F0EA", "#F5EDD3", "#E3EEF8", "#EDE9F5", "#F5E3E5"];
 const potPanelColor = (sortOrder: number) => POT_PANEL_COLORS[sortOrder % POT_PANEL_COLORS.length];
+
+// Group settled expenses into "receipts" — one per settle-up batch (shared
+// settled_at). Older rows without a timestamp fall into one "earlier" group.
+function groupSettlements(entries: Entry[]) {
+  const groups = new Map<string, Entry[]>();
+  for (const e of entries) {
+    const key = e.settled_at ?? "legacy";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(e);
+  }
+  return Array.from(groups.entries())
+    .map(([key, es]) => ({
+      key,
+      date: key === "legacy" ? null : new Date(key).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      entries: es,
+      total: es.reduce((s, e) => s + parseFloat(e.amount), 0),
+    }))
+    .sort((a, b) => (a.key === "legacy" ? 1 : b.key === "legacy" ? -1 : b.key.localeCompare(a.key)));
+}
 
 function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -245,7 +265,7 @@ export default function LedgerClient() {
     const optimistic: Entry = {
       id: crypto.randomUUID(), title: title.trim(), amount: amt.toString(),
       paid_by: paidById, split_ratio: ratio.toString(), settled: false,
-      created_at: new Date().toISOString(), category, recurrence,
+      created_at: new Date().toISOString(), category, recurrence, settled_at: null,
     };
     setEntries((prev) => [optimistic, ...prev]);
     resetEntryForm(); setShowAdd(false);
@@ -258,11 +278,6 @@ export default function LedgerClient() {
     setEntries((prev) => prev.filter((e) => e.recurrence !== "none"));
     setSettledEntries(null); // invalidate history cache
     startTransition(() => { settleAll(coupleId); });
-  }
-
-  function handleDeleteEntry(id: string) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
-    startTransition(() => { deleteLedgerEntry(id, coupleId); });
   }
 
   function handleAddPot() {
@@ -365,7 +380,7 @@ export default function LedgerClient() {
 
   // ── Expense row ─────────────────────────────────────────────────────────────
 
-  function ExpenseRow({ e, archived }: { e: Entry; archived?: boolean }) {
+  function ExpenseRow({ e }: { e: Entry }) {
     const amt = parseFloat(e.amount);
     const ratio = parseFloat(e.split_ratio ?? "0.5");
     const paidByMe = e.paid_by === me.id;
@@ -373,8 +388,7 @@ export default function LedgerClient() {
     const o = resolveOwner(e.paid_by);
     const cat = catById(e.category);
     return (
-      <div className={cn("card-row overflow-hidden p-4 flex items-center gap-3", archived && "opacity-60")}
-        style={{ background: cardOmbre(o) }}>
+      <div className="card-row overflow-hidden p-4 flex items-center gap-3" style={{ background: cardOmbre(o) }}>
         {cat && (
           <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: o.people[0].light }}>{cat.emoji}</div>
         )}
@@ -390,15 +404,9 @@ export default function LedgerClient() {
             </p>
           </div>
         </div>
-        {archived ? (
-          <button onClick={() => handleDeleteEntry(e.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/50 hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0">
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        ) : (
-          <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
-            {paidByMe ? `+£${(amt * (1 - ratio)).toFixed(2)}` : `-£${(amt * ratio).toFixed(2)}`}
-          </div>
-        )}
+        <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
+          {paidByMe ? `+£${(amt * (1 - ratio)).toFixed(2)}` : `-£${(amt * ratio).toFixed(2)}`}
+        </div>
       </div>
     );
   }
@@ -686,8 +694,28 @@ export default function LedgerClient() {
                 <p className="text-muted-foreground text-sm">nothing settled yet</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {settledEntries.map((e) => <ExpenseRow key={e.id} e={e} archived />)}
+              <div className="space-y-3">
+                {groupSettlements(settledEntries).map((s) => (
+                  <div key={s.key} className="card-row p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <p className="text-sm font-semibold text-foreground">{s.date ? `settled ${s.date}` : "earlier settlements"}</p>
+                      <p className="text-sm font-semibold text-muted-foreground tabular-nums">£{s.total.toFixed(2)}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {s.entries.map((e) => {
+                        const cat = catById(e.category);
+                        const paidByName = e.paid_by === me.id ? myName : partnerName;
+                        return (
+                          <div key={e.id} className="flex items-center gap-2 text-xs">
+                            {cat && <span className="text-sm leading-none flex-shrink-0">{cat.emoji}</span>}
+                            <span className="text-foreground truncate flex-1">{e.title}</span>
+                            <span className="text-muted-foreground/70 flex-shrink-0 tabular-nums">{paidByName} · £{parseFloat(e.amount).toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )
           ) : entries.length === 0 ? (
