@@ -6,7 +6,7 @@ export async function setAvailability(
   coupleId: string,
   userId: string,
   date: string,
-  status: "free" | "busy" | null
+  status: "free" | null
 ) {
   const supabase = await createClient();
   await supabase.rpc("set_availability", {

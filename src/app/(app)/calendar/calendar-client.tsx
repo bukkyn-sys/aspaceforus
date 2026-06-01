@@ -17,7 +17,7 @@ import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
-type Status = "free" | "busy" | null;
+type Status = "free" | null;
 interface Row { user_id: string; date: string; status: Status; }
 interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; }
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
@@ -126,7 +126,7 @@ export default function CalendarClient() {
 
   function handleDay(dateStr: string) {
     const cur = getStatus(me.id, dateStr);
-    const next: Status = cur === null ? "free" : cur === "free" ? "busy" : null;
+    const next: Status = cur === "free" ? null : "free";
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
       const newRows = next ? [...filtered, { user_id: me.id, date: dateStr, status: next }] : filtered;
@@ -326,27 +326,18 @@ export default function CalendarClient() {
                   </span>
                 )}
 
-                {/* Status dots — not shown on event days.
-                    free = accent dot · busy = muted dash · unset = faint dot */}
+                {/* Status dots — not shown on event days. free = accent dot · unset = faint dot */}
                 {!isEventDay && (
                   <div className="flex gap-0.5 items-center h-1.5">
-                    {mine === "busy" ? (
-                      <div className="w-2 h-[3px] rounded-full bg-foreground/25" />
-                    ) : (
-                      <div
-                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
-                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                      />
-                    )}
+                    <div
+                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
+                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
+                    />
                     {partner && (
-                      theirs === "busy" ? (
-                        <div className="w-2 h-[3px] rounded-full bg-foreground/15" />
-                      ) : (
-                        <div
-                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
-                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
-                        />
-                      )
+                      <div
+                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
+                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                      />
                     )}
                   </div>
                 )}
@@ -373,10 +364,6 @@ export default function CalendarClient() {
             <span className="text-xs text-muted-foreground/60">{partnerName} free</span>
           </div>
         )}
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-[3px] rounded-full bg-foreground/25" />
-          <span className="text-xs text-muted-foreground/60">busy</span>
-        </div>
         {partner && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-sage-light" />
@@ -388,7 +375,7 @@ export default function CalendarClient() {
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
-      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to cycle: free → busy → clear</p>
+      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to mark yourself free</p>
 
       {/* ── Events this month ──────────────────────────────── */}
       <div className="px-5 mt-8">
