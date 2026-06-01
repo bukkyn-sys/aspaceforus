@@ -646,16 +646,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
         return (
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col items-center justify-center text-center">
-              <motion.div variants={rise}>
-                <motion.div
-                  className="w-16 h-16 rounded-3xl flex items-center justify-center mb-8"
-                  style={{ backgroundColor: `${NEUTRAL_INK}14` }}
-                  animate={{ scale: [1, 1.09, 1] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Heart className="w-7 h-7 text-foreground" fill="currentColor" />
-                </motion.div>
-              </motion.div>
+              <motion.p variants={rise} className="font-heading text-2xl text-muted-foreground/50 tracking-tight mb-2">us.</motion.p>
               <motion.h1 variants={rise} className="font-heading text-5xl text-foreground tracking-tight">hello, {greetName}.</motion.h1>
               <motion.p variants={rise} className="text-[15px] text-muted-foreground mt-4 max-w-[17rem] leading-relaxed">
                 welcome to <span className="font-heading">us.</span> — a calm little home for the two of you.

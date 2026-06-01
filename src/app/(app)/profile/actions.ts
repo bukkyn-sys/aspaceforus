@@ -23,8 +23,10 @@ export async function updateCoupleBanner(coupleId: string, userId: string, url: 
 }
 
 // Leave the current couple — clears your link to it so you can create or join
-// another. Your partner keeps the existing space and its data.
+// another. Your partner keeps the existing space and its data. Uses a
+// security-definer RPC (like the other profile mutations) so it's reliable
+// regardless of RLS/auth context in the server action.
 export async function leaveCouple(userId: string) {
   const supabase = await createClient();
-  await supabase.from("profiles").update({ couple_id: null }).eq("id", userId);
+  await supabase.rpc("leave_couple_for_user", { p_user_id: userId });
 }

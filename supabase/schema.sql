@@ -269,6 +269,15 @@ begin
 end;
 $$;
 
+-- Leaves the current couple (clears the user's couple link). The couple and its
+-- data remain for the partner.
+create or replace function leave_couple_for_user(p_user_id uuid)
+returns void language plpgsql security definer as $$
+begin
+  update profiles set couple_id = null where id = p_user_id;
+end;
+$$;
+
 -- ── Vault Folders ─────────────────────────────────────────────────────────────
 -- Run this block to upgrade the vault to the folder system.
 
