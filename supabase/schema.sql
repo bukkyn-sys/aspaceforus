@@ -335,3 +335,49 @@ begin
       where couple_id = c.couple_id and type = 'wishlist'  and folder_id is null;
   end loop;
 end $$;
+
+-- ── Pot Folders (Savings pot organisation) ────────────────────────────────────
+-- Run this block to add the folder system to savings pots.
+
+create table if not exists pot_folders (
+  id          uuid primary key default gen_random_uuid(),
+  couple_id   uuid not null references couples(id) on delete cascade,
+  created_by  uuid not null references profiles(id),
+  name        text not null,
+  emoji       text not null default '🫙',
+  is_default  boolean not null default false,
+  sort_order  integer not null default 0,
+  created_at  timestamptz default now()
+);
+
+alter table pot_folders enable row level security;
+
+create policy "pot_folders_all" on pot_folders
+  for all using (is_couple_member(couple_id));
+
+-- savings_pots needs created_by (referenced by the client) + folder_id
+alter table savings_pots add column if not exists created_by uuid references profiles(id);
+alter table savings_pots add column if not exists folder_id  uuid references pot_folders(id) on delete cascade;
+
+-- Migration: seed a default folder per couple + link existing pots
+do $$
+declare
+  c record;
+  v_folder_id uuid;
+  v_creator   uuid;
+begin
+  for c in select distinct couple_id from savings_pots loop
+    select id into v_creator from profiles where couple_id = c.couple_id limit 1;
+
+    if not exists (select 1 from pot_folders where couple_id = c.couple_id) then
+      insert into pot_folders (couple_id, created_by, name, emoji, is_default, sort_order)
+      values (c.couple_id, v_creator, 'savings', '🫙', true, 0);
+    end if;
+
+    select id into v_folder_id from pot_folders
+      where couple_id = c.couple_id and is_default limit 1;
+
+    update savings_pots set folder_id = v_folder_id
+      where couple_id = c.couple_id and folder_id is null;
+  end loop;
+end $$;
