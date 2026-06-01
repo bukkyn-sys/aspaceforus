@@ -1,13 +1,13 @@
 import { ImageResponse } from "next/og";
+import { INSTRUMENT_SERIF_B64 } from "./instrument-serif-font";
 
 export const runtime = "edge";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-const fontPromise = fetch(new URL("./InstrumentSerif-Regular.ttf", import.meta.url)).then((r) => r.arrayBuffer());
+const fontData = Uint8Array.from(atob(INSTRUMENT_SERIF_B64), (c) => c.charCodeAt(0)).buffer;
 
-export default async function AppleIcon() {
-  const font = await fontPromise;
+export default function AppleIcon() {
   return new ImageResponse(
     (
       <div
@@ -37,7 +37,7 @@ export default async function AppleIcon() {
     {
       width: 180,
       height: 180,
-      fonts: [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }],
+      fonts: [{ name: "Instrument Serif", data: fontData, style: "normal", weight: 400 }],
     }
   );
 }

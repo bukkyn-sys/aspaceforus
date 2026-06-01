@@ -1,16 +1,15 @@
 import { ImageResponse } from "next/og";
+import { INSTRUMENT_SERIF_B64 } from "./instrument-serif-font";
 
 export const runtime = "edge";
 export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
-// Instrument Serif (the app's title font) is bundled in the repo and loaded as
-// a local asset via import.meta.url — no network call, so the icon can never
-// fail to render. Matches the banner exactly.
-const fontPromise = fetch(new URL("./InstrumentSerif-Regular.ttf", import.meta.url)).then((r) => r.arrayBuffer());
+// Font is embedded as base64 (no fetch / no fs / no URL) so the icon can never
+// fail to render. Matches the app banner: Instrument Serif, tracking-tight.
+const fontData = Uint8Array.from(atob(INSTRUMENT_SERIF_B64), (c) => c.charCodeAt(0)).buffer;
 
-export default async function Icon() {
-  const font = await fontPromise;
+export default function Icon() {
   return new ImageResponse(
     (
       <div
@@ -40,7 +39,7 @@ export default async function Icon() {
     {
       width: 512,
       height: 512,
-      fonts: [{ name: "Instrument Serif", data: font, style: "normal", weight: 400 }],
+      fonts: [{ name: "Instrument Serif", data: fontData, style: "normal", weight: 400 }],
     }
   );
 }
