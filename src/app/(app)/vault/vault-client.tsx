@@ -15,7 +15,7 @@ import {
   deleteVaultItem,
   fetchOgPreview,
 } from "./actions";
-import { Plus, X, Link2, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -55,7 +55,8 @@ interface VaultItem {
 
 interface OgPreview { image: string | null; title: string | null }
 
-const PRICE_RANGES = ["£", "££", "£££"] as const;
+const CURRENCIES = ["£", "$", "€", "₦"] as const;
+type Currency = typeof CURRENCIES[number];
 
 const STAGE_LABEL: Record<Stage, string> = { ideas: "idea", planned: "planned", completed: "done" };
 const STAGE_NEXT: Record<Stage, Stage> = { ideas: "planned", planned: "completed", completed: "ideas" };
@@ -86,26 +87,54 @@ const ITEM_EMOJIS   = ["🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨
 //    definitions get a new reference every render, causing unmount/remount) ──
 
 function PriceInput({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const currency: Currency = (CURRENCIES.find((c) => value?.startsWith(c)) ?? "£") as Currency;
+  const amount = value === "free" ? ""
+    : value ? (CURRENCIES.some((c) => value.startsWith(c)) ? value.slice(currency.length) : value)
+    : "";
+
+  function update(c: Currency, a: string) { onChange(a.trim() ? c + a.trim() : null); }
+
   return (
-    <div className="space-y-2">
-      <Input
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        placeholder="e.g. £45 or free"
-        className="h-11 rounded-xl bg-white border-border/60"
-      />
+    <div className="space-y-2.5">
+      {/* Currency selector */}
       <div className="flex gap-2">
-        {PRICE_RANGES.map((p) => (
-          <button key={p} type="button" onClick={() => onChange(value === p ? null : p)}
+        {CURRENCIES.map((c) => (
+          <button key={c} type="button"
+            onClick={() => update(c, amount)}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors",
-              value === p
+              "w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
+              value !== "free" && currency === c
                 ? "bg-foreground text-background border-foreground"
-                : "bg-white text-muted-foreground border-border/60 hover:border-foreground/30"
+                : "bg-white text-muted-foreground border-border/60"
             )}
-          >{p}</button>
+          >{c}</button>
         ))}
+        <button type="button"
+          onClick={() => onChange(value === "free" ? null : "free")}
+          className={cn(
+            "flex-1 h-11 rounded-xl text-sm font-medium border transition-colors",
+            value === "free"
+              ? "bg-foreground text-background border-foreground"
+              : "bg-white text-muted-foreground border-border/60"
+          )}
+        >free</button>
       </div>
+
+      {/* Amount input — hidden when free */}
+      {value !== "free" && (
+        <div className="relative">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">
+            {currency}
+          </span>
+          <Input
+            value={amount}
+            onChange={(e) => update(currency, e.target.value)}
+            placeholder="0"
+            inputMode="decimal"
+            className="h-11 rounded-xl bg-white border-border/60 pl-8"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -210,6 +239,7 @@ export default function VaultClient() {
   // Filter / sort
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+  const [showSort, setShowSort] = useState(false);
 
   // Sheets
   const [showNewFolder, setShowNewFolder] = useState(false);
@@ -656,13 +686,36 @@ export default function VaultClient() {
               </button>
             ))}
           </div>
-          <button
-            onClick={cycleSort}
-            className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-white border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
-          >
-            <ArrowUpDown className="w-3 h-3" />
-            {SORT_LABELS[sortBy]}
-          </button>
+          {/* Sort dropdown */}
+          <div className="relative flex-shrink-0">
+            {showSort && (
+              <div className="fixed inset-0 z-10" onClick={() => setShowSort(false)} />
+            )}
+            <button
+              onClick={() => setShowSort((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-white border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
+            >
+              <ArrowUpDown className="w-3 h-3" />
+              {SORT_LABELS[sortBy]}
+              <ChevronDown className={cn("w-3 h-3 transition-transform", showSort && "rotate-180")} />
+            </button>
+            {showSort && (
+              <div className="absolute right-0 top-full mt-1.5 bg-white rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[110px]">
+                {SORT_CYCLE.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setSortBy(s); setShowSort(false); }}
+                    className={cn(
+                      "w-full text-left px-4 py-2.5 text-sm transition-colors",
+                      sortBy === s ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {SORT_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -679,75 +732,101 @@ export default function VaultClient() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2.5">
+          <div className="space-y-2">
             {filteredItems.map((item) => {
               const itemAccent = item.created_by === me.id ? myAccent : partnerAccent;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => openEdit(item)}
-                  className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center gap-0 cursor-pointer active:scale-[0.99] transition-transform"
-                  style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
-                >
-                  {/* Visual anchor — left side */}
-                  <div className="flex-shrink-0 pl-3.5 py-3.5">
-                    {item.item_emoji ? (
+              const hasOgImage = !item.item_emoji && !!item.og_image;
+              const hasEmoji   = !!item.item_emoji;
+
+              // Shared meta row
+              const meta = (
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <span className="text-[11px] text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
+                  {item.price_range && (
+                    <>
+                      <span className="text-muted-foreground/25 text-[10px]">·</span>
+                      <span className="text-[11px] font-semibold text-foreground/70">{item.price_range}</span>
+                    </>
+                  )}
+                  {activeFolder?.kind === "date_idea" && (
+                    <>
+                      <span className="text-muted-foreground/25 text-[10px]">·</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleStage(item); }}
+                        className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
+                      >
+                        {STAGE_LABEL[item.stage]}
+                      </button>
+                    </>
+                  )}
+                  {item.url && (
+                    <>
+                      <span className="text-muted-foreground/25 text-[10px]">·</span>
+                      <a href={item.url} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] text-blue-400 hover:text-blue-600 transition-colors"
+                      >link</a>
+                    </>
+                  )}
+                </div>
+              );
+
+              if (hasOgImage) {
+                // ── Rich card: right-side OG thumbnail ──────────────────
+                return (
+                  <div key={item.id}
+                    onClick={() => openEdit(item)}
+                    className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex min-h-[88px] cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                  >
+                    <div className="flex-1 min-w-0 px-4 py-3.5 flex flex-col justify-center">
+                      <p className="text-sm font-semibold text-foreground leading-snug line-clamp-2">{item.title}</p>
+                      {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
+                      {meta}
+                    </div>
+                    <div className="w-[36%] flex-shrink-0 relative">
+                      <img src={item.og_image!} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    </div>
+                  </div>
+                );
+              }
+
+              if (hasEmoji) {
+                // ── Emoji card: left anchor ──────────────────────────────
+                return (
+                  <div key={item.id}
+                    onClick={() => openEdit(item)}
+                    className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                    style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                  >
+                    <div className="flex-shrink-0 pl-3.5 py-3">
                       <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none">
                         {item.item_emoji}
                       </div>
-                    ) : item.og_image ? (
-                      <img src={item.og_image} alt="" className="w-11 h-11 rounded-xl object-cover" />
-                    ) : (
-                      <div className="w-11 h-11 rounded-xl bg-secondary/50" />
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 min-w-0 px-3 py-3.5">
-                    <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
-                    {item.notes && (
-                      <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5 leading-snug">{item.notes}</p>
-                    )}
-                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                      <span className="text-[11px] text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
-                      {item.price_range && (
-                        <>
-                          <span className="text-muted-foreground/25 text-[10px]">·</span>
-                          <span className="text-[11px] font-semibold text-foreground/70">{item.price_range}</span>
-                        </>
-                      )}
-                      {activeFolder?.kind === "date_idea" && (
-                        <>
-                          <span className="text-muted-foreground/25 text-[10px]">·</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleStage(item); }}
-                            className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
-                          >
-                            {STAGE_LABEL[item.stage]}
-                          </button>
-                        </>
-                      )}
-                      {item.url && (
-                        <>
-                          <span className="text-muted-foreground/25 text-[10px]">·</span>
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[11px] text-blue-400 hover:text-blue-600 transition-colors"
-                          >
-                            link
-                          </a>
-                        </>
-                      )}
                     </div>
+                    <div className="flex-1 min-w-0 px-3 py-3">
+                      <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
+                      {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
+                      {meta}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
                   </div>
+                );
+              }
 
-                  {/* Navigation hint */}
-                  <div className="flex-shrink-0 pr-3.5">
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/25" />
+              // ── Minimal card: text only ──────────────────────────────
+              return (
+                <div key={item.id}
+                  onClick={() => openEdit(item)}
+                  className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center cursor-pointer active:scale-[0.99] transition-transform"
+                  style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                >
+                  <div className="flex-1 min-w-0 px-4 py-3">
+                    <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
+                    {item.notes && <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5">{item.notes}</p>}
+                    {meta}
                   </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
                 </div>
               );
             })}
