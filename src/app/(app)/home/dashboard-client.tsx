@@ -299,18 +299,18 @@ export default function DashboardClient() {
           <p className="text-xs text-muted-foreground">{greeting()}</p>
           <h1 className="font-heading text-3xl text-foreground tracking-tight leading-tight">{myName}.</h1>
           {hasPartner && data.partnerAction ? (
-            <p className="text-[11px] text-muted-foreground/50 mt-0.5 leading-tight">
+            <p className="text-xs text-muted-foreground/50 mt-0.5 leading-tight">
               {partnerName} {data.partnerAction.text}
               <span className="text-muted-foreground/35"> · {timeAgo(data.partnerAction.at)}</span>
             </p>
           ) : null}
           {data.startedAt ? (
-            <button onClick={() => setShowDatePicker(true)} className="flex items-center gap-1 text-[11px] text-muted-foreground/40 mt-1 hover:text-muted-foreground/60 transition-colors">
+            <button onClick={() => setShowDatePicker(true)} className="flex items-center gap-1 text-xs text-muted-foreground/40 mt-1 hover:text-muted-foreground/60 transition-colors">
               <Heart className="w-2.5 h-2.5 text-terracotta/60" fill="currentColor" />
               {duration(data.startedAt)}
             </button>
           ) : !loading && (
-            <button onClick={() => setShowDatePicker(true)} className="text-[11px] text-muted-foreground/40 underline underline-offset-2 mt-0.5">
+            <button onClick={() => setShowDatePicker(true)} className="text-xs text-muted-foreground/40 underline underline-offset-2 mt-0.5">
               add start date
             </button>
           )}
@@ -338,7 +338,7 @@ export default function DashboardClient() {
                   : <div className="w-full h-full flex items-center justify-center text-xs font-semibold text-muted-foreground">{myName[0]?.toUpperCase()}</div>}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">{myName}</p>
+                <p className="text-sm font-medium text-foreground truncate">{myName}</p>
                 {timeAgo(data.myMoodAt) && <p className="text-[9px] text-muted-foreground/50 leading-tight">{timeAgo(data.myMoodAt)}</p>}
               </div>
             </div>
@@ -369,7 +369,7 @@ export default function DashboardClient() {
                     : <div className="w-full h-full flex items-center justify-center text-xs font-semibold text-muted-foreground">{partnerName[0]?.toUpperCase()}</div>}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-muted-foreground truncate">{partnerName}</p>
+                  <p className="text-sm font-medium text-muted-foreground truncate">{partnerName}</p>
                   {timeAgo(data.partnerMoodAt) && <p className="text-[9px] text-muted-foreground/50 leading-tight">{timeAgo(data.partnerMoodAt)}</p>}
                 </div>
               </div>
@@ -392,7 +392,7 @@ export default function DashboardClient() {
           {!loading && !hasPartner && data.inviteCode && (
             <div className="flex items-center justify-between bg-secondary rounded-2xl px-3 py-2.5">
               <div>
-                <p className="text-[10px] text-muted-foreground mb-0.5">share this code with your partner</p>
+                <p className="text-xs text-muted-foreground mb-0.5">share this code with your partner</p>
                 <p className="font-mono text-base font-semibold tracking-widest text-foreground">{data.inviteCode}</p>
               </div>
               <button
@@ -419,7 +419,7 @@ export default function DashboardClient() {
         }}
       >
         <div className="absolute top-0 left-0 right-0 h-2 rounded-t-sm" style={{ backgroundColor: "#FDE68A" }} />
-        <p className="text-[10px] text-amber-600/60 font-medium tracking-wide mb-2">shared note</p>
+        <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2">shared note</p>
         <textarea
           value={data.sharedNote}
           onChange={(e) => handleNote(e.target.value)}
@@ -442,7 +442,7 @@ export default function DashboardClient() {
           </button>
         ) : (
           <div className="bg-white border border-border/50 rounded-3xl shadow-card overflow-hidden">
-            <p className="text-[11px] font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
+            <p className="text-xs font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
             {data.countdowns.map((cd, i) => {
               const { days } = timeUntil(cd.target_date);
               return (
@@ -479,7 +479,7 @@ export default function DashboardClient() {
           {data.freeDays.length === 0 ? (
             <div>
               <p className="text-sm text-muted-foreground">no overlapping free days in the next 60 days</p>
-              <p className="text-[11px] text-muted-foreground/40 mt-1">mark days on the calendar to find overlaps</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">mark days on the calendar to find overlaps</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -546,7 +546,7 @@ export default function DashboardClient() {
             <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">
               {/* Type grid */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
+                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
                 <div className="grid grid-cols-4 gap-2">
                   {COUNTDOWN_TYPES.map((t) => (
                     <button
@@ -578,7 +578,7 @@ export default function DashboardClient() {
               />
               {/* Dates */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
+                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative rounded-2xl overflow-hidden">
                     <div className="bg-secondary px-3.5 pt-2.5 pb-3">

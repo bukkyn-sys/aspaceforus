@@ -339,27 +339,27 @@ export default function CalendarClient() {
       <div className="px-5 mt-4 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-          <span className="text-[11px] text-muted-foreground/60">you free</span>
+          <span className="text-xs text-muted-foreground/60">you free</span>
         </div>
         {partner && (
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-            <span className="text-[11px] text-muted-foreground/60">{partnerName} free</span>
+            <span className="text-xs text-muted-foreground/60">{partnerName} free</span>
           </div>
         )}
         <div className="flex items-center gap-1">
           <X className="w-2.5 h-2.5 text-terracotta" strokeWidth={3} />
-          <span className="text-[11px] text-muted-foreground/60">busy</span>
+          <span className="text-xs text-muted-foreground/60">busy</span>
         </div>
         {partner && (
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded bg-sage-light" />
-            <span className="text-[11px] text-muted-foreground/60">both free</span>
+            <span className="text-xs text-muted-foreground/60">both free</span>
           </div>
         )}
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-amber-100" />
-          <span className="text-[11px] text-muted-foreground/60">event</span>
+          <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
       <p className="px-5 mt-1 text-[10px] text-muted-foreground/30">tap a day · free → busy → clear</p>
@@ -506,7 +506,7 @@ export default function CalendarClient() {
               />
               {/* Emoji */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
+                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
                 <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
                   {EVENT_EMOJIS.map((e) => (
                     <button
@@ -524,7 +524,7 @@ export default function CalendarClient() {
               </div>
               {/* Dates */}
               <div>
-                <p className="text-[11px] font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
+                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative rounded-2xl overflow-hidden">
                     <div className="bg-secondary px-3.5 pt-2.5 pb-3">

@@ -756,11 +756,11 @@ export default function VaultClient() {
               // Shared meta row
               const meta = (
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <span className="text-[11px] text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
+                  <span className="text-xs text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
                   {item.price_range && (
                     <>
                       <span className="text-muted-foreground/25 text-[10px]">·</span>
-                      <span className="text-[11px] font-semibold text-foreground/70">{item.price_range}</span>
+                      <span className="text-xs font-semibold text-foreground/70">{item.price_range}</span>
                     </>
                   )}
                   {activeFolder?.kind === "date_idea" && (
@@ -779,7 +779,7 @@ export default function VaultClient() {
                       <span className="text-muted-foreground/25 text-[10px]">·</span>
                       <a href={item.url} target="_blank" rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] text-blue-400 hover:text-blue-600 transition-colors"
+                        className="text-xs text-blue-400 hover:text-blue-600 transition-colors"
                       >link</a>
                     </>
                   )}
