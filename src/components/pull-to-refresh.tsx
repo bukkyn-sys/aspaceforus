@@ -8,30 +8,31 @@ import { RefreshCw } from "lucide-react";
 const THRESHOLD = 72;
 const MAX_PULL = 96;
 
+// The app scrolls the window/body (the layout's <main> only has min-height, so
+// it grows with content rather than scrolling internally). Read the real offset.
+function scrollOffset() {
+  return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+}
+
 export default function PullToRefresh() {
   const router = useRouter();
   const [pullY, setPullY] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const startY = useRef<number | null>(null);
-  // Gesture is disqualified if:
-  // • the user moved upward at any point, OR
-  // • scrollTop was > 0 when the touch started (scrolling back up, not pulling down)
+  // Disqualified if the gesture didn't begin at the very top, the user moved
+  // upward, or a sheet is open — so scrolling back up never triggers a refresh.
   const disqualified = useRef(false);
 
   useEffect(() => {
-    const main = document.querySelector("main");
-    if (!main) return;
-
     function onTouchStart(e: TouchEvent) {
       startY.current = null;
       disqualified.current = false;
 
       if (document.querySelector("[data-sheet]")) return;
 
-      // Only track gestures that begin with the page already fully at the top.
-      // This prevents inertial-scroll overshoot from triggering PTR — if the
-      // user was mid-page and scrolled back up, scrollTop will be > 0 here.
-      if (main!.scrollTop > 0) {
+      // Must begin with the page already fully at the top. If the user is
+      // mid-page (or flinging up toward the top), scrollOffset() is > 0 here.
+      if (scrollOffset() > 0) {
         disqualified.current = true;
         return;
       }
@@ -40,8 +41,8 @@ export default function PullToRefresh() {
 
     function onTouchMove(e: TouchEvent) {
       if (startY.current === null || refreshing || disqualified.current) return;
-      // If the page scrolled during this gesture (shouldn't happen, but guard it)
-      if (main!.scrollTop > 0) {
+      // If the page is no longer at the top, bail (covers any late scrolling).
+      if (scrollOffset() > 0) {
         disqualified.current = true;
         setPullY(0);
         return;
@@ -72,13 +73,13 @@ export default function PullToRefresh() {
       }
     }
 
-    main.addEventListener("touchstart", onTouchStart, { passive: true });
-    main.addEventListener("touchmove", onTouchMove, { passive: false });
-    main.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
     return () => {
-      main.removeEventListener("touchstart", onTouchStart);
-      main.removeEventListener("touchmove", onTouchMove);
-      main.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
     };
   }, [pullY, refreshing, router]);
 
