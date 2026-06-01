@@ -531,17 +531,21 @@ export default function LedgerClient() {
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
             <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-white border-border/60" />
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">folder</p>
-            <div className="flex gap-2 flex-wrap">
-              {folders.map((f) => (
-                <button key={f.id} onClick={() => setPotFolderId(f.id)}
-                  className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
-                    (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                  )}><span>{f.emoji}</span>{f.name}</button>
-              ))}
+          {/* Folder picker only when adding from the folder list — inside a
+              folder the pot just goes here. */}
+          {!activePotFolder && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">folder</p>
+              <div className="flex gap-2 flex-wrap">
+                {folders.map((f) => (
+                  <button key={f.id} onClick={() => setPotFolderId(f.id)}
+                    className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
+                      (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    )}><span>{f.emoji}</span>{f.name}</button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </BottomSheet>
 
         {/* New folder */}
@@ -724,17 +728,20 @@ export default function LedgerClient() {
             const saved = folderPots.reduce((s, p) => s + parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0"), 0);
             return (
               <button key={folder.id} onClick={() => openPotFolder(folder)}
-                className="w-full bg-white rounded-2xl shadow-sm overflow-hidden flex items-stretch text-left active:scale-[0.99] transition-transform">
-                <div className="w-[76px] flex-shrink-0 flex items-center justify-center" style={{ backgroundColor: potPanelColor(folder.sort_order) }}>
-                  <span className="text-4xl leading-none">{folder.emoji}</span>
+                className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
+                style={{ background: `linear-gradient(100deg, ${potPanelColor(folder.sort_order)} 0%, #ffffff 46%)` }}>
+                <div className="flex-shrink-0 pl-3.5 py-3">
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: potPanelColor(folder.sort_order) }}>
+                    {folder.emoji}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0 px-4 py-4">
-                  <p className="text-base font-semibold text-foreground leading-snug">{folder.name}</p>
+                <div className="flex-1 min-w-0 px-3 py-3">
+                  <p className="text-sm font-semibold text-foreground leading-snug">{folder.name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {folderPots.length === 0 ? "no pots yet" : `${folderPots.length} ${folderPots.length === 1 ? "pot" : "pots"} · £${saved.toFixed(0)} saved`}
                   </p>
                 </div>
-                <div className="flex items-center pr-3 gap-1 flex-shrink-0">
+                <div className="flex items-center pr-3.5 gap-1 flex-shrink-0">
                   {!folder.is_default ? (
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
                       className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors">
