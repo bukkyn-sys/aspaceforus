@@ -15,7 +15,7 @@ import {
   deleteVaultItem,
   fetchOgPreview,
 } from "./actions";
-import { Plus, Trash2, X, Pencil, Link2, ChevronLeft, ArrowUpDown } from "lucide-react";
+import { Plus, X, Link2, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -622,139 +622,138 @@ export default function VaultClient() {
   // ── ITEMS VIEW ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-5">
-        <button
-          onClick={goBack}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <h1 className="font-heading text-2xl text-foreground tracking-tight flex-1 truncate">
-          {activeFolder?.emoji} {activeFolder?.name}
-        </h1>
-        <button
-          onClick={cycleSort}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground bg-secondary px-3 py-1.5 rounded-full hover:text-foreground transition-colors flex-shrink-0"
-        >
-          <ArrowUpDown className="w-3 h-3" />
-          {SORT_LABELS[sortBy]}
-        </button>
-      </div>
-
-      {/* Owner filter */}
-      <div className="flex gap-2 mb-5">
-        {ownerOptions.map(({ value, label }) => (
+      <div className="px-4 pt-10 pb-5">
+        <div className="flex items-center gap-2 mb-5">
           <button
-            key={value}
-            onClick={() => setOwnerFilter(value)}
-            className={cn(
-              "px-3 py-1 rounded-full text-xs font-medium transition-all",
-              ownerFilter === value ? "text-white" : "bg-secondary text-muted-foreground"
-            )}
-            style={ownerFilter === value ? { backgroundColor: myAccent.hex } : undefined}
+            onClick={goBack}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0"
           >
-            {label}
+            <ChevronLeft className="w-5 h-5" />
           </button>
-        ))}
+          <h1 className="font-heading text-2xl text-foreground tracking-tight flex-1 truncate">
+            <span className="mr-1.5">{activeFolder?.emoji}</span>{activeFolder?.name}
+          </h1>
+        </div>
+
+        {/* Filter + sort on one row */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5 flex-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+            {ownerOptions.map(({ value, label }) => (
+              <button
+                key={value}
+                onClick={() => setOwnerFilter(value)}
+                className={cn(
+                  "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                  ownerFilter === value
+                    ? "text-white shadow-sm"
+                    : "bg-white border border-border/50 text-muted-foreground hover:border-border/80"
+                )}
+                style={ownerFilter === value ? { backgroundColor: myAccent.hex } : undefined}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={cycleSort}
+            className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-white border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
+          >
+            <ArrowUpDown className="w-3 h-3" />
+            {SORT_LABELS[sortBy]}
+          </button>
+        </div>
       </div>
 
       {/* List */}
-      {itemsLoading ? (
-        <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
-      ) : filteredItems.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground text-sm">nothing here yet</p>
-          <p className="text-muted-foreground/60 text-xs mt-1">
-            tap + to add your first{" "}
-            {activeFolder?.kind === "date_idea" ? "date idea" : activeFolder?.kind === "wishlist" ? "wishlist item" : "item"}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredItems.map((item) => {
-            const itemAccent = item.created_by === me.id ? myAccent : partnerAccent;
-            return (
-              <div
-                key={item.id}
-                className="bg-white border border-border/30 rounded-2xl overflow-hidden shadow-sm flex items-stretch gap-0"
-                style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "4px" }}
-              >
-                {/* Main content */}
-                <div className="flex-1 min-w-0 p-4">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="text-sm font-semibold text-foreground text-left w-full hover:text-foreground/70 transition-colors leading-snug"
-                  >
-                    {item.title}
-                  </button>
-                  {item.notes && (
-                    <p className="text-xs text-muted-foreground/60 line-clamp-1 mt-0.5">{item.notes}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-xs text-muted-foreground/60 capitalize">
-                      {resolveOwnerName(item.owner)}
-                    </span>
-                    {item.price_range && (
-                      <span className="text-[11px] font-semibold text-foreground/80 bg-foreground/[0.07] px-2 py-0.5 rounded-full">
-                        {item.price_range}
-                      </span>
-                    )}
-                    {activeFolder?.kind === "date_idea" && (
-                      <button
-                        onClick={() => handleStage(item)}
-                        className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
-                      >
-                        {STAGE_LABEL[item.stage]}
-                      </button>
-                    )}
-                    {item.url && (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] text-blue-400 hover:text-blue-600 flex items-center gap-0.5 transition-colors"
-                      >
-                        <Link2 className="w-3 h-3" />
-                        link
-                      </a>
+      <div className="px-4 pb-24">
+        {itemsLoading ? (
+          <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
+        ) : filteredItems.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">nothing here yet</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">
+              tap + to add your first{" "}
+              {activeFolder?.kind === "date_idea" ? "date idea" : activeFolder?.kind === "wishlist" ? "wishlist item" : "item"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {filteredItems.map((item) => {
+              const itemAccent = item.created_by === me.id ? myAccent : partnerAccent;
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => openEdit(item)}
+                  className="bg-white border border-border/20 rounded-2xl overflow-hidden shadow-sm flex items-center gap-0 cursor-pointer active:scale-[0.99] transition-transform"
+                  style={{ borderLeftColor: itemAccent.hex, borderLeftWidth: "3px" }}
+                >
+                  {/* Visual anchor — left side */}
+                  <div className="flex-shrink-0 pl-3.5 py-3.5">
+                    {item.item_emoji ? (
+                      <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none">
+                        {item.item_emoji}
+                      </div>
+                    ) : item.og_image ? (
+                      <img src={item.og_image} alt="" className="w-11 h-11 rounded-xl object-cover" />
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl bg-secondary/50" />
                     )}
                   </div>
-                </div>
 
-                {/* Visual + actions column */}
-                <div className="flex flex-col items-center justify-between p-3 pl-0 gap-2 flex-shrink-0">
-                  {item.item_emoji ? (
-                    <div className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-2xl leading-none">
-                      {item.item_emoji}
+                  {/* Content */}
+                  <div className="flex-1 min-w-0 px-3 py-3.5">
+                    <p className="text-sm font-semibold text-foreground leading-snug truncate">{item.title}</p>
+                    {item.notes && (
+                      <p className="text-xs text-muted-foreground/50 line-clamp-1 mt-0.5 leading-snug">{item.notes}</p>
+                    )}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className="text-[11px] text-muted-foreground/60 capitalize">{resolveOwnerName(item.owner)}</span>
+                      {item.price_range && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          <span className="text-[11px] font-semibold text-foreground/70">{item.price_range}</span>
+                        </>
+                      )}
+                      {activeFolder?.kind === "date_idea" && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStage(item); }}
+                            className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full transition-colors", STAGE_COLOR[item.stage])}
+                          >
+                            {STAGE_LABEL[item.stage]}
+                          </button>
+                        </>
+                      )}
+                      {item.url && (
+                        <>
+                          <span className="text-muted-foreground/25 text-[10px]">·</span>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[11px] text-blue-400 hover:text-blue-600 transition-colors"
+                          >
+                            link
+                          </a>
+                        </>
+                      )}
                     </div>
-                  ) : item.og_image ? (
-                    <img src={item.og_image} alt="" className="w-11 h-11 rounded-xl object-cover" />
-                  ) : (
-                    <div className="w-11 h-11" />
-                  )}
-                  <div className="flex flex-col gap-1">
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  </div>
+
+                  {/* Navigation hint */}
+                  <div className="flex-shrink-0 pr-3.5">
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/25" />
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Add item sheet */}
       {showAdd && (
