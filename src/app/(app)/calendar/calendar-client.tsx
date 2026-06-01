@@ -232,6 +232,7 @@ export default function CalendarClient() {
       <div className="flex items-center px-3 py-3">
         <button
           onClick={() => setCurrent(new Date(year, month - 1, 1))}
+          aria-label="previous month"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -239,6 +240,7 @@ export default function CalendarClient() {
         <p className="flex-1 text-center text-sm font-semibold text-foreground">{monthLabel}</p>
         <button
           onClick={() => setCurrent(new Date(year, month + 1, 1))}
+          aria-label="next month"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
@@ -299,11 +301,17 @@ export default function CalendarClient() {
             const showBandEmoji = isEventDay && isRangeStart;
             const bandEmoji = dayEvents[0]?.emoji ?? dayCds[0]?.emoji;
 
+            const availLabel = isEventDay
+              ? `, ${collisionCount > 1 ? `${collisionCount} events` : "event"}`
+              : `${mine === "free" ? ", you free" : ""}${theirs === "free" ? ", partner free" : ""}`;
+
             return (
               <button
                 key={i}
                 onClick={() => !isPast && !isEventDay && handleDay(ds)}
                 disabled={isPast}
+                aria-label={`${day} ${monthLabel}${availLabel}`}
+                aria-pressed={!isEventDay && mine === "free"}
                 className={cn(
                   "aspect-square w-full flex flex-col items-center justify-center relative transition-all select-none",
                   isEventDay

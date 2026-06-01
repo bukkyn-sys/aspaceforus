@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
+const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
 
 const COUNTDOWN_TYPES = [
   { label: "holiday",     emoji: "✈️" },
@@ -379,6 +380,8 @@ export default function DashboardClient() {
                 <button
                   key={i}
                   onClick={() => handleMood(i + 1)}
+                  aria-label={`feeling ${MOOD_LABELS[i]}`}
+                  aria-pressed={data.myMood === i + 1}
                   className={cn(
                     "flex-1 text-lg py-1 rounded-xl transition-all",
                     data.myMood === i + 1 ? "scale-110" : "opacity-50 hover:opacity-80"

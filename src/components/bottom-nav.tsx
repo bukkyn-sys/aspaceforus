@@ -36,6 +36,8 @@ export default function BottomNav() {
         <div className="flex flex-col items-center justify-center w-14">
           <button
             onClick={action ?? undefined}
+            disabled={!action}
+            aria-disabled={!action}
             className={cn(
               "w-12 h-12 rounded-2xl bg-foreground text-background",
               "flex items-center justify-center",

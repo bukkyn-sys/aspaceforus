@@ -235,8 +235,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ## ♿ ACCESSIBILITY (weakest dimension, easy wins)
 
-### [ ] 19. Accessibility pass
-**Status:** NOT STARTED
+### [~] 19. Accessibility pass
+**Status:** PARTIAL DONE (commit pending). Done: FAB disabled+aria-disabled when no action; mood buttons aria-label+aria-pressed; calendar month arrows aria-label; calendar day cells aria-label (date + free/event state) + aria-pressed; ledger tabs/paidBy/recurrence/contribMode aria-pressed. STILL TODO: category chips + emoji pickers (vault/ledger/home countdown) aria-labels; ledger currency/folder toggles aria-pressed; vault owner buttons; role=tablist semantics; hidden date-input AT review.
 **Severity:** Low-Med, high value
 - **Emoji/icon-only buttons have no labels** — mood buttons (`dashboard-client.tsx:379`), category chips, emoji pickers, calendar arrows. SR announces "button" with no name. Add `aria-label`.
 - **Custom toggles aren't semantic** — paid-by / split tabs / ledger tabs are `<button>`s styled as segmented controls; lack `role="tab"`/`aria-selected` or `aria-pressed`. Add ARIA state.

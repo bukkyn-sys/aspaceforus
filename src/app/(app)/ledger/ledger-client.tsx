@@ -481,7 +481,7 @@ export default function LedgerClient() {
             <p className="text-xs text-muted-foreground mb-2">who paid?</p>
             <div className="flex gap-2">
               {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => (
-                <button key={v} onClick={() => setPaidBy(v)}
+                <button key={v} onClick={() => setPaidBy(v)} aria-pressed={paidBy === v}
                   className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
                     paidBy === v ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
                   )}>{l}</button>
@@ -496,7 +496,7 @@ export default function LedgerClient() {
             <p className="text-xs text-muted-foreground mb-2">repeats?</p>
             <div className="flex gap-2">
               {RECURRENCES.map((r) => (
-                <button key={r.id} onClick={() => setRecurrence(r.id)}
+                <button key={r.id} onClick={() => setRecurrence(r.id)} aria-pressed={recurrence === r.id}
                   className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
                     recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
                   )}>{r.label}</button>
@@ -546,7 +546,7 @@ export default function LedgerClient() {
                 <p className="text-xs text-muted-foreground mb-2">you&apos;ve put in {cur}{myCurrent.toFixed(0)}</p>
                 <div className="flex gap-2 mb-2">
                   {(["add", "withdraw"] as const).map((m) => (
-                    <button key={m} onClick={() => setContribMode(m)}
+                    <button key={m} onClick={() => setContribMode(m)} aria-pressed={contribMode === m}
                       className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
                         contribMode === m ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
                       )}>{m}</button>
@@ -748,7 +748,7 @@ export default function LedgerClient() {
       {/* Tabs */}
       <div className="flex bg-secondary rounded-2xl p-1 mb-4">
         {([["entries", "expenses"], ["pots", "savings pots"]] as ["entries" | "pots", string][]).map(([t, l]) => (
-          <button key={t} onClick={() => setTab(t)}
+          <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
             className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all",
               tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
             )}>{l}</button>
