@@ -20,11 +20,12 @@ type BeforeInstallPromptEvent = Event & {
 // "Add to home screen" step. Uses the native install prompt on Android/Chrome,
 // shows the Share → Add to Home Screen steps on iOS, and is always skippable.
 function InstallStep({
-  prompt, accentHex, onDone,
+  prompt, accentHex, onDone, onBack,
 }: {
   prompt: BeforeInstallPromptEvent | null;
   accentHex: string;
   onDone: () => void;
+  onBack?: () => void;
 }) {
   const [isIOS, setIsIOS] = useState(false);
   const [standalone, setStandalone] = useState(false);
@@ -65,7 +66,14 @@ function InstallStep({
 
   return (
     <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
-      <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto">
+      <div className="h-8 max-w-sm w-full mx-auto flex items-center">
+        {onBack && (
+          <button onClick={onBack} className="w-8 h-8 -ml-1 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+      <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto pb-8">
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7" style={{ backgroundColor: `${accentHex}22` }}>
           <Smartphone className="w-9 h-9" strokeWidth={1.5} style={{ color: accentHex }} />
         </div>
@@ -76,13 +84,13 @@ function InstallStep({
 
         {isIOS && !prompt && (
           <div className="mt-7 w-full bg-white border border-border/50 rounded-2xl p-4 text-left shadow-card space-y-2.5">
-            <div className="flex items-center gap-2.5 text-sm text-foreground">
-              <Share className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-              <span>tap the <span className="font-medium">share</span> icon in your browser bar</span>
+            <div className="flex items-start gap-2.5 text-sm text-foreground">
+              <Share className="w-4 h-4 flex-shrink-0 text-muted-foreground mt-0.5" />
+              <span>tap the <span className="font-medium">share</span> icon in safari</span>
             </div>
-            <div className="flex items-center gap-2.5 text-sm text-foreground">
-              <Plus className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-              <span>choose <span className="font-medium">add to home screen</span></span>
+            <div className="flex items-start gap-2.5 text-sm text-foreground">
+              <Plus className="w-4 h-4 flex-shrink-0 text-muted-foreground mt-0.5" />
+              <span>choose <span className="font-medium">add to home screen</span> — you may need to scroll down or tap <span className="font-medium">more</span></span>
             </div>
           </div>
         )}
@@ -707,7 +715,14 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
   // ── Add to home screen ────────────────────────────────────────────────────
   if (step === "install") {
-    return <InstallStep prompt={installPrompt} accentHex={selectedAccent.hex} onDone={() => { window.location.href = "/home"; }} />;
+    return (
+      <InstallStep
+        prompt={installPrompt}
+        accentHex={selectedAccent.hex}
+        onDone={() => { window.location.href = "/home"; }}
+        onBack={inviteCode ? () => setStep("finish") : undefined}
+      />
+    );
   }
 
   // ── Finish (after create) ─────────────────────────────────────────────────
