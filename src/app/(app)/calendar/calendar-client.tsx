@@ -4,13 +4,14 @@ import { useState, useEffect, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
-import { setAvailability, addEvent, deleteEvent } from "./actions";
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { setAvailability, addEvent, updateEvent, deleteEvent } from "./actions";
+import { deleteCountdown } from "@/app/(app)/home/actions";
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BottomSheet } from "@/components/ui/sheet";
+import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,7 @@ import { getAccent } from "@/lib/accent-colors";
 type Status = "free" | "busy" | null;
 interface Row { user_id: string; date: string; status: Status; }
 interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; }
-interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; }
+interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
 
@@ -35,6 +36,9 @@ export default function CalendarClient() {
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
+  const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -79,7 +83,7 @@ export default function CalendarClient() {
         .order("start_at"),
       supabase
         .from("countdowns")
-        .select("id, title, target_date, end_date, emoji")
+        .select("id, title, target_date, end_date, emoji, created_by")
         .eq("couple_id", coupleId)
         .eq("archived", false)
         .gte("target_date", start)
@@ -139,34 +143,54 @@ export default function CalendarClient() {
   useRegisterFab(() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setEditingEventId(null);
+    setEventTitle(""); setEventEmoji("📅");
     setEventDate(today);
     setEventEndDate("");
     setShowAddEvent(true);
   });
 
-  function handleAddEvent() {
+  function handleSaveEvent() {
     if (!eventTitle.trim() || !eventDate) return;
+    const title = eventTitle.trim();
     const startAt = eventDate + "T12:00:00";
     const endAt = eventEndDate ? eventEndDate + "T12:00:00" : null;
-    const optimistic: CalEvent = {
-      id: crypto.randomUUID(),
-      title: eventTitle.trim(),
-      start_at: startAt,
-      end_at: endAt,
-      emoji: eventEmoji,
-      created_by: me.id,
-    };
-    setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
-    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅"); setShowAddEvent(false);
-    markActivity("calendar");
-    startTransition(() => {
-      addEvent({ coupleId, userId: me.id, title: optimistic.title, startAt, endAt, emoji: eventEmoji });
-    });
+    if (editingEventId) {
+      const id = editingEventId;
+      setEvents((prev) => prev
+        .map((e) => e.id === id ? { ...e, title, start_at: startAt, end_at: endAt, emoji: eventEmoji } : e)
+        .sort((a, b) => a.start_at.localeCompare(b.start_at)));
+      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji }); });
+    } else {
+      const optimistic: CalEvent = { id: crypto.randomUUID(), title, start_at: startAt, end_at: endAt, emoji: eventEmoji, created_by: me.id };
+      setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
+      markActivity("calendar");
+      startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji }); });
+    }
+    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");
+    setEditingEventId(null); setShowAddEvent(false);
+  }
+
+  function openEditEvent(evt: CalEvent) {
+    setActionEvent(null);
+    setEditingEventId(evt.id);
+    setEventTitle(evt.title);
+    setEventEmoji(evt.emoji);
+    setEventDate(evt.start_at.slice(0, 10));
+    setEventEndDate(evt.end_at ? evt.end_at.slice(0, 10) : "");
+    setShowAddEvent(true);
   }
 
   function handleDeleteEvent(id: string) {
     setEvents((prev) => prev.filter((e) => e.id !== id));
-    startTransition(() => { deleteEvent(id, coupleId); });
+    setActionEvent(null);
+    startTransition(() => { deleteEvent(id, coupleId, me.id); });
+  }
+
+  function handleDeleteCountdownCal(id: string) {
+    setCountdowns((prev) => prev.filter((c) => c.id !== id));
+    setActionCountdown(null);
+    startTransition(() => { deleteCountdown(id, coupleId, me.id); });
   }
 
   const firstDay = new Date(year, month, 1).getDay();
@@ -407,7 +431,8 @@ export default function CalendarClient() {
                     return (
                       <div
                         key={evt.id}
-                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3"
+                        onClick={() => isMe && setActionEvent(evt)}
+                        className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", isMe && "cursor-pointer active:scale-[0.99] transition-transform")}
                         style={{ background: cardOmbre(o) }}
                       >
                         <span className="text-xl flex-shrink-0">{evt.emoji}</span>
@@ -419,14 +444,6 @@ export default function CalendarClient() {
                             {evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
                           </p>
                         </div>
-                        {isMe && (
-                          <button
-                            onClick={() => handleDeleteEvent(evt.id)}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors flex-shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                       </div>
                     );
                   } else {
@@ -434,10 +451,12 @@ export default function CalendarClient() {
                     const days = daysUntil(cd.target_date);
                     const d = new Date(cd.target_date + "T12:00:00");
                     const o = resolveOwner(null); // countdowns are shared
+                    const mine = cd.created_by === me.id;
                     return (
                       <div
                         key={cd.id}
-                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3"
+                        onClick={() => mine && setActionCountdown(cd)}
+                        className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
                         style={{ background: cardOmbre(o) }}
                       >
                         <span className="text-xl flex-shrink-0">{cd.emoji}</span>
@@ -463,14 +482,14 @@ export default function CalendarClient() {
         })()}
       </div>
 
-      {/* Add event sheet */}
+      {/* Add / edit event sheet */}
       <BottomSheet
         open={showAddEvent}
-        onClose={() => setShowAddEvent(false)}
-        title="new event"
+        onClose={() => { setShowAddEvent(false); setEditingEventId(null); }}
+        title={editingEventId ? "edit event" : "new event"}
         footer={
-          <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
-            add event
+          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
+            {editingEventId ? "save" : "add event"}
           </Button>
         }
       >
@@ -522,6 +541,49 @@ export default function CalendarClient() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* Event action prompt — creator only */}
+      <Dialog open={actionEvent !== null} onClose={() => setActionEvent(null)}>
+        {actionEvent && (
+          <>
+            <p className="font-semibold text-foreground text-center truncate">{actionEvent.emoji} {actionEvent.title}</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
+            <div className="space-y-2">
+              <Button onClick={() => openEditEvent(actionEvent)} className="w-full h-11 rounded-xl">
+                <Pencil className="w-4 h-4 mr-1.5" /> edit
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleDeleteEvent(actionEvent.id)}
+                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> remove
+              </Button>
+              <button onClick={() => setActionEvent(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+            </div>
+          </>
+        )}
+      </Dialog>
+
+      {/* Countdown action prompt — creator only (edit lives on the home page) */}
+      <Dialog open={actionCountdown !== null} onClose={() => setActionCountdown(null)}>
+        {actionCountdown && (
+          <>
+            <p className="font-semibold text-foreground text-center truncate">{actionCountdown.emoji} {actionCountdown.title}</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">remove this countdown? edit it from the home page.</p>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                onClick={() => handleDeleteCountdownCal(actionCountdown.id)}
+                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> remove
+              </Button>
+              <button onClick={() => setActionCountdown(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+            </div>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }

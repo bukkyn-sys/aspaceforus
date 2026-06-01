@@ -36,7 +36,36 @@ export async function addEvent(data: {
   });
 }
 
-export async function deleteEvent(id: string, coupleId: string) {
+// Update / delete restricted to the creator (created_by filter enforces it).
+export async function updateEvent(data: {
+  id: string;
+  coupleId: string;
+  userId: string;
+  title: string;
+  startAt: string;
+  endAt?: string | null;
+  emoji?: string;
+}) {
   const supabase = await createClient();
-  await supabase.rpc("delete_event", { p_id: id, p_couple_id: coupleId });
+  await supabase
+    .from("events")
+    .update({
+      title: data.title,
+      start_at: data.startAt,
+      end_at: data.endAt ?? null,
+      emoji: data.emoji ?? "📅",
+    })
+    .eq("id", data.id)
+    .eq("couple_id", data.coupleId)
+    .eq("created_by", data.userId);
+}
+
+export async function deleteEvent(id: string, coupleId: string, userId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("events")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId)
+    .eq("created_by", userId);
 }

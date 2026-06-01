@@ -41,7 +41,36 @@ export async function addCountdown(data: {
   });
 }
 
-export async function deleteCountdown(id: string, coupleId: string) {
+// Update / delete restricted to the creator (created_by filter enforces it).
+export async function updateCountdown(data: {
+  id: string;
+  coupleId: string;
+  userId: string;
+  title: string;
+  targetDate: string;
+  endDate?: string | null;
+  emoji: string;
+}) {
   const supabase = await createClient();
-  await supabase.rpc("delete_countdown", { p_id: id, p_couple_id: coupleId });
+  await supabase
+    .from("countdowns")
+    .update({
+      title: data.title,
+      target_date: data.targetDate,
+      end_date: data.endDate ?? null,
+      emoji: data.emoji,
+    })
+    .eq("id", data.id)
+    .eq("couple_id", data.coupleId)
+    .eq("created_by", data.userId);
+}
+
+export async function deleteCountdown(id: string, coupleId: string, userId: string) {
+  const supabase = await createClient();
+  await supabase
+    .from("countdowns")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId)
+    .eq("created_by", userId);
 }

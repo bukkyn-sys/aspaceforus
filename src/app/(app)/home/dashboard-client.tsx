@@ -6,12 +6,12 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { setMood, updateNote, setStartedAt, addCountdown, deleteCountdown } from "./actions";
+import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
 import Link from "next/link";
-import { Plane, X, Heart, User } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BottomSheet } from "@/components/ui/sheet";
+import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -28,7 +28,7 @@ const COUNTDOWN_TYPES = [
   { label: "other",       emoji: "🗓️" },
 ];
 
-interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; }
+interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
 interface DashboardData {
   myMood: number | null;
@@ -97,6 +97,8 @@ export default function DashboardClient() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [loading, setLoading] = useState(() => getCache<DashCache>(`dash:${coupleId}`) === undefined);
   const [showCountdownSheet, setShowCountdownSheet] = useState(false);
+  const [editingCountdownId, setEditingCountdownId] = useState<string | null>(null);
+  const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -109,6 +111,7 @@ export default function DashboardClient() {
 
   useRegisterFab(() => {
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
+    setEditingCountdownId(null);
     setShowCountdownSheet(true);
   });
 
@@ -141,7 +144,7 @@ export default function DashboardClient() {
         supabase.rpc("get_my_profile", { p_user_id: me.id }),
         supabase.rpc("get_partner_profile", { p_couple_id: coupleId, p_my_id: me.id }),
         supabase.from("couples").select("shared_note, started_at, invite_code, banner_url").eq("id", coupleId).single(),
-        supabase.from("countdowns").select("id, title, target_date, end_date, emoji").eq("couple_id", coupleId)
+        supabase.from("countdowns").select("id, title, target_date, end_date, emoji, created_by").eq("couple_id", coupleId)
           .eq("archived", false).gte("target_date", today).order("target_date"),
         supabase.from("events").select("title, start_at, created_at").eq("couple_id", coupleId)
           .neq("created_by", me.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -253,21 +256,44 @@ export default function DashboardClient() {
     startTransition(() => { setStartedAt(coupleId, me.id, date); });
   }
 
-  function handleAddCountdown() {
+  function handleSaveCountdown() {
     if (!cdTitle.trim() || !cdDate) return;
-    const cd: Countdown = { id: crypto.randomUUID(), title: cdTitle.trim(), target_date: cdDate, end_date: cdEndDate || null, emoji: cdEmoji };
-    setData((prev) => ({
-      ...prev,
-      countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
-    }));
-    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji(""); setShowCountdownSheet(false);
-    markActivity("home");
-    startTransition(() => { addCountdown({ coupleId, userId: me.id, title: cd.title, targetDate: cdDate, endDate: cdEndDate || null, emoji: cdEmoji }); });
+    const title = cdTitle.trim();
+    const endDate = cdEndDate || null;
+    if (editingCountdownId) {
+      const id = editingCountdownId;
+      setData((prev) => ({
+        ...prev,
+        countdowns: prev.countdowns
+          .map((c) => c.id === id ? { ...c, title, target_date: cdDate, end_date: endDate, emoji: cdEmoji } : c)
+          .sort((a, b) => a.target_date.localeCompare(b.target_date)),
+      }));
+      startTransition(() => { updateCountdown({ id, coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
+    } else {
+      const cd: Countdown = { id: crypto.randomUUID(), title, target_date: cdDate, end_date: endDate, emoji: cdEmoji, created_by: me.id };
+      setData((prev) => ({
+        ...prev,
+        countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
+      }));
+      markActivity("home");
+      startTransition(() => { addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
+    }
+    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
+    setEditingCountdownId(null); setShowCountdownSheet(false);
+  }
+
+  function openEditCountdown(cd: Countdown) {
+    setActionCountdown(null);
+    setEditingCountdownId(cd.id);
+    setCdTitle(cd.title); setCdDate(cd.target_date); setCdEndDate(cd.end_date ?? "");
+    setCdEmoji(cd.emoji); setCdCustomEmoji("");
+    setShowCountdownSheet(true);
   }
 
   function handleDeleteCountdown(id: string) {
     setData((prev) => ({ ...prev, countdowns: prev.countdowns.filter((c) => c.id !== id) }));
-    startTransition(() => { deleteCountdown(id, coupleId); });
+    setActionCountdown(null);
+    startTransition(() => { deleteCountdown(id, coupleId, me.id); });
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -451,8 +477,12 @@ export default function DashboardClient() {
             <p className="text-xs font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
             {data.countdowns.map((cd, i) => {
               const { days } = timeUntil(cd.target_date);
+              const mine = cd.created_by === me.id;
               return (
-                <div key={cd.id} className={cn("flex items-center gap-3 px-5 py-3.5", i > 0 && "border-t border-border/30")}>
+                <div key={cd.id}
+                  onClick={() => mine && setActionCountdown(cd)}
+                  className={cn("flex items-center gap-3 px-5 py-3.5", i > 0 && "border-t border-border/30", mine && "cursor-pointer active:bg-black/[0.02]")}
+                >
                   <span className="text-2xl flex-shrink-0">{cd.emoji}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
@@ -465,12 +495,6 @@ export default function DashboardClient() {
                     <p className="text-lg font-semibold tabular-nums leading-none">{days}</p>
                     <p className="text-[10px] text-muted-foreground/50 mt-0.5">days</p>
                   </div>
-                  <button
-                    onClick={() => handleDeleteCountdown(cd.id)}
-                    className="w-6 h-6 rounded-full flex items-center justify-center bg-black/5 flex-shrink-0 ml-1"
-                  >
-                    <X className="w-3 h-3 text-foreground/40" />
-                  </button>
                 </div>
               );
             })}
@@ -519,14 +543,14 @@ export default function DashboardClient() {
         />
       </BottomSheet>
 
-      {/* Add countdown sheet */}
+      {/* Add / edit countdown sheet */}
       <BottomSheet
         open={showCountdownSheet}
-        onClose={() => setShowCountdownSheet(false)}
-        title="new countdown"
+        onClose={() => { setShowCountdownSheet(false); setEditingCountdownId(null); }}
+        title={editingCountdownId ? "edit countdown" : "new countdown"}
         footer={
-          <Button onClick={handleAddCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
-            add countdown
+          <Button onClick={handleSaveCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
+            {editingCountdownId ? "save" : "add countdown"}
           </Button>
         }
       >
@@ -587,6 +611,29 @@ export default function DashboardClient() {
           </div>
         </div>
       </BottomSheet>
+
+      {/* Countdown action prompt — creator only */}
+      <Dialog open={actionCountdown !== null} onClose={() => setActionCountdown(null)}>
+        {actionCountdown && (
+          <>
+            <p className="font-semibold text-foreground text-center truncate">{actionCountdown.emoji} {actionCountdown.title}</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
+            <div className="space-y-2">
+              <Button onClick={() => openEditCountdown(actionCountdown)} className="w-full h-11 rounded-xl">
+                <Pencil className="w-4 h-4 mr-1.5" /> edit
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleDeleteCountdown(actionCountdown.id)}
+                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> remove
+              </Button>
+              <button onClick={() => setActionCountdown(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+            </div>
+          </>
+        )}
+      </Dialog>
       </div>
     </div>
   );
