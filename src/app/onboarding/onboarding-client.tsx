@@ -4,18 +4,65 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Loader2, Heart, Camera } from "lucide-react";
+import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Home, CalendarDays, Bookmark, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
 
-type Step = "profile" | "couple" | "start-date";
+type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish";
 type Tab = "create" | "join";
 
 interface Props {
   userId: string;
   firstName: string;
   avatar: string | null;
+}
+
+const PILLARS = [
+  { icon: Home,         name: "home",     color: "#7C9E87", blurb: "your shared dashboard — moods, a little love-note, and countdowns to what's coming up." },
+  { icon: CalendarDays, name: "calendar", color: "#5B9BD5", blurb: "mark when you're each free, spot your overlaps, and plan dates, trips and events." },
+  { icon: Bookmark,     name: "vault",    color: "#8B7BB8", blurb: "keep date ideas, wishlists and everything you want to do together in one place." },
+  { icon: Receipt,      name: "ledger",   color: "#C4704F", blurb: "split shared expenses fairly and save towards goals with savings pots." },
+];
+
+// Consistent layout for the step-by-step setup screens.
+function SetupShell({
+  index, total, onBack, title, subtitle, children, footer,
+}: {
+  index: number;
+  total: number;
+  onBack?: () => void;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  footer: React.ReactNode;
+}) {
+  return (
+    <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
+      <div className="flex items-center justify-between h-8 max-w-sm w-full mx-auto">
+        {onBack ? (
+          <button onClick={onBack} className="w-8 h-8 -ml-1 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        ) : <div className="w-7" />}
+        <div className="flex gap-1.5">
+          {Array.from({ length: total }).map((_, i) => (
+            <div key={i} className={cn("h-1.5 rounded-full transition-all", i === index ? "w-5 bg-foreground" : "w-1.5 bg-border")} />
+          ))}
+        </div>
+        <div className="w-7" />
+      </div>
+
+      <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto pb-8">
+        <h1 className="font-heading text-3xl text-foreground tracking-tight">{title}</h1>
+        {subtitle && <p className="text-sm text-muted-foreground mt-1.5 mb-8">{subtitle}</p>}
+        {!subtitle && <div className="mb-8" />}
+        {children}
+      </div>
+
+      <div className="max-w-sm w-full mx-auto space-y-3">{footer}</div>
+    </div>
+  );
 }
 
 // ── Crop modal (avatar only) ───────────────────────────────────────────────
@@ -233,9 +280,10 @@ function CropModal({
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function OnboardingClient({ userId, firstName, avatar }: Props) {
-  const [step, setStep] = useState<Step>("profile");
+  const [step, setStep] = useState<Step>("welcome");
+  const [pillar, setPillar] = useState(0);
 
-  // Step 1
+  // Profile
   const [name, setName] = useState(firstName);
   const [accentColor, setAccentColor] = useState("sage");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(avatar);
@@ -243,14 +291,14 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Step 2
+  // Couple
   const [tab, setTab] = useState<Tab>("create");
   const [joinCode, setJoinCode] = useState("");
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Step 3
+  // Finish
   const [startDate, setStartDate] = useState("");
 
   const [error, setError] = useState<string | null>(null);
@@ -280,12 +328,6 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     return publicUrl;
   }
 
-  function handleProfileContinue() {
-    if (!name.trim()) { setError("enter your name"); return; }
-    setError(null);
-    setStep("couple");
-  }
-
   function handleCreate() {
     setError(null);
     startTransition(async () => {
@@ -296,7 +338,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
         if ("error" in result) { setError(result.error ?? "something went wrong"); return; }
         setInviteCode(result.inviteCode);
         setCoupleId(result.coupleId);
-        setStep("start-date");
+        setStep("finish");
       } catch (e) {
         setError(e instanceof Error ? e.message : "unexpected error");
       }
@@ -310,7 +352,8 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       const avatarUrl = croppedBlob ? await uploadAvatar(croppedBlob) : avatarPreview;
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
-      if (result?.error) setError(result.error);
+      if (result?.error) { setError(result.error); return; }
+      window.location.href = "/home";
     });
   }
 
@@ -328,179 +371,241 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     });
   }
 
-  // ── Step 1: Profile setup ─────────────────────────────────────────────────
-  if (step === "profile") {
+  const accentBtn = "w-full h-12 rounded-xl text-white text-[15px] font-medium";
+
+  // ── Welcome ───────────────────────────────────────────────────────────────
+  if (step === "welcome") {
     return (
-      <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 py-12">
-        {cropFile && (
-          <CropModal
-            file={cropFile}
-            onConfirm={handleCropConfirm}
-            onCancel={() => setCropFile(null)}
-          />
-        )}
-        <div className="w-full max-w-sm space-y-7">
-          {/* Avatar upload */}
-          <div className="flex flex-col items-center gap-3">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="relative w-24 h-24 rounded-full focus:outline-none group"
-            >
-              {avatarPreview ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={avatarPreview} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
-                  <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Camera className="w-5 h-5 text-white" />
-                    <span className="text-[10px] text-white font-medium">change</span>
-                  </div>
-                </>
-              ) : (
-                <div className="w-24 h-24 rounded-full border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 bg-secondary group-hover:bg-secondary/80 transition-colors">
-                  <Camera className="w-6 h-6 text-muted-foreground" />
-                  <span className="text-[11px] text-muted-foreground font-medium">add photo</span>
-                </div>
-              )}
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            <div className="text-center">
-              <h1 className="font-heading text-3xl text-foreground tracking-tight">welcome.</h1>
-              <p className="text-muted-foreground text-sm mt-0.5">let&apos;s set you up.</p>
-            </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1.5">what should we call you?</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="your first name"
-              maxLength={30}
-              className="h-12 rounded-xl bg-white border-border/60 text-base"
-            />
-          </div>
-
-          {/* Accent colour */}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-3">your colour</label>
-            <div className="flex justify-center gap-4">
-              {ACCENT_COLORS.map((c) => (
-                <button
-                  key={c.name}
-                  type="button"
-                  onClick={() => setAccentColor(c.name)}
-                  className={cn(
-                    "w-9 h-9 rounded-full border-2 transition-all",
-                    accentColor === c.name ? "border-foreground scale-110" : "border-transparent"
-                  )}
-                  style={{ backgroundColor: c.hex }}
-                />
-              ))}
-            </div>
-          </div>
-
-          {error && <p className="text-sm text-destructive text-center">{error}</p>}
-
-          <Button
-            onClick={handleProfileContinue}
-            className="w-full h-12 rounded-xl text-white"
-            style={{ backgroundColor: selectedAccent.hex }}
-          >
-            continue →
+      <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <h1 className="font-heading text-7xl text-foreground tracking-tight">us.</h1>
+          <p className="text-muted-foreground mt-3 text-base">a little home for the two of you.</p>
+          <p className="text-sm text-muted-foreground/70 mt-6 max-w-[16rem] leading-relaxed">
+            moods, plans, ideas and money — kept in one calm, shared space.
+          </p>
+        </div>
+        <div className="w-full max-w-sm pb-10">
+          <Button onClick={() => setStep("pillars")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
+            take a look around
           </Button>
         </div>
       </div>
     );
   }
 
-  // ── Step 2: Couple setup ──────────────────────────────────────────────────
-  if (step === "couple") {
+  // ── Pillars tour ──────────────────────────────────────────────────────────
+  if (step === "pillars") {
+    const p = PILLARS[pillar];
+    const Icon = p.icon;
     return (
-      <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm space-y-6">
-          <div className="text-center">
-            <h1 className="font-heading text-3xl text-foreground tracking-tight">your space.</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">create a shared space or join your partner&apos;s.</p>
-          </div>
-
-          <div className="flex bg-secondary rounded-2xl p-1">
-            {(["create", "join"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); setError(null); }}
-                className={cn(
-                  "flex-1 py-2 text-sm font-medium rounded-xl transition-all",
-                  tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
-                )}
-              >
-                {t === "create" ? "create couple" : "join with code"}
-              </button>
+      <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
+        <div className="flex items-center justify-between h-8 max-w-sm w-full mx-auto">
+          <button
+            onClick={() => pillar > 0 ? setPillar(pillar - 1) : setStep("welcome")}
+            className="w-8 h-8 -ml-1 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-secondary transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="flex gap-1.5">
+            {PILLARS.map((_, i) => (
+              <div key={i} className={cn("h-1.5 rounded-full transition-all", i === pillar ? "w-5" : "w-1.5 bg-border")}
+                style={i === pillar ? { backgroundColor: p.color } : undefined} />
             ))}
           </div>
+          <button onClick={() => setStep("name")} className="text-xs text-muted-foreground/60 hover:text-muted-foreground">skip</button>
+        </div>
 
-          {tab === "create" && (
-            <div className="space-y-4">
-              {error && <p className="text-sm text-destructive text-center">{error}</p>}
-              <Button
-                onClick={handleCreate}
-                disabled={isPending}
-                className="w-full h-12 rounded-xl text-white"
-                style={{ backgroundColor: selectedAccent.hex }}
-              >
-                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create & get code"}
-              </Button>
-            </div>
-          )}
+        <div className="flex-1 flex flex-col items-center justify-center text-center max-w-sm w-full mx-auto pb-8">
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7" style={{ backgroundColor: `${p.color}22` }}>
+            <Icon className="w-9 h-9" strokeWidth={1.5} style={{ color: p.color }} />
+          </div>
+          <h1 className="font-heading text-4xl text-foreground tracking-tight">{p.name}.</h1>
+          <p className="text-[15px] text-muted-foreground mt-3 leading-relaxed max-w-[18rem]">{p.blurb}</p>
+        </div>
 
-          {tab === "join" && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground text-center">
-                enter the code your partner shared with you.
-              </p>
-              <Input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
-                placeholder="e.g. a3f92b1c"
-                maxLength={8}
-                className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-white border-border/60"
-              />
-              {error && <p className="text-sm text-destructive text-center">{error}</p>}
-              <Button
-                onClick={handleJoin}
-                disabled={isPending || joinCode.length < 6}
-                className="w-full h-12 rounded-xl gap-2 text-white"
-                style={{ backgroundColor: selectedAccent.hex }}
-              >
-                {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}
-              </Button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => { setStep("profile"); setError(null); }}
-            className="w-full text-xs text-muted-foreground/50 text-center"
+        <div className="max-w-sm w-full mx-auto">
+          <Button
+            onClick={() => pillar < PILLARS.length - 1 ? setPillar(pillar + 1) : setStep("name")}
+            className="w-full h-12 rounded-xl text-white text-[15px] font-medium"
+            style={{ backgroundColor: p.color }}
           >
-            ← back
-          </button>
+            {pillar < PILLARS.length - 1 ? "next" : "set up your space"}
+          </Button>
         </div>
       </div>
     );
   }
 
-  // ── Step 3: Start date + invite code ─────────────────────────────────────
-  return (
-    <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="text-center">
-          <h1 className="font-heading text-3xl text-foreground tracking-tight">your story.</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">almost done.</p>
+  // ── Name ──────────────────────────────────────────────────────────────────
+  if (step === "name") {
+    return (
+      <SetupShell
+        index={0} total={4}
+        onBack={() => { setPillar(PILLARS.length - 1); setStep("pillars"); }}
+        title="what's your name?"
+        subtitle="so your partner always knows it's you."
+        footer={
+          <Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
+            continue
+          </Button>
+        }
+      >
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="your first name"
+          maxLength={30}
+          autoFocus
+          className="h-12 rounded-xl bg-white border-border/60 text-base"
+        />
+      </SetupShell>
+    );
+  }
+
+  // ── Photo ─────────────────────────────────────────────────────────────────
+  if (step === "photo") {
+    return (
+      <>
+        {cropFile && <CropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
+        <SetupShell
+          index={1} total={4}
+          onBack={() => setStep("name")}
+          title="add a photo"
+          subtitle="optional — it helps your space feel like yours. you can change it later."
+          footer={
+            <>
+              <Button onClick={() => setStep("colour")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>continue</Button>
+              {!avatarPreview && (
+                <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>
+              )}
+            </>
+          }
+        >
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="relative w-28 h-28 rounded-full focus:outline-none group"
+            >
+              {avatarPreview ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${selectedAccent.hex}` }} />
+                  <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-5 h-5 text-white" />
+                    <span className="text-[10px] text-white font-medium">change</span>
+                  </div>
+                </>
+              ) : (
+                <div className="w-28 h-28 rounded-full border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 bg-secondary group-hover:bg-secondary/80 transition-colors">
+                  <Camera className="w-7 h-7 text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground font-medium">add photo</span>
+                </div>
+              )}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          </div>
+        </SetupShell>
+      </>
+    );
+  }
+
+  // ── Colour ────────────────────────────────────────────────────────────────
+  if (step === "colour") {
+    return (
+      <SetupShell
+        index={2} total={4}
+        onBack={() => setStep("photo")}
+        title="pick your colour"
+        subtitle="this is how you'll show up across your shared space."
+        footer={
+          <Button onClick={() => setStep("couple")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>continue</Button>
+        }
+      >
+        {/* Preview */}
+        <div className="flex justify-center mb-8">
+          <div className="w-20 h-20 rounded-full overflow-hidden bg-secondary flex items-center justify-center" style={{ boxShadow: `0 0 0 3px ${selectedAccent.hex}` }}>
+            {avatarPreview
+              // eslint-disable-next-line @next/next/no-img-element
+              ? <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+              : <span className="text-2xl font-semibold text-muted-foreground">{(name[0] ?? "?").toUpperCase()}</span>}
+          </div>
+        </div>
+        <div className="flex justify-center gap-3.5">
+          {ACCENT_COLORS.map((c) => (
+            <button
+              key={c.name}
+              type="button"
+              onClick={() => setAccentColor(c.name)}
+              className={cn("w-10 h-10 rounded-full border-2 transition-all", accentColor === c.name ? "border-foreground scale-110" : "border-transparent")}
+              style={{ backgroundColor: c.hex }}
+              aria-label={c.name}
+            />
+          ))}
+        </div>
+      </SetupShell>
+    );
+  }
+
+  // ── Couple ────────────────────────────────────────────────────────────────
+  if (step === "couple") {
+    return (
+      <SetupShell
+        index={3} total={4}
+        onBack={() => setStep("colour")}
+        title="your shared space"
+        subtitle="start a new space, or join the one your partner already made."
+        footer={
+          tab === "create" ? (
+            <Button onClick={handleCreate} disabled={isPending} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}
+            </Button>
+          ) : (
+            <Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtn, "gap-2")} style={{ backgroundColor: selectedAccent.hex }}>
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}
+            </Button>
+          )
+        }
+      >
+        <div className="flex bg-secondary rounded-2xl p-1 mb-5">
+          {(["create", "join"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setError(null); }}
+              className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground")}
+            >
+              {t === "create" ? "create" : "join with code"}
+            </button>
+          ))}
         </div>
 
+        {tab === "create" ? (
+          <p className="text-sm text-muted-foreground text-center leading-relaxed">
+            we&apos;ll create your space and give you a code to share with your partner so they can join.
+          </p>
+        ) : (
+          <Input
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toLowerCase())}
+            placeholder="paste your code"
+            maxLength={8}
+            className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-white border-border/60"
+          />
+        )}
+        {error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
+      </SetupShell>
+    );
+  }
+
+  // ── Finish (after create) ─────────────────────────────────────────────────
+  return (
+    <div className="min-h-dvh bg-background flex flex-col px-6 pt-8 pb-10">
+      <div className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto">
+        <h1 className="font-heading text-3xl text-foreground tracking-tight">you&apos;re all set.</h1>
+        <p className="text-sm text-muted-foreground mt-1.5 mb-8">two last touches — both optional.</p>
+
         {/* Start date */}
-        <div>
+        <div className="mb-5">
           <label className="text-xs text-muted-foreground block mb-1.5">when did you get together?</label>
           <input
             type="date"
@@ -513,43 +618,18 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
         {/* Invite code */}
         <div className="bg-white border border-border/60 rounded-2xl p-5 text-center shadow-card">
-          <p className="text-xs text-muted-foreground mb-2">invite code for your partner</p>
+          <p className="text-xs text-muted-foreground mb-2">share this code so your partner can join</p>
           <p className="font-mono text-3xl font-semibold tracking-[0.3em] text-foreground mb-3">{inviteCode}</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyCode}
-            className="rounded-xl gap-2 border-border/60 h-9 text-xs"
-          >
-            {copied
-              ? <><Check className="w-3.5 h-3.5 text-sage" /> copied!</>
-              : <><Copy className="w-3.5 h-3.5" /> copy code</>
-            }
+          <Button variant="outline" size="sm" onClick={copyCode} className="rounded-xl gap-2 border-border/60 h-9 text-xs">
+            {copied ? <><Check className="w-3.5 h-3.5 text-sage" /> copied!</> : <><Copy className="w-3.5 h-3.5" /> copy code</>}
           </Button>
         </div>
+      </div>
 
-        <Button
-          onClick={handleFinish}
-          disabled={isPending}
-          className="w-full h-12 rounded-xl text-white"
-          style={{ backgroundColor: selectedAccent.hex }}
-        >
-          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue to dashboard →"}
+      <div className="max-w-sm w-full mx-auto">
+        <Button onClick={handleFinish} disabled={isPending} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
+          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "enter your space"}
         </Button>
-
-        {!startDate && (
-          <button
-            type="button"
-            onClick={handleFinish}
-            className="w-full text-xs text-muted-foreground/50 text-center"
-          >
-            skip for now
-          </button>
-        )}
-
-        <p className="text-xs text-muted-foreground/40 text-center">
-          your partner can join later using the code above.
-        </p>
       </div>
     </div>
   );
