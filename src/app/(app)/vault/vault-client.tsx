@@ -637,19 +637,22 @@ export default function VaultClient() {
               <button
                 key={folder.id}
                 onClick={() => openFolder(folder)}
-                className="w-full bg-white rounded-2xl shadow-sm overflow-hidden flex items-stretch text-left active:scale-[0.99] transition-transform"
+                className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
+                style={{ background: `linear-gradient(100deg, ${folderPanelColor(folder)} 0%, #ffffff 46%)` }}
               >
-                {/* Coloured emoji panel */}
-                <div
-                  className="w-[76px] flex-shrink-0 flex items-center justify-center"
-                  style={{ backgroundColor: folderPanelColor(folder) }}
-                >
-                  <span className="text-4xl leading-none">{folder.emoji}</span>
+                {/* Emoji tile */}
+                <div className="flex-shrink-0 pl-3.5 py-3">
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none"
+                    style={{ backgroundColor: folderPanelColor(folder) }}
+                  >
+                    {folder.emoji}
+                  </div>
                 </div>
 
                 {/* Name + count */}
-                <div className="flex-1 min-w-0 px-4 py-4">
-                  <p className="text-base font-semibold text-foreground leading-snug">{folder.name}</p>
+                <div className="flex-1 min-w-0 px-3 py-3">
+                  <p className="text-sm font-semibold text-foreground leading-snug">{folder.name}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {folder.item_count === 0
                       ? "nothing added yet"
@@ -658,7 +661,7 @@ export default function VaultClient() {
                 </div>
 
                 {/* Delete + chevron — fixed width so chevron is always aligned */}
-                <div className="flex items-center pr-3 gap-1 flex-shrink-0">
+                <div className="flex items-center pr-3.5 gap-1 flex-shrink-0">
                   {!folder.is_default ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
