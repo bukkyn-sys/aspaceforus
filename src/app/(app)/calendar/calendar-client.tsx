@@ -283,7 +283,7 @@ export default function CalendarClient() {
                   isPast && "opacity-30 cursor-default",
                 )}
                 style={
-                  isEventDay ? { backgroundColor: "#FEF3C7" }
+                  isEventDay ? { backgroundColor: "#E7E1F5" }
                   : undefined
                 }
               >
@@ -296,7 +296,7 @@ export default function CalendarClient() {
                   <span className={cn(
                     "text-xs font-semibold leading-none",
                     overlap && !isEventDay ? "text-sage font-bold" : "text-foreground/75",
-                    isEventDay ? "text-amber-800/60 mb-0" : "mb-1.5",
+                    isEventDay ? "text-foreground/55 mb-0" : "mb-1.5",
                   )}>
                     {day}
                   </span>
@@ -360,7 +360,7 @@ export default function CalendarClient() {
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-amber-100" />
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: "#E7E1F5" }} />
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
