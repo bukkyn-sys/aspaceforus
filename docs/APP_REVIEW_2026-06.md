@@ -67,8 +67,8 @@ For couple-scoped reads like `get_partner_profile(p_couple_id, p_my_id)`: assert
 
 ---
 
-### [ ] 2. Committed schema can't rebuild the database (schema drift)
-**Status:** NOT STARTED
+### [~] 2. Committed schema can't rebuild the database (schema drift)
+**Status:** PARTIAL — `security_hardening.sql` now reconstructs all 16 RPCs (incl. the dashboard-only ones) so they're at least in version control. The missing *columns* (`profiles.accent_color/current_mood/mood_updated_at/activity_at/push_subscription`, `couples.shared_note/started_at/banner_url`) are still undocumented. ⚠️ USER ACTION: run `supabase db dump --schema public > supabase/schema_dump.sql` (or copy live SQL) to make the file fully authoritative. Cannot be done without DB access.
 **Severity:** Critical (operational/DR risk)
 **File:** `supabase/schema.sql`
 
@@ -90,8 +90,8 @@ For couple-scoped reads like `get_partner_profile(p_couple_id, p_my_id)`: assert
 
 ## 🟠 HIGH / MEDIUM
 
-### [ ] 3. Scroll-lock targets the wrong element — background scrolls behind every sheet
-**Status:** NOT STARTED
+### [x] 3. Scroll-lock targets the wrong element — background scrolls behind every sheet
+**Status:** DONE (commit pending). Fixed hook to lock document.body.
 **Severity:** Medium (UX)
 **File:** `src/lib/use-scroll-lock.ts:7`
 
@@ -113,8 +113,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ---
 
-### [ ] 4. Ledger "settle up" has no confirmation
-**Status:** NOT STARTED
+### [x] 4. Ledger "settle up" has no confirmation
+**Status:** DONE (commit pending). Added settle-up confirmation Dialog.
 **Severity:** Medium (data-loss UX)
 **File:** `src/app/(app)/ledger/ledger-client.tsx:714` (the settle button), handler `handleSettle` at :306
 
@@ -124,8 +124,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ---
 
-### [ ] 5. Components defined inside render → remount every render
-**Status:** NOT STARTED
+### [x] 5. Components defined inside render → remount every render
+**Status:** DONE (commit pending). Hoisted PotCard/ExpenseRow to module scope.
 **Severity:** Medium (perf/correctness)
 **File:** `src/app/(app)/ledger/ledger-client.tsx` — `PotCard` (:370), `ExpenseRow` (:413)
 
@@ -160,14 +160,14 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ## 🟡 LOW (Correctness / polish)
 
-### [ ] 8. Mood push notification is dead code
-**Status:** NOT STARTED
+### [x] 8. Mood push notification is dead code
+**Status:** DONE (commit pending). Pass coupleId at call site.
 **File:** `src/app/(app)/home/actions.ts:6` (`setMood`) + caller `src/app/(app)/home/dashboard-client.tsx:242`
 **Problem:** `setMood` only notifies the partner `if (coupleId)`, but the caller passes `setMood(me.id, mood)` with no `coupleId`. So the "your partner updated their mood" push never fires.
 **Fix:** Pass `coupleId` at the call site (`setMood(me.id, mood, coupleId)`), or remove the dead branch. Recommend wiring it up (the feature is desired).
 
-### [ ] 9. Service Worker bugs
-**Status:** NOT STARTED
+### [x] 9. Service Worker bugs
+**Status:** DONE (commit pending). Versioned cache (us-v2), guarded cache.put (ok+basic, exclude /api & /auth), fixed notificationclick to match origin + navigate.
 **File:** `public/sw.js`
 - **(a)** `notificationclick` compares `client.url === "/"` — windows are `/home`, `/ledger` etc., so an existing tab is never focused; always `openWindow`. Fix: match on origin/pathname prefix.
 - **(b)** Network-first caches **every GET with no `res.ok` check** → caches 404s/500s/opaque responses (poisons cache). Fix: `if (res.ok && res.type === 'basic')` before `cache.put`. Also exclude `/api/*` and auth routes.

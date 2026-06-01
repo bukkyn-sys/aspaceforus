@@ -239,7 +239,7 @@ export default function DashboardClient() {
     const at = new Date().toISOString();
     setData((prev) => ({ ...prev, myMood: mood, myMoodAt: at }));
     channelRef.current?.send({ type: "broadcast", event: "mood", payload: { user_id: me.id, mood, at } });
-    startTransition(() => { setMood(me.id, mood); });
+    startTransition(() => { setMood(me.id, mood, coupleId); });
   }
 
   function handleNote(val: string) {
