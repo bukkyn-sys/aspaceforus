@@ -96,7 +96,7 @@ function LoginForm() {
         variant="outline"
         onClick={handleGoogle}
         disabled={loading}
-        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-white gap-3"
+        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
       >
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
         continue with Google

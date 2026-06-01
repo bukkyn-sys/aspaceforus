@@ -118,7 +118,7 @@ function InstallStep({
         </p>
 
         {isIOS && !prompt && (
-          <div className="mt-7 w-full bg-white border border-border/50 rounded-2xl p-4 text-left shadow-card space-y-2.5">
+          <div className="mt-7 w-full bg-card border border-border/50 rounded-2xl p-4 text-left shadow-card space-y-2.5">
             <div className="flex items-start gap-2.5 text-sm text-foreground">
               <Share className="w-4 h-4 flex-shrink-0 text-muted-foreground mt-0.5" />
               <span>tap the <span className="font-medium">share</span> icon in safari</span>
@@ -170,7 +170,7 @@ const PILLARS = [
 
 // Small, tasteful "preview of the page" illustrations (no generic icons).
 function PillarArt({ kind, color }: { kind: string; color: string }) {
-  const card = "rounded-2xl bg-white border border-border/50 shadow-card";
+  const card = "rounded-2xl bg-card border border-border/50 shadow-card";
 
   if (kind === "calendar") {
     return (
@@ -728,7 +728,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       case "name":
         return (
           <SetupShell index={0} total={4} onBack={() => { setPillarDir(-1); setPillar(lastPillar); setStep("pillars"); }} title="what's your name?" subtitle="so your partner always knows it's you." footer={<Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtn} style={brandBg}>continue</Button>}>
-            <Input value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="your first name" maxLength={30} autoFocus className="h-12 rounded-xl bg-white border-border/60 text-base" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="your first name" maxLength={30} autoFocus className="h-12 rounded-xl bg-card border-border/60 text-base" />
           </SetupShell>
         );
 
@@ -785,13 +785,13 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
           <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtn} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtn, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
             <div className="flex bg-secondary rounded-2xl p-1 mb-5">
               {(["create", "join"] as Tab[]).map((t) => (
-                <button key={t} onClick={() => { setTab(t); setError(null); }} className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground")}>{t === "create" ? "create" : "join with code"}</button>
+                <button key={t} onClick={() => { setTab(t); setError(null); }} className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{t === "create" ? "create" : "join with code"}</button>
               ))}
             </div>
             {tab === "create" ? (
               <p className="text-sm text-muted-foreground text-center leading-relaxed">we&apos;ll create your space and give you a code to share with your partner so they can join.</p>
             ) : (
-              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toLowerCase())} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="paste your code" maxLength={8} className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-white border-border/60" />
+              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toLowerCase())} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="paste your code" maxLength={8} className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-card border-border/60" />
             )}
             {error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
           </SetupShell>
@@ -810,14 +810,14 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               <motion.p variants={rise} className="text-sm text-muted-foreground mt-1.5 mb-8">two last touches — both optional.</motion.p>
               <motion.div variants={rise} className="mb-5">
                 <label className="text-xs text-muted-foreground block mb-1.5">when did you get together?</label>
-                <div className="h-12 rounded-xl border border-border/60 bg-white overflow-hidden flex items-center">
+                <div className="h-12 rounded-xl border border-border/60 bg-card overflow-hidden flex items-center">
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} max={new Date().toISOString().split("T")[0]} className="w-full min-w-0 box-border bg-transparent px-4 text-sm text-foreground appearance-none focus:outline-none" />
                 </div>
               </motion.div>
-              <motion.div variants={rise} className="bg-white border border-border/60 rounded-2xl p-5 text-center shadow-card">
+              <motion.div variants={rise} className="bg-card border border-border/60 rounded-2xl p-5 text-center shadow-card">
                 <p className="text-xs text-muted-foreground mb-3">scan or share so your partner can join</p>
                 {inviteCode && origin && (
-                  <div className="inline-flex p-3 bg-white rounded-2xl border border-border/40 mb-3">
+                  <div className="inline-flex p-3 bg-card rounded-2xl border border-border/40 mb-3">
                     <QRCodeSVG value={`${origin}/join?code=${inviteCode}`} size={144} bgColor="#ffffff" fgColor="#2C2C2B" level="M" />
                   </div>
                 )}

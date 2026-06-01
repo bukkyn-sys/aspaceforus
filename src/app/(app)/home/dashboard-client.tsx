@@ -542,7 +542,7 @@ export default function DashboardClient() {
           defaultValue={data.startedAt ?? ""}
           max={today}
           onChange={(e) => e.target.value && handleSetStarted(e.target.value)}
-          className="h-11 rounded-xl bg-white border-border/60"
+          className="h-11 rounded-xl bg-card border-border/60"
         />
       </BottomSheet>
 

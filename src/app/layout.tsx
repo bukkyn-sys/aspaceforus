@@ -36,9 +36,15 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#F9F8F6",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#F9F8F6" },
+    { media: "(prefers-color-scheme: dark)", color: "#1A1A18" },
+  ],
   viewportFit: "cover",
 };
+
+// Applies the saved theme before first paint to avoid a flash of the wrong mode.
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({
   children,
@@ -49,7 +55,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${instrumentSerif.variable} ${plusJakarta.variable} ${geistMono.variable} h-full`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="h-full antialiased">
         <PwaRegister />
         {children}

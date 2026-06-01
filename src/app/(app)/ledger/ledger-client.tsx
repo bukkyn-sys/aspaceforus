@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity, cardOmbre, ownerTint, panelTint } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -182,7 +182,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
       style={{ background: cardOmbre(o) }}
     >
       {cat && (
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: o.people[0].light }}>{cat.emoji}</div>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: ownerTint(o.people[0].hex) }}>{cat.emoji}</div>
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
@@ -464,15 +464,15 @@ export default function LedgerClient() {
         <BottomSheet open={showAdd} onClose={() => { setShowAdd(false); setEditingEntryId(null); }}
           title={editingEntryId ? "edit expense" : "log expense"}
           footer={<Button onClick={handleSaveEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">{editingEntryId ? "save" : "add"}</Button>}>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
+          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-card border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-2">category</p>
             <div className="flex gap-1.5 flex-wrap">
               {CATEGORIES.map((c) => (
                 <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
                   className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
-                    category === c.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    category === c.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}><span>{c.emoji}</span>{c.label}</button>
               ))}
             </div>
@@ -483,7 +483,7 @@ export default function LedgerClient() {
               {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => (
                 <button key={v} onClick={() => setPaidBy(v)} aria-pressed={paidBy === v}
                   className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
-                    paidBy === v ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    paidBy === v ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}>{l}</button>
               ))}
             </div>
@@ -498,7 +498,7 @@ export default function LedgerClient() {
               {RECURRENCES.map((r) => (
                 <button key={r.id} onClick={() => setRecurrence(r.id)} aria-pressed={recurrence === r.id}
                   className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
-                    recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}>{r.label}</button>
               ))}
             </div>
@@ -548,13 +548,13 @@ export default function LedgerClient() {
                   {(["add", "withdraw"] as const).map((m) => (
                     <button key={m} onClick={() => setContribMode(m)} aria-pressed={contribMode === m}
                       className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
-                        contribMode === m ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                        contribMode === m ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                       )}>{m}</button>
                   ))}
                 </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">{cur}</span>
-                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-white border-border/60 pl-8" autoFocus />
+                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-card border-border/60 pl-8" autoFocus />
                 </div>
               </div>
               <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
@@ -567,22 +567,22 @@ export default function LedgerClient() {
         {/* Add pot */}
         <BottomSheet open={showPot} onClose={() => setShowPot(false)} title="new savings pot"
           footer={<Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>}>
-          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
           <div>
             <p className="text-xs text-muted-foreground mb-2">currency</p>
             <div className="flex gap-2">
               {CURRENCIES.map((c) => (
                 <button key={c} onClick={() => setPotCurrency(c)}
                   className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
-                    potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}>{c}</button>
               ))}
             </div>
           </div>
-          <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
+          <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
-            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-white border-border/60" />
+            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-card border-border/60" />
           </div>
           {/* Folder picker only when adding from the folder list — inside a
               folder the pot just goes here. */}
@@ -593,7 +593,7 @@ export default function LedgerClient() {
                 {folders.map((f) => (
                   <button key={f.id} onClick={() => setPotFolderId(f.id)}
                     className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
-                      (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                      (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                     )}><span>{f.emoji}</span>{f.name}</button>
                 ))}
               </div>
@@ -615,7 +615,7 @@ export default function LedgerClient() {
               ))}
             </div>
           </div>
-          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
         </BottomSheet>
 
         {/* Expense action prompt — creator only */}
@@ -738,7 +738,7 @@ export default function LedgerClient() {
               {net > 0 ? `+${currency}${net.toFixed(2)}` : `-${currency}${Math.abs(net).toFixed(2)}`}
             </p>
             <p className="text-sm text-muted-foreground">{net > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}</p>
-            <button onClick={() => setShowSettleConfirm(true)} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground bg-white/70 rounded-xl px-3 py-1.5">
+            <button onClick={() => setShowSettleConfirm(true)} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground bg-card/70 rounded-xl px-3 py-1.5">
               <Check className="w-3 h-3" /> settle up
             </button>
           </div>
@@ -750,7 +750,7 @@ export default function LedgerClient() {
         {([["entries", "expenses"], ["pots", "savings pots"]] as ["entries" | "pots", string][]).map(([t, l]) => (
           <button key={t} onClick={() => setTab(t)} aria-pressed={tab === t}
             className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all",
-              tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground"
+              tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
             )}>{l}</button>
         ))}
       </div>
@@ -815,14 +815,14 @@ export default function LedgerClient() {
                 <div className="flex gap-1.5 mb-3 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
                   <button onClick={() => setCategoryFilter("all")}
                     className={cn("flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all",
-                      categoryFilter === "all" ? "bg-foreground text-background" : "bg-white border border-border/50 text-muted-foreground"
+                      categoryFilter === "all" ? "bg-foreground text-background" : "bg-card border border-border/50 text-muted-foreground"
                     )}>all</button>
                   {presentCategories.map((cid) => {
                     const c = catById(cid);
                     return (
                       <button key={cid} onClick={() => setCategoryFilter(cid)}
                         className={cn("flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1",
-                          categoryFilter === cid ? "bg-foreground text-background" : "bg-white border border-border/50 text-muted-foreground"
+                          categoryFilter === cid ? "bg-foreground text-background" : "bg-card border border-border/50 text-muted-foreground"
                         )}><span>{c?.emoji}</span>{c?.label ?? cid}</button>
                     );
                   })}
@@ -846,9 +846,9 @@ export default function LedgerClient() {
             return (
               <button key={folder.id} onClick={() => openPotFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: `linear-gradient(100deg, ${potPanelColor(folder.sort_order)} 0%, #ffffff 46%)` }}>
+                style={{ background: `linear-gradient(100deg, ${panelTint(potPanelColor(folder.sort_order))} 0%, var(--card) 46%)` }}>
                 <div className="flex-shrink-0 pl-3.5 py-3">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: potPanelColor(folder.sort_order) }}>
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: panelTint(potPanelColor(folder.sort_order)) }}>
                     {folder.emoji}
                   </div>
                 </div>

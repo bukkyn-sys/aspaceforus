@@ -14,6 +14,7 @@ import { savePushSubscription } from "@/app/(app)/push-actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/sheet";
+import ThemeToggle from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 interface InitialProfile {
@@ -617,7 +618,7 @@ export default function ProfileClient({
                 aria-label={`use ${c}`}
                 className={cn(
                   "w-9 h-9 rounded-xl text-sm font-bold border transition-colors",
-                  currency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  currency === c ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                 )}
               >
                 {c}
@@ -633,13 +634,16 @@ export default function ProfileClient({
           <p className="font-heading text-xl text-foreground tracking-tight mb-1">scan to join</p>
           <p className="text-sm text-muted-foreground mb-5">your partner can scan this to join you.</p>
           {couple.inviteCode && origin && (
-            <div className="inline-flex p-4 bg-white rounded-2xl border border-border/40 mb-4">
+            <div className="inline-flex p-4 bg-card rounded-2xl border border-border/40 mb-4">
               <QRCodeSVG value={`${origin}/join?code=${couple.inviteCode}`} size={200} bgColor="#ffffff" fgColor="#2C2C2B" level="M" />
             </div>
           )}
           <p className="font-mono text-lg font-semibold tracking-[0.25em] text-foreground">{couple.inviteCode}</p>
         </div>
       </Dialog>
+
+      {/* Appearance */}
+      <ThemeToggle />
 
       {/* Notifications */}
       <NotificationSettings userId={profile.id} coupleId={profile.coupleId} />

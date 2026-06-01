@@ -1,0 +1,67 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Sun, Moon, Monitor } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type Theme = "system" | "light" | "dark";
+
+function applyTheme(theme: Theme) {
+  const dark = theme === "dark" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark", dark);
+}
+
+const OPTIONS: { id: Theme; label: string; Icon: typeof Sun }[] = [
+  { id: "system", label: "auto", Icon: Monitor },
+  { id: "light", label: "light", Icon: Sun },
+  { id: "dark", label: "dark", Icon: Moon },
+];
+
+export default function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>("system");
+
+  useEffect(() => {
+    setTheme(((localStorage.getItem("theme") as Theme) || "system"));
+  }, []);
+
+  // When following the system, react to OS changes live.
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => applyTheme("system");
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [theme]);
+
+  function choose(t: Theme) {
+    setTheme(t);
+    localStorage.setItem("theme", t);
+    applyTheme(t);
+  }
+
+  return (
+    <div className="card p-4 mb-4">
+      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">appearance</p>
+      <div className="flex gap-2" role="group" aria-label="theme">
+        {OPTIONS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => choose(id)}
+            aria-pressed={theme === id}
+            aria-label={`${label} theme`}
+            className={cn(
+              "flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-xl border transition-colors",
+              theme === id
+                ? "bg-foreground text-background border-foreground"
+                : "bg-card text-muted-foreground border-border/60"
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            <span className="text-xs font-medium">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

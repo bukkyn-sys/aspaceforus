@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity, cardOmbre, ownerTint, panelTint } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -128,7 +128,7 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
               "w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
               value !== "free" && currency === c
                 ? "bg-foreground text-background border-foreground"
-                : "bg-white text-muted-foreground border-border/60"
+                : "bg-card text-muted-foreground border-border/60"
             )}
           >{c}</button>
         ))}
@@ -138,7 +138,7 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
             "flex-1 h-11 rounded-xl text-sm font-medium border transition-colors",
             value === "free"
               ? "bg-foreground text-background border-foreground"
-              : "bg-white text-muted-foreground border-border/60"
+              : "bg-card text-muted-foreground border-border/60"
           )}
         >free</button>
       </div>
@@ -154,7 +154,7 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
             onChange={(e) => update(currency, e.target.value)}
             placeholder="0"
             inputMode="decimal"
-            className="h-11 rounded-xl bg-white border-border/60 pl-8"
+            className="h-11 rounded-xl bg-card border-border/60 pl-8"
           />
         </div>
       )}
@@ -199,7 +199,7 @@ function VisualPicker({
               {imageTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{imageTitle}</p>}
               <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-medium text-foreground mt-0.5">change photo</button>
             </div>
-            <button type="button" onClick={onRemoveImage} className="w-7 h-7 rounded-full bg-white/70 flex items-center justify-center text-muted-foreground hover:text-foreground flex-shrink-0">
+            <button type="button" onClick={onRemoveImage} className="w-7 h-7 rounded-full bg-card/70 flex items-center justify-center text-muted-foreground hover:text-foreground flex-shrink-0">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -258,7 +258,7 @@ function OwnerButtons({
             "flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
             value === o.value
               ? "bg-foreground text-background border-foreground"
-              : "bg-white text-muted-foreground border-border/60"
+              : "bg-card text-muted-foreground border-border/60"
           )}
         >{o.label}</button>
       ))}
@@ -653,13 +653,13 @@ export default function VaultClient() {
                 key={folder.id}
                 onClick={() => openFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: `linear-gradient(100deg, ${folderPanelColor(folder)} 0%, #ffffff 46%)` }}
+                style={{ background: `linear-gradient(100deg, ${panelTint(folderPanelColor(folder))} 0%, var(--card) 46%)` }}
               >
                 {/* Emoji tile */}
                 <div className="flex-shrink-0 pl-3.5 py-3">
                   <div
                     className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none"
-                    style={{ backgroundColor: folderPanelColor(folder) }}
+                    style={{ backgroundColor: panelTint(folderPanelColor(folder)) }}
                   >
                     {folder.emoji}
                   </div>
@@ -735,7 +735,7 @@ export default function VaultClient() {
             value={folderName}
             onChange={(e) => setFolderName(e.target.value)}
             placeholder="folder name"
-            className="h-11 rounded-xl bg-white border-border/60"
+            className="h-11 rounded-xl bg-card border-border/60"
             autoFocus
           />
         </BottomSheet>
@@ -772,7 +772,7 @@ export default function VaultClient() {
                   "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
                   ownerFilter === value
                     ? "text-white shadow-sm"
-                    : "bg-white border border-border/50 text-muted-foreground hover:border-border/80"
+                    : "bg-card border border-border/50 text-muted-foreground hover:border-border/80"
                 )}
                 style={ownerFilter === value ? { backgroundColor: myAccent.hex } : undefined}
               >
@@ -787,14 +787,14 @@ export default function VaultClient() {
             )}
             <button
               onClick={() => setShowSort((v) => !v)}
-              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-white border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-card border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
             >
               <ArrowUpDown className="w-3 h-3" />
               {SORT_LABELS[sortBy]}
               <ChevronDown className={cn("w-3 h-3 transition-transform", showSort && "rotate-180")} />
             </button>
             {showSort && (
-              <div className="absolute right-0 top-full mt-1.5 bg-white rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[110px]">
+              <div className="absolute right-0 top-full mt-1.5 bg-card rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[110px]">
                 {SORT_CYCLE.map((s) => (
                   <button
                     key={s}
@@ -842,7 +842,7 @@ export default function VaultClient() {
                     <div className="flex-shrink-0 pl-3.5 py-3">
                       <div
                         className="w-11 h-11 rounded-xl bg-secondary flex items-center justify-center text-[22px] leading-none"
-                        style={{ background: o.shared ? undefined : o.people[0].light }}
+                        style={{ background: o.shared ? undefined : ownerTint(o.people[0].hex) }}
                       >
                         {item.item_emoji}
                       </div>
@@ -921,7 +921,7 @@ export default function VaultClient() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="title"
-          className="h-11 rounded-xl bg-white border-border/60"
+          className="h-11 rounded-xl bg-card border-border/60"
           autoFocus
         />
         <Input
@@ -929,7 +929,7 @@ export default function VaultClient() {
           onChange={(e) => setUrl(e.target.value)}
           onBlur={(e) => handleUrlBlur(e.target.value)}
           placeholder="url (optional)"
-          className="h-11 rounded-xl bg-white border-border/60"
+          className="h-11 rounded-xl bg-card border-border/60"
           type="url"
         />
         <div>
@@ -950,7 +950,7 @@ export default function VaultClient() {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="notes (optional)"
-          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
+          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-card border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
         />
         <div>
           <p className="text-xs text-muted-foreground mb-2">budget?</p>
@@ -986,7 +986,7 @@ export default function VaultClient() {
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
           placeholder="title"
-          className="h-11 rounded-xl bg-white border-border/60"
+          className="h-11 rounded-xl bg-card border-border/60"
           autoFocus
         />
         <Input
@@ -994,7 +994,7 @@ export default function VaultClient() {
           onChange={(e) => setEditUrl(e.target.value)}
           onBlur={(e) => handleEditUrlBlur(e.target.value)}
           placeholder="url (optional)"
-          className="h-11 rounded-xl bg-white border-border/60"
+          className="h-11 rounded-xl bg-card border-border/60"
           type="url"
         />
         <div>
@@ -1015,7 +1015,7 @@ export default function VaultClient() {
           value={editNotes}
           onChange={(e) => setEditNotes(e.target.value)}
           placeholder="notes (optional)"
-          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
+          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-card border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
         />
         <div>
           <p className="text-xs text-muted-foreground mb-2">budget?</p>
@@ -1033,7 +1033,7 @@ export default function VaultClient() {
                 <button key={s} onClick={() => setEditStage(s)}
                   className={cn(
                     "flex-1 py-2 text-sm rounded-xl border transition-colors",
-                    editStage === s ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                    editStage === s ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}
                 >{STAGE_LABEL[s]}</button>
               ))}

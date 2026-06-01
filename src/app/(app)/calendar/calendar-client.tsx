@@ -319,7 +319,7 @@ export default function CalendarClient() {
                     : cn("rounded-lg", overlap && "bg-sage-light"),
                   isPast && "opacity-30 cursor-default",
                 )}
-                style={isEventDay ? { backgroundColor: "#E4DFD4" } : undefined}
+                style={isEventDay ? { backgroundColor: "var(--event-band)" } : undefined}
               >
                 {/* Collision badge — shows when 2+ items start on this day */}
                 {collisionCount > 1 && (
@@ -388,7 +388,7 @@ export default function CalendarClient() {
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: "#E4DFD4" }} />
+          <div className="w-3 h-3 rounded" style={{ backgroundColor: "var(--event-band)" }} />
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>

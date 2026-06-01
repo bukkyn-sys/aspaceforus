@@ -214,8 +214,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ## 🎨 DESIGN SYSTEM
 
-### [ ] 16. Dead dark-mode code
-**Status:** NOT STARTED
+### [x] 16. Dead dark-mode code → IMPLEMENTED dark mode
+**Status:** DONE (commit pending). DECISION: implement (not strip). Full `.dark` oklch token block; `.card`/`.card-row` → `bg-card`; global `bg-white`→`bg-card` (no-op in light); `.glass`/`.glass-oat` dark overrides; `cardOmbre`/owner tiles/folder panels now use `color-mix(... var(--card))` so accent washes adapt; calendar event band → `--event-band` token; no-flash inline script in layout `<head>`; `ThemeToggle` (auto/light/dark) added to profile; dynamic `theme-color` meta. Post-it kept as intentional cream "paper". ⚠️ NEEDS DEVICE QA — verify accent washes / small chips (e.g. vault "planned" bg-blue-50) look right in dark; tune token lightness if needed.
 **Files:** `src/app/globals.css:5` (`@custom-variant dark`), `src/components/ui/button.tsx:13` (many `dark:` classes), `input.tsx:12`.
 **Problem:** No dark theme exists and `themeColor` is hardcoded light, but dozens of `dark:` classes + the dark variant imply a feature you don't have.
 **Fix (decision needed):** Either implement `prefers-color-scheme` dark mode, or strip the dead `dark:` classes. **Needs user decision.**
