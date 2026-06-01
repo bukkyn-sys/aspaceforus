@@ -3,12 +3,13 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus } from "lucide-react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
-import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner } from "./actions";
+import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, leaveCouple } from "./actions";
 import { savePushSubscription } from "@/app/(app)/push-actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 interface InitialProfile {
@@ -334,7 +335,15 @@ export default function ProfileClient({
   const [codeCopied, setCodeCopied] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
   const [cropState, setCropState] = useState<{ file: File; purpose: "avatar" | "banner" } | null>(null);
+  const [showLeave, setShowLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [, startTransition] = useTransition();
+
+  async function handleLeaveCouple() {
+    setLeaving(true);
+    await leaveCouple(profile.id);
+    window.location.href = "/onboarding";
+  }
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -575,6 +584,15 @@ export default function ProfileClient({
       {/* Notifications */}
       <NotificationSettings userId={profile.id} coupleId={profile.coupleId} />
 
+      {/* Leave couple */}
+      <button
+        onClick={() => setShowLeave(true)}
+        className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors mt-2"
+      >
+        <UserMinus className="w-4 h-4" />
+        leave couple
+      </button>
+
       {/* Sign out */}
       <button
         onClick={async () => {
@@ -582,11 +600,29 @@ export default function ProfileClient({
           await s.auth.signOut();
           window.location.href = "/auth/login";
         }}
-        className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors mt-2"
+        className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"
       >
         <LogOut className="w-4 h-4" />
         sign out
       </button>
+
+      <Dialog open={showLeave} onClose={() => { if (!leaving) setShowLeave(false); }}>
+        <p className="font-semibold text-foreground text-center">leave this couple?</p>
+        <p className="text-sm text-muted-foreground text-center mt-2 mb-5 leading-relaxed">
+          you&apos;ll be able to create or join another space. your partner keeps the current space and everything in it.
+        </p>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            onClick={handleLeaveCouple}
+            disabled={leaving}
+            className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+          >
+            {leaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><UserMinus className="w-4 h-4 mr-1.5" /> leave couple</>}
+          </Button>
+          <button onClick={() => setShowLeave(false)} disabled={leaving} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+        </div>
+      </Dialog>
     </div>
   );
 }

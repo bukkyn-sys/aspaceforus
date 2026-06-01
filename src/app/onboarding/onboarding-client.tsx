@@ -5,7 +5,7 @@ import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Home, CalendarDays, Bookmark, Receipt, Smartphone, Share, Plus } from "lucide-react";
+import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
@@ -88,11 +88,11 @@ function InstallStep({
           <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7" style={{ backgroundColor: `${accentHex}22` }}>
             <Check className="w-9 h-9" strokeWidth={1.5} style={{ color: accentHex }} />
           </div>
-          <h1 className="font-heading text-3xl text-foreground tracking-tight">you&apos;re all set.</h1>
-          <p className="text-[15px] text-muted-foreground mt-3">enjoy your shared space.</p>
+          <h1 className="font-heading text-3xl text-foreground tracking-tight">you&apos;re installed.</h1>
+          <p className="text-[15px] text-muted-foreground mt-3">let&apos;s set things up.</p>
         </div>
         <div className="max-w-sm w-full mx-auto">
-          <Button onClick={onDone} className="w-full h-12 rounded-xl text-white text-[15px] font-medium" style={{ backgroundColor: accentHex }}>enter your space</Button>
+          <Button onClick={onDone} className="w-full h-12 rounded-xl text-white text-[15px] font-medium" style={{ backgroundColor: accentHex }}>continue</Button>
         </div>
       </div>
     );
@@ -142,7 +142,7 @@ function InstallStep({
           className={cn("w-full h-12 rounded-xl text-[15px] font-medium", !(prompt && !done) && "text-white")}
           style={!(prompt && !done) ? { backgroundColor: accentHex } : undefined}
         >
-          {done ? "enter your space" : prompt ? "maybe later" : "enter your space"}
+          {done ? "continue" : prompt ? "maybe later" : "continue"}
         </Button>
       </div>
     </div>
@@ -155,12 +155,104 @@ interface Props {
   avatar: string | null;
 }
 
+// The app deliberately has no single brand colour — pre-colour screens use ink.
+const NEUTRAL_INK = "#2C2C2B";
+const NEUTRAL_GLOW = "#CFC9BE";
+
 const PILLARS = [
-  { icon: Home,         name: "home",     color: "#7C9E87", blurb: "your shared dashboard — moods, a little love-note, and countdowns to what's coming up." },
-  { icon: CalendarDays, name: "calendar", color: "#5B9BD5", blurb: "mark when you're each free, spot your overlaps, and plan dates, trips and events." },
-  { icon: Bookmark,     name: "vault",    color: "#8B7BB8", blurb: "keep date ideas, wishlists and everything you want to do together in one place." },
-  { icon: Receipt,      name: "ledger",   color: "#C4704F", blurb: "split shared expenses fairly and save towards goals with savings pots." },
+  { name: "home",     color: "#7C9E87", blurb: "your shared dashboard — moods, a little love-note, and countdowns to what's coming up." },
+  { name: "calendar", color: "#5B9BD5", blurb: "mark when you're each free, spot your overlaps, and plan dates, trips and events." },
+  { name: "vault",    color: "#8B7BB8", blurb: "keep date ideas, wishlists and everything you want to do together in one place." },
+  { name: "ledger",   color: "#C4704F", blurb: "split shared expenses fairly and save towards goals with savings pots." },
 ];
+
+// Small, tasteful "preview of the page" illustrations (no generic icons).
+function PillarArt({ kind, color }: { kind: string; color: string }) {
+  const card = "rounded-2xl bg-white border border-border/50 shadow-card";
+
+  if (kind === "calendar") {
+    return (
+      <motion.div variants={stagger} initial="hidden" animate="show" className={cn(card, "w-44 p-3")}>
+        <div className="grid grid-cols-5 gap-1.5">
+          {Array.from({ length: 15 }).map((_, i) => {
+            const accent = [6, 7].includes(i);
+            const today = i === 12;
+            return (
+              <motion.div
+                key={i}
+                variants={rise}
+                className="aspect-square rounded-[4px]"
+                style={{ backgroundColor: today ? color : accent ? `${color}40` : "var(--secondary)" }}
+              />
+            );
+          })}
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (kind === "vault") {
+    return (
+      <motion.div variants={stagger} initial="hidden" animate="show" className="w-44 space-y-2">
+        {[0, 1, 2].map((i) => (
+          <motion.div key={i} variants={rise} className={cn(card, "p-2 flex items-center gap-2.5")}>
+            <div className="w-7 h-7 rounded-lg flex-shrink-0" style={{ backgroundColor: `${color}33` }} />
+            <div className="flex-1 space-y-1.5">
+              <div className="h-2 rounded-full bg-foreground/15" style={{ width: `${70 - i * 12}%` }} />
+              <div className="h-1.5 rounded-full bg-secondary w-1/3" />
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
+    );
+  }
+
+  if (kind === "ledger") {
+    return (
+      <div className={cn(card, "w-44 p-3.5 space-y-3")}>
+        <div className="flex items-center justify-between">
+          <div className="h-2 rounded-full bg-foreground/15 w-16" />
+          <div className="h-2 rounded-full w-7" style={{ backgroundColor: color }} />
+        </div>
+        <div className="h-2.5 rounded-full bg-secondary overflow-hidden">
+          <motion.div className="h-full rounded-full" style={{ backgroundColor: color }}
+            initial={{ width: "0%" }} animate={{ width: "68%" }} transition={{ duration: 1, ease: EASE, delay: 0.15 }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex -space-x-1.5">
+            <div className="w-4 h-4 rounded-full border-2 border-white" style={{ backgroundColor: `${color}66` }} />
+            <div className="w-4 h-4 rounded-full border-2 border-white bg-secondary" />
+          </div>
+          <div className="h-1.5 rounded-full bg-secondary flex-1" />
+        </div>
+      </div>
+    );
+  }
+
+  // home
+  return (
+    <div className={cn(card, "w-44 p-3")}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex -space-x-1.5">
+          <div className="w-6 h-6 rounded-full border-2 border-white" style={{ backgroundColor: `${color}55` }} />
+          <div className="w-6 h-6 rounded-full border-2 border-white bg-secondary" />
+        </div>
+        <div className="h-2 rounded-full bg-foreground/15 flex-1" />
+      </div>
+      <div className="flex justify-between">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <motion.div
+            key={i}
+            className="w-5 h-5 rounded-full"
+            style={{ backgroundColor: i === 3 ? color : "var(--secondary)" }}
+            animate={i === 3 ? { scale: [1, 1.18, 1] } : undefined}
+            transition={i === 3 ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : undefined}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Consistent layout for the step-by-step setup screens.
 function SetupShell({
@@ -422,12 +514,14 @@ function CropModal({
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function OnboardingClient({ userId, firstName, avatar }: Props) {
-  const [step, setStep] = useState<Step>("welcome");
+  // The "add to home screen" prompt comes first for the full web-app feel.
+  const [step, setStep] = useState<Step>("install");
   const [pillar, setPillar] = useState(0);
 
   // Profile
   const [name, setName] = useState(firstName);
   const [accentColor, setAccentColor] = useState("sage");
+  const [colourPicked, setColourPicked] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(avatar);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
@@ -454,17 +548,27 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+  // If we're already running as the installed app, skip the install step.
+  useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (standalone) setStep("welcome");
+  }, []);
+
   // Track travel direction so the page transition slides the right way.
   const [direction, setDirection] = useState(1);
   const [pillarDir, setPillarDir] = useState(1);
   const prevStep = useRef<Step>(step);
   useEffect(() => {
-    const order: Step[] = ["welcome", "pillars", "name", "photo", "colour", "couple", "finish", "install"];
+    const order: Step[] = ["install", "welcome", "pillars", "name", "photo", "colour", "couple", "finish"];
     setDirection(order.indexOf(step) >= order.indexOf(prevStep.current) ? 1 : -1);
     prevStep.current = step;
   }, [step]);
 
   const selectedAccent = ACCENT_COLORS.find((c) => c.name === accentColor) ?? ACCENT_COLORS[0];
+  // Brand colour: ink until the user actively picks their accent.
+  const brandHex = colourPicked ? selectedAccent.hex : NEUTRAL_INK;
+  const brandBg = colourPicked ? { backgroundColor: selectedAccent.hex } : undefined;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -513,7 +617,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
       if (result?.error) { setError(result.error); return; }
-      setStep("install");
+      window.location.href = "/home";
     });
   }
 
@@ -527,7 +631,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
   function handleFinish() {
     startTransition(async () => {
       if (startDate && coupleId) await setOnboardingStartDate(userId, coupleId, startDate);
-      setStep("install");
+      window.location.href = "/home";
     });
   }
 
@@ -545,11 +649,11 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
               <motion.div variants={rise}>
                 <motion.div
                   className="w-16 h-16 rounded-3xl flex items-center justify-center mb-8"
-                  style={{ backgroundColor: `${selectedAccent.hex}22` }}
+                  style={{ backgroundColor: `${NEUTRAL_INK}14` }}
                   animate={{ scale: [1, 1.09, 1] }}
                   transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <Heart className="w-7 h-7" style={{ color: selectedAccent.hex }} fill={selectedAccent.hex} />
+                  <Heart className="w-7 h-7 text-foreground" fill="currentColor" />
                 </motion.div>
               </motion.div>
               <motion.h1 variants={rise} className="font-heading text-5xl text-foreground tracking-tight">hello, {greetName}.</motion.h1>
@@ -561,7 +665,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
               </motion.p>
             </motion.div>
             <motion.div variants={rise} initial="hidden" animate="show" className="max-w-sm w-full mx-auto">
-              <Button onClick={() => setStep("pillars")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>
+              <Button onClick={() => setStep("pillars")} className={accentBtn} style={brandBg}>
                 take a look around
               </Button>
             </motion.div>
@@ -571,7 +675,6 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       // ── Pillars tour — animated pager ───────────────────────────────────────
       case "pillars": {
         const p = PILLARS[pillar];
-        const Icon = p.icon;
         return (
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
             <div className="flex items-center justify-between h-8 max-w-sm w-full mx-auto">
@@ -601,12 +704,11 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
                   className="flex flex-col items-center text-center w-full"
                 >
                   <motion.div
-                    className="w-20 h-20 rounded-3xl flex items-center justify-center mb-7"
-                    style={{ backgroundColor: `${p.color}22` }}
-                    animate={{ y: [0, -7, 0] }}
-                    transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+                    className="mb-8"
+                    animate={{ y: [0, -6, 0] }}
+                    transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <Icon className="w-9 h-9" strokeWidth={1.5} style={{ color: p.color }} />
+                    <PillarArt kind={p.name} color={p.color} />
                   </motion.div>
                   <h1 className="font-heading text-4xl text-foreground tracking-tight">{p.name}.</h1>
                   <p className="text-[15px] text-muted-foreground mt-3 leading-relaxed max-w-[18rem]">{p.blurb}</p>
@@ -630,21 +732,21 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       // ── Name ────────────────────────────────────────────────────────────────
       case "name":
         return (
-          <SetupShell index={0} total={4} onBack={() => { setPillarDir(-1); setPillar(lastPillar); setStep("pillars"); }} title="what's your name?" subtitle="so your partner always knows it's you." footer={<Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>continue</Button>}>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="your first name" maxLength={30} autoFocus className="h-12 rounded-xl bg-white border-border/60 text-base" />
+          <SetupShell index={0} total={4} onBack={() => { setPillarDir(-1); setPillar(lastPillar); setStep("pillars"); }} title="what's your name?" subtitle="so your partner always knows it's you." footer={<Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtn} style={brandBg}>continue</Button>}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="your first name" maxLength={30} autoFocus className="h-12 rounded-xl bg-white border-border/60 text-base" />
           </SetupShell>
         );
 
       // ── Photo ───────────────────────────────────────────────────────────────
       case "photo":
         return (
-          <SetupShell index={1} total={4} onBack={() => setStep("name")} title="add a photo" subtitle="optional — it helps your space feel like yours. you can change it later." footer={<><Button onClick={() => setStep("colour")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>continue</Button>{!avatarPreview && <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>}</>}>
+          <SetupShell index={1} total={4} onBack={() => setStep("name")} title="add a photo" subtitle="optional — it helps your space feel like yours. you can change it later." footer={<><Button onClick={() => setStep("colour")} className={accentBtn} style={brandBg}>continue</Button>{!avatarPreview && <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>}</>}>
             <div className="flex justify-center">
               <button type="button" onClick={() => fileRef.current?.click()} className="relative w-28 h-28 rounded-full focus:outline-none group">
                 {avatarPreview ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${selectedAccent.hex}` }} />
+                    <img src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
                     <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera className="w-5 h-5 text-white" />
                       <span className="text-[10px] text-white font-medium">change</span>
@@ -665,9 +767,9 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       // ── Colour ──────────────────────────────────────────────────────────────
       case "colour":
         return (
-          <SetupShell index={2} total={4} onBack={() => setStep("photo")} title="pick your colour" subtitle="this is how you'll show up across your shared space." footer={<Button onClick={() => setStep("couple")} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>continue</Button>}>
+          <SetupShell index={2} total={4} onBack={() => setStep("photo")} title="pick your colour" subtitle="this is how you'll show up across your shared space." footer={<Button onClick={() => setStep("couple")} className={accentBtn} style={brandBg}>continue</Button>}>
             <div className="flex justify-center mb-8">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-secondary flex items-center justify-center transition-all duration-300" style={{ boxShadow: `0 0 0 3px ${selectedAccent.hex}` }}>
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-secondary flex items-center justify-center transition-all duration-300" style={{ boxShadow: `0 0 0 3px ${brandHex}` }}>
                 {avatarPreview
                   // eslint-disable-next-line @next/next/no-img-element
                   ? <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
@@ -676,7 +778,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
             </div>
             <div className="flex justify-center gap-3.5">
               {ACCENT_COLORS.map((c) => (
-                <button key={c.name} type="button" onClick={() => setAccentColor(c.name)} className={cn("w-10 h-10 rounded-full border-2 transition-all", accentColor === c.name ? "border-foreground scale-110" : "border-transparent")} style={{ backgroundColor: c.hex }} aria-label={c.name} />
+                <button key={c.name} type="button" onClick={() => { setAccentColor(c.name); setColourPicked(true); }} className={cn("w-10 h-10 rounded-full border-2 transition-all", accentColor === c.name && colourPicked ? "border-foreground scale-110" : "border-transparent")} style={{ backgroundColor: c.hex }} aria-label={c.name} />
               ))}
             </div>
           </SetupShell>
@@ -685,7 +787,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
       // ── Couple ──────────────────────────────────────────────────────────────
       case "couple":
         return (
-          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtn, "gap-2")} style={{ backgroundColor: selectedAccent.hex }}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
+          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtn} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtn, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
             <div className="flex bg-secondary rounded-2xl p-1 mb-5">
               {(["create", "join"] as Tab[]).map((t) => (
                 <button key={t} onClick={() => { setTab(t); setError(null); }} className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-white text-foreground shadow-sm" : "text-muted-foreground")}>{t === "create" ? "create" : "join with code"}</button>
@@ -694,15 +796,15 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
             {tab === "create" ? (
               <p className="text-sm text-muted-foreground text-center leading-relaxed">we&apos;ll create your space and give you a code to share with your partner so they can join.</p>
             ) : (
-              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toLowerCase())} placeholder="paste your code" maxLength={8} className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-white border-border/60" />
+              <Input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toLowerCase())} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="paste your code" maxLength={8} className="h-12 rounded-xl text-center text-lg tracking-[0.3em] font-mono bg-white border-border/60" />
             )}
             {error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
           </SetupShell>
         );
 
-      // ── Add to home screen ──────────────────────────────────────────────────
+      // ── Add to home screen (first step) ─────────────────────────────────────
       case "install":
-        return <InstallStep prompt={installPrompt} accentHex={selectedAccent.hex} onDone={() => { window.location.href = "/home"; }} onBack={inviteCode ? () => setStep("finish") : undefined} />;
+        return <InstallStep prompt={installPrompt} accentHex={NEUTRAL_INK} onDone={() => setStep("welcome")} />;
 
       // ── Finish (after create) ───────────────────────────────────────────────
       case "finish":
@@ -724,7 +826,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
               </motion.div>
             </motion.div>
             <div className="max-w-sm w-full mx-auto">
-              <Button onClick={handleFinish} disabled={isPending} className={accentBtn} style={{ backgroundColor: selectedAccent.hex }}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue"}</Button>
+              <Button onClick={handleFinish} disabled={isPending} className={accentBtn} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue"}</Button>
             </div>
           </div>
         );
@@ -733,7 +835,7 @@ export default function OnboardingClient({ userId, firstName, avatar }: Props) {
 
   return (
     <div className="relative min-h-dvh bg-background overflow-hidden">
-      <Ambient accent={selectedAccent.hex} />
+      <Ambient accent={colourPicked ? selectedAccent.hex : NEUTRAL_GLOW} />
       {cropFile && <CropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
       <AnimatePresence initial={false} custom={direction}>
         <motion.div
