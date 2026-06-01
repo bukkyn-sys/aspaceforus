@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { useScrollLock } from "@/lib/use-scroll-lock";
 import {
   addVaultFolder,
   deleteVaultFolder,
@@ -19,7 +18,7 @@ import {
 import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SheetClose } from "@/components/ui/sheet-close";
+import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
@@ -312,12 +311,12 @@ export default function VaultClient() {
   const [fetchingEditOg, setFetchingEditOg] = useState(false);
   const [editUploadingImg, setEditUploadingImg] = useState(false);
   const [editEmoji, setEditEmoji] = useState<string | null>(null);
+  const [editStage, setEditStage] = useState<Stage>("ideas");
 
   const [, startTransition] = useTransition();
 
   const myAccent = getAccent(me.accent_color);
 
-  useScrollLock(showNewFolder || showAdd || editingItem !== null || actionItem !== null);
 
   // FAB wires to the correct action per view
   useEffect(() => {
@@ -565,24 +564,26 @@ export default function VaultClient() {
     setEditPriceRange(item.price_range ?? null);
     setEditOgPreview(item.og_image ? { image: item.og_image, title: item.og_title } : null);
     setEditEmoji(item.item_emoji);
+    setEditStage(item.stage);
     setEditUploadingImg(false);
   }
 
   function handleEdit() {
     if (!editingItem || !editTitle.trim()) return;
+    const stageChanged = editStage !== editingItem.stage;
     setItems((prev) =>
       prev.map((i) =>
         i.id === editingItem.id
           ? { ...i, title: editTitle.trim(), owner: editOwner, url: editUrl.trim() || null,
               notes: editNotes.trim() || null, price_range: editPriceRange,
               og_image: editOgPreview?.image ?? null, og_title: editOgPreview?.title ?? null,
-              item_emoji: editEmoji }
+              item_emoji: editEmoji, stage: editStage }
           : i
       )
     );
     const id = editingItem.id;
     setEditingItem(null);
-    startTransition(() =>
+    startTransition(() => {
       updateVaultItem({
         id, coupleId, userId: me.id,
         title: editTitle.trim(),
@@ -593,8 +594,9 @@ export default function VaultClient() {
         ogImage: editOgPreview?.image ?? null,
         ogTitle: editOgPreview?.title ?? null,
         itemEmoji: editEmoji,
-      })
-    );
+      });
+      if (stageChanged) updateVaultStage(id, coupleId, me.id, editStage);
+    });
   }
 
   function handleStage(item: VaultItem) {
@@ -684,50 +686,41 @@ export default function VaultClient() {
         )}
 
         {/* New folder sheet */}
-        {showNewFolder && (
-          <div className="fixed inset-0 z-[60]">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowNewFolder(false)} />
-            <div
-              className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-5"
-              style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-            >
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">new folder</p>
-                <SheetClose onClick={() => setShowNewFolder(false)} />
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">emoji</p>
-                <div className="grid grid-cols-6 gap-2">
-                  {EMOJI_OPTIONS.map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => setFolderEmoji(e)}
-                      className={cn(
-                        "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
-                        folderEmoji === e
-                          ? "bg-foreground/10 ring-2 ring-foreground/40"
-                          : "bg-secondary hover:bg-secondary/70"
-                      )}
-                    >{e}</button>
-                  ))}
-                </div>
-              </div>
-
-              <Input
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                placeholder="folder name"
-                className="h-11 rounded-xl bg-white border-border/60"
-                autoFocus
-              />
-
-              <Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">
-                create folder
-              </Button>
+        <BottomSheet
+          open={showNewFolder}
+          onClose={() => setShowNewFolder(false)}
+          title="new folder"
+          footer={
+            <Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">
+              create folder
+            </Button>
+          }
+        >
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">emoji</p>
+            <div className="grid grid-cols-6 gap-2">
+              {EMOJI_OPTIONS.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setFolderEmoji(e)}
+                  className={cn(
+                    "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                    folderEmoji === e
+                      ? "bg-foreground/10 ring-2 ring-foreground/40"
+                      : "bg-secondary hover:bg-secondary/70"
+                  )}
+                >{e}</button>
+              ))}
             </div>
           </div>
-        )}
+          <Input
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            placeholder="folder name"
+            className="h-11 rounded-xl bg-white border-border/60"
+            autoFocus
+          />
+        </BottomSheet>
       </div>
     );
   }
@@ -850,7 +843,8 @@ export default function VaultClient() {
                           <span className="text-xs font-semibold text-foreground/70">{item.price_range}</span>
                         </>
                       )}
-                      {activeFolder?.kind === "date_idea" && (
+                      {/* Only surface a stage once it's past the default "idea" */}
+                      {activeFolder?.kind === "date_idea" && item.stage !== "ideas" && (
                         <>
                           <span className="text-muted-foreground/25 text-[10px]">·</span>
                           {isMine ? (
@@ -899,139 +893,139 @@ export default function VaultClient() {
       </div>
 
       {/* Add item sheet */}
-      {showAdd && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/40" onClick={closeAdd} />
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-            style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-          >
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-foreground">add to {activeFolder?.name}</p>
-              <SheetClose onClick={closeAdd} />
-            </div>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="title"
-              className="h-11 rounded-xl bg-white border-border/60"
-              autoFocus
-            />
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onBlur={(e) => handleUrlBlur(e.target.value)}
-              placeholder="url (optional)"
-              className="h-11 rounded-xl bg-white border-border/60"
-              type="url"
-            />
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
-              <VisualPicker
-                emoji={emoji}
-                onEmojiChange={setEmoji}
-                image={ogPreview?.image ?? null}
-                imageTitle={ogPreview?.title ?? null}
-                scraping={fetchingOg}
-                uploading={uploadingImg}
-                onPickFile={(f) => handlePickFile(f, false)}
-                onRemoveImage={() => setOgPreview(null)}
-              />
-            </div>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="notes (optional)"
-              className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
-            />
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">budget?</p>
-              <PriceInput value={priceRange} onChange={setPriceRange} />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">for?</p>
-              <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
-            </div>
-            <Button onClick={handleAdd} disabled={!title.trim()} className="w-full h-11 rounded-xl">add</Button>
-          </div>
+      <BottomSheet
+        open={showAdd}
+        onClose={closeAdd}
+        title={`add to ${activeFolder?.name ?? ""}`}
+        footer={<Button onClick={handleAdd} disabled={!title.trim()} className="w-full h-11 rounded-xl">add</Button>}
+      >
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="title"
+          className="h-11 rounded-xl bg-white border-border/60"
+          autoFocus
+        />
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onBlur={(e) => handleUrlBlur(e.target.value)}
+          placeholder="url (optional)"
+          className="h-11 rounded-xl bg-white border-border/60"
+          type="url"
+        />
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
+          <VisualPicker
+            emoji={emoji}
+            onEmojiChange={setEmoji}
+            image={ogPreview?.image ?? null}
+            imageTitle={ogPreview?.title ?? null}
+            scraping={fetchingOg}
+            uploading={uploadingImg}
+            onPickFile={(f) => handlePickFile(f, false)}
+            onRemoveImage={() => setOgPreview(null)}
+          />
         </div>
-      )}
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="notes (optional)"
+          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
+        />
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">budget?</p>
+          <PriceInput value={priceRange} onChange={setPriceRange} />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">for?</p>
+          <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
+        </div>
+      </BottomSheet>
 
       {/* Edit item sheet */}
-      {editingItem && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setEditingItem(null)} />
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-            style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}
-          >
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-foreground">edit</p>
-              <SheetClose onClick={() => setEditingItem(null)} />
-            </div>
-            <Input
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              placeholder="title"
-              className="h-11 rounded-xl bg-white border-border/60"
-              autoFocus
-            />
-            <Input
-              value={editUrl}
-              onChange={(e) => setEditUrl(e.target.value)}
-              onBlur={(e) => handleEditUrlBlur(e.target.value)}
-              placeholder="url (optional)"
-              className="h-11 rounded-xl bg-white border-border/60"
-              type="url"
-            />
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
-              <VisualPicker
-                emoji={editEmoji}
-                onEmojiChange={setEditEmoji}
-                image={editOgPreview?.image ?? null}
-                imageTitle={editOgPreview?.title ?? null}
-                scraping={fetchingEditOg}
-                uploading={editUploadingImg}
-                onPickFile={(f) => handlePickFile(f, true)}
-                onRemoveImage={() => setEditOgPreview(null)}
-              />
-            </div>
-            <textarea
-              value={editNotes}
-              onChange={(e) => setEditNotes(e.target.value)}
-              placeholder="notes (optional)"
-              className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
-            />
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">budget?</p>
-              <PriceInput value={editPriceRange} onChange={setEditPriceRange} />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">for?</p>
-              <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
-            </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={() => { handleDelete(editingItem.id); setEditingItem(null); }}
-                variant="outline"
-                className="flex-1 h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
-              >
-                delete
-              </Button>
-              <Button onClick={handleEdit} disabled={!editTitle.trim()} className="flex-1 h-11 rounded-xl">
-                save
-              </Button>
+      <BottomSheet
+        open={editingItem !== null}
+        onClose={() => setEditingItem(null)}
+        title="edit"
+        footer={
+          <div className="flex gap-3">
+            <Button
+              onClick={() => { if (editingItem) { handleDelete(editingItem.id); setEditingItem(null); } }}
+              variant="outline"
+              className="flex-1 h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+            >
+              delete
+            </Button>
+            <Button onClick={handleEdit} disabled={!editTitle.trim()} className="flex-1 h-11 rounded-xl">
+              save
+            </Button>
+          </div>
+        }
+      >
+        <Input
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          placeholder="title"
+          className="h-11 rounded-xl bg-white border-border/60"
+          autoFocus
+        />
+        <Input
+          value={editUrl}
+          onChange={(e) => setEditUrl(e.target.value)}
+          onBlur={(e) => handleEditUrlBlur(e.target.value)}
+          placeholder="url (optional)"
+          className="h-11 rounded-xl bg-white border-border/60"
+          type="url"
+        />
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
+          <VisualPicker
+            emoji={editEmoji}
+            onEmojiChange={setEditEmoji}
+            image={editOgPreview?.image ?? null}
+            imageTitle={editOgPreview?.title ?? null}
+            scraping={fetchingEditOg}
+            uploading={editUploadingImg}
+            onPickFile={(f) => handlePickFile(f, true)}
+            onRemoveImage={() => setEditOgPreview(null)}
+          />
+        </div>
+        <textarea
+          value={editNotes}
+          onChange={(e) => setEditNotes(e.target.value)}
+          placeholder="notes (optional)"
+          className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-white border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
+        />
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">budget?</p>
+          <PriceInput value={editPriceRange} onChange={setEditPriceRange} />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground mb-2">for?</p>
+          <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
+        </div>
+        {activeFolder?.kind === "date_idea" && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">stage</p>
+            <div className="flex gap-2">
+              {(["ideas", "planned", "completed"] as Stage[]).map((s) => (
+                <button key={s} onClick={() => setEditStage(s)}
+                  className={cn(
+                    "flex-1 py-2 text-sm rounded-xl border transition-colors",
+                    editStage === s ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}
+                >{STAGE_LABEL[s]}</button>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </BottomSheet>
 
       {/* Action prompt — creator only (edit / remove) */}
-      {actionItem && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setActionItem(null)} />
-          <div className="relative bg-background rounded-3xl p-6 w-full max-w-xs shadow-lg">
+      <Dialog open={actionItem !== null} onClose={() => setActionItem(null)}>
+        {actionItem && (
+          <>
             <p className="font-semibold text-foreground text-center truncate">{actionItem.title}</p>
             <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
             <div className="space-y-2">
@@ -1047,9 +1041,9 @@ export default function VaultClient() {
               </Button>
               <button onClick={() => setActionItem(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }

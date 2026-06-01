@@ -12,10 +12,9 @@ import {
 import { Plus, X, Check, Trash2, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SheetClose } from "@/components/ui/sheet-close";
+import { BottomSheet } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
@@ -167,7 +166,6 @@ export default function LedgerClient() {
 
   const defaultFolderId = folders.find((f) => f.is_default)?.id ?? folders[0]?.id ?? null;
 
-  useScrollLock(showAdd || showPot || showFolder || selectedPot !== null);
 
   useEffect(() => { markSeen("ledger"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -411,59 +409,49 @@ export default function LedgerClient() {
     return (
       <>
         {/* Add entry */}
-        {showAdd && (
-          <div className="fixed inset-0 z-[60]">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowAdd(false)} />
-            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4 max-h-[88dvh] overflow-y-auto"
-              style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">log expense</p>
-                <SheetClose onClick={() => setShowAdd(false)} />
-              </div>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-              <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">category</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {CATEGORIES.map((c) => (
-                    <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
-                      className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
-                        category === c.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}><span>{c.emoji}</span>{c.label}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">who paid?</p>
-                <div className="flex gap-2">
-                  {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => (
-                    <button key={v} onClick={() => setPaidBy(v)}
-                      className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
-                        paidBy === v ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}>{l}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">your share: {split}%</p>
-                <input type="range" min="0" max="100" value={split} onChange={(e) => setSplit(e.target.value)} className="w-full accent-foreground" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">repeats?</p>
-                <div className="flex gap-2">
-                  {RECURRENCES.map((r) => (
-                    <button key={r.id} onClick={() => setRecurrence(r.id)}
-                      className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
-                        recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}>{r.label}</button>
-                  ))}
-                </div>
-                {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5">recurring expenses stay on the ledger after you settle up</p>}
-              </div>
-              <Button onClick={handleAddEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">add</Button>
+        <BottomSheet open={showAdd} onClose={() => setShowAdd(false)} title="log expense"
+          footer={<Button onClick={handleAddEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">add</Button>}>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">category</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {CATEGORIES.map((c) => (
+                <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
+                  className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
+                    category === c.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}><span>{c.emoji}</span>{c.label}</button>
+              ))}
             </div>
           </div>
-        )}
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">who paid?</p>
+            <div className="flex gap-2">
+              {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => (
+                <button key={v} onClick={() => setPaidBy(v)}
+                  className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
+                    paidBy === v ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}>{l}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">your share: {split}%</p>
+            <input type="range" min="0" max="100" value={split} onChange={(e) => setSplit(e.target.value)} className="w-full accent-foreground" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">repeats?</p>
+            <div className="flex gap-2">
+              {RECURRENCES.map((r) => (
+                <button key={r.id} onClick={() => setRecurrence(r.id)}
+                  className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
+                    recurrence === r.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}>{r.label}</button>
+              ))}
+            </div>
+            {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5">recurring expenses stay on the ledger after you settle up</p>}
+          </div>
+        </BottomSheet>
 
         {/* Contribute / manage pot */}
         {selectedPot && (() => {
@@ -479,123 +467,99 @@ export default function LedgerClient() {
           const pct = Math.min(100, Math.round((totalNew / goal) * 100));
           const paceText = potPace(totalNew, goal, selectedPot.target_date, cur);
           return (
-            <div className="fixed inset-0 z-[60]">
-              <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedPot(null)} />
-              <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-                style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-foreground">{selectedPot.title}</p>
-                  <SheetClose onClick={() => setSelectedPot(null)} />
+            <BottomSheet open onClose={() => setSelectedPot(null)} title={selectedPot.title}
+              footer={
+                <div className="space-y-2">
+                  <Button onClick={handleContribute} disabled={!magnitude} className="w-full h-11 rounded-xl">
+                    {contribMode === "add" ? "add to pot" : "withdraw"}
+                  </Button>
+                  <button onClick={() => handleDeletePot(selectedPot)}
+                    className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
+                    <Trash2 className="w-3.5 h-3.5" /> delete pot
+                  </button>
                 </div>
-                <div>
-                  <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                    <span>{cur}{totalNew.toFixed(0)} saved · {pct}%</span>
-                    <span>goal {cur}{goal.toFixed(0)}</span>
-                  </div>
-                  <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
-                  </div>
-                  {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
+              }>
+              <div>
+                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>{cur}{totalNew.toFixed(0)} saved · {pct}%</span>
+                  <span>goal {cur}{goal.toFixed(0)}</span>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">you&apos;ve put in {cur}{myCurrent.toFixed(0)}</p>
-                  <div className="flex gap-2 mb-2">
-                    {(["add", "withdraw"] as const).map((m) => (
-                      <button key={m} onClick={() => setContribMode(m)}
-                        className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
-                          contribMode === m ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                        )}>{m}</button>
-                    ))}
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">{cur}</span>
-                    <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-white border-border/60 pl-8" autoFocus />
-                  </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
                 </div>
-                <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
-                  {partnerName}: {cur}{theirAmt.toFixed(0)}
-                </div>
-                <Button onClick={handleContribute} disabled={!magnitude} className="w-full h-11 rounded-xl">
-                  {contribMode === "add" ? "add to pot" : "withdraw"}
-                </Button>
-                <button onClick={() => handleDeletePot(selectedPot)}
-                  className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
-                  <Trash2 className="w-3.5 h-3.5" /> delete pot
-                </button>
+                {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
               </div>
-            </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">you&apos;ve put in {cur}{myCurrent.toFixed(0)}</p>
+                <div className="flex gap-2 mb-2">
+                  {(["add", "withdraw"] as const).map((m) => (
+                    <button key={m} onClick={() => setContribMode(m)}
+                      className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
+                        contribMode === m ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                      )}>{m}</button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">{cur}</span>
+                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-white border-border/60 pl-8" autoFocus />
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
+                {partnerName}: {cur}{theirAmt.toFixed(0)}
+              </div>
+            </BottomSheet>
           );
         })()}
 
         {/* Add pot */}
-        {showPot && (
-          <div className="fixed inset-0 z-[60]">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowPot(false)} />
-            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4 max-h-[88dvh] overflow-y-auto"
-              style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">new savings pot</p>
-                <SheetClose onClick={() => setShowPot(false)} />
-              </div>
-              <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">currency</p>
-                <div className="flex gap-2">
-                  {CURRENCIES.map((c) => (
-                    <button key={c} onClick={() => setPotCurrency(c)}
-                      className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
-                        potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}>{c}</button>
-                  ))}
-                </div>
-              </div>
-              <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
-              <div>
-                <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
-                <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-white border-border/60" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">folder</p>
-                <div className="flex gap-2 flex-wrap">
-                  {folders.map((f) => (
-                    <button key={f.id} onClick={() => setPotFolderId(f.id)}
-                      className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
-                        (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
-                      )}><span>{f.emoji}</span>{f.name}</button>
-                  ))}
-                </div>
-              </div>
-              <Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>
+        <BottomSheet open={showPot} onClose={() => setShowPot(false)} title="new savings pot"
+          footer={<Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>}>
+          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">currency</p>
+            <div className="flex gap-2">
+              {CURRENCIES.map((c) => (
+                <button key={c} onClick={() => setPotCurrency(c)}
+                  className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
+                    potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}>{c}</button>
+              ))}
             </div>
           </div>
-        )}
+          <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-white border-border/60" />
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
+            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-white border-border/60" />
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">folder</p>
+            <div className="flex gap-2 flex-wrap">
+              {folders.map((f) => (
+                <button key={f.id} onClick={() => setPotFolderId(f.id)}
+                  className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
+                    (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                  )}><span>{f.emoji}</span>{f.name}</button>
+              ))}
+            </div>
+          </div>
+        </BottomSheet>
 
         {/* New folder */}
-        {showFolder && (
-          <div className="fixed inset-0 z-[60]">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowFolder(false)} />
-            <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-5"
-              style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom))" }}>
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-foreground">new folder</p>
-                <SheetClose onClick={() => setShowFolder(false)} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">emoji</p>
-                <div className="grid grid-cols-6 gap-2">
-                  {FOLDER_EMOJIS.map((e) => (
-                    <button key={e} onClick={() => setFolderEmoji(e)}
-                      className={cn("aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
-                        folderEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70"
-                      )}>{e}</button>
-                  ))}
-                </div>
-              </div>
-              <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-              <Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">create folder</Button>
+        <BottomSheet open={showFolder} onClose={() => setShowFolder(false)} title="new folder"
+          footer={<Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">create folder</Button>}>
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">emoji</p>
+            <div className="grid grid-cols-6 gap-2">
+              {FOLDER_EMOJIS.map((e) => (
+                <button key={e} onClick={() => setFolderEmoji(e)}
+                  className={cn("aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                    folderEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70"
+                  )}>{e}</button>
+              ))}
             </div>
           </div>
-        )}
+          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
+        </BottomSheet>
       </>
     );
   }

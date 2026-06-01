@@ -6,13 +6,12 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { useScrollLock } from "@/lib/use-scroll-lock";
 import { setMood, updateNote, setStartedAt, addCountdown, deleteCountdown } from "./actions";
 import Link from "next/link";
 import { Plane, X, Heart, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SheetClose } from "@/components/ui/sheet-close";
+import { BottomSheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -116,7 +115,6 @@ export default function DashboardClient() {
   // Note debounce ref
   useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useScrollLock(showCountdownSheet || showDatePicker);
 
   // Keep the cache in sync with optimistic updates (add/delete countdown, mood,
   // note) so a refresh shows the current state instead of resurrecting items.
@@ -511,108 +509,84 @@ export default function DashboardClient() {
       )}
 
       {/* Date picker sheet (started_at) */}
-      {showDatePicker && (
-        <div className="fixed inset-0 z-[60]">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDatePicker(false)} />
-          <div className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl p-6 space-y-4"
-            style={{ paddingBottom: "calc(5.5rem + env(safe-area-inset-bottom))" }}>
-            <div className="flex items-center justify-between">
-              <p className="font-semibold text-foreground">when did you get together?</p>
-              <SheetClose onClick={() => setShowDatePicker(false)} />
-            </div>
-            <Input
-              type="date"
-              defaultValue={data.startedAt ?? ""}
-              max={today}
-              onChange={(e) => e.target.value && handleSetStarted(e.target.value)}
-              className="h-11 rounded-xl bg-white border-border/60"
-            />
-          </div>
-        </div>
-      )}
+      <BottomSheet open={showDatePicker} onClose={() => setShowDatePicker(false)} title="when did you get together?">
+        <Input
+          type="date"
+          defaultValue={data.startedAt ?? ""}
+          max={today}
+          onChange={(e) => e.target.value && handleSetStarted(e.target.value)}
+          className="h-11 rounded-xl bg-white border-border/60"
+        />
+      </BottomSheet>
 
       {/* Add countdown sheet */}
-      {showCountdownSheet && (
-        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCountdownSheet(false)} />
-          <div className="relative bg-background rounded-t-[28px] flex flex-col" style={{ maxHeight: "90dvh" }}>
-            {/* Drag handle */}
-            <div className="flex justify-center pt-3 flex-shrink-0">
-              <div className="w-9 h-1 rounded-full bg-border/60" />
-            </div>
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
-              <p className="text-base font-semibold">new countdown</p>
-              <SheetClose onClick={() => setShowCountdownSheet(false)} />
-            </div>
-            {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">
-              {/* Type grid */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {COUNTDOWN_TYPES.map((t) => (
-                    <button
-                      key={t.label}
-                      onClick={() => {
-                        setCdEmoji(t.emoji); setCdCustomEmoji("");
-                        const isDefault = !cdTitle || COUNTDOWN_TYPES.some((ct) => ct.label === cdTitle);
-                        if (isDefault) setCdTitle(t.label);
-                      }}
-                      className={cn(
-                        "flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
-                        cdEmoji === t.emoji && !cdCustomEmoji
-                          ? "bg-foreground text-background"
-                          : "bg-secondary text-muted-foreground"
-                      )}
-                    >
-                      <span className="text-xl leading-none">{t.emoji}</span>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+      <BottomSheet
+        open={showCountdownSheet}
+        onClose={() => setShowCountdownSheet(false)}
+        title="new countdown"
+        footer={
+          <Button onClick={handleAddCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
+            add countdown
+          </Button>
+        }
+      >
+        {/* Type grid */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
+          <div className="grid grid-cols-4 gap-2">
+            {COUNTDOWN_TYPES.map((t) => (
+              <button
+                key={t.label}
+                onClick={() => {
+                  setCdEmoji(t.emoji); setCdCustomEmoji("");
+                  const isDefault = !cdTitle || COUNTDOWN_TYPES.some((ct) => ct.label === cdTitle);
+                  if (isDefault) setCdTitle(t.label);
+                }}
+                className={cn(
+                  "flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
+                  cdEmoji === t.emoji && !cdCustomEmoji
+                    ? "bg-foreground text-background"
+                    : "bg-secondary text-muted-foreground"
+                )}
+              >
+                <span className="text-xl leading-none">{t.emoji}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Title */}
+        <Input
+          value={cdTitle}
+          onChange={(e) => setCdTitle(e.target.value)}
+          placeholder="give it a name"
+          className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
+        />
+        {/* Dates */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
+                <p className={cn("text-sm font-medium", cdDate ? "text-foreground" : "text-muted-foreground/40")}>
+                  {cdDate ? new Date(cdDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                </p>
               </div>
-              {/* Title */}
-              <Input
-                value={cdTitle}
-                onChange={(e) => setCdTitle(e.target.value)}
-                placeholder="give it a name"
-                className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
-              />
-              {/* Dates */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative rounded-2xl overflow-hidden">
-                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
-                      <p className={cn("text-sm font-medium", cdDate ? "text-foreground" : "text-muted-foreground/40")}>
-                        {cdDate ? new Date(cdDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                      </p>
-                    </div>
-                    <input type="date" value={cdDate} min={today} onChange={(e) => setCdDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                  </div>
-                  <div className="relative rounded-2xl overflow-hidden">
-                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                      <p className={cn("text-sm font-medium", cdEndDate ? "text-foreground" : "text-muted-foreground/40")}>
-                        {cdEndDate ? new Date(cdEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                      </p>
-                    </div>
-                    <input type="date" value={cdEndDate} min={cdDate || today} onChange={(e) => setCdEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                  </div>
-                </div>
-              </div>
+              <input type="date" value={cdDate} min={today} onChange={(e) => setCdDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
-            {/* Pinned submit */}
-            <div className="px-6 pt-3 flex-shrink-0" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.25rem)" }}>
-              <Button onClick={handleAddCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
-                add countdown
-              </Button>
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                <p className={cn("text-sm font-medium", cdEndDate ? "text-foreground" : "text-muted-foreground/40")}>
+                  {cdEndDate ? new Date(cdEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                </p>
+              </div>
+              <input type="date" value={cdEndDate} min={cdDate || today} onChange={(e) => setCdEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
           </div>
         </div>
-      )}
+      </BottomSheet>
       </div>
     </div>
   );

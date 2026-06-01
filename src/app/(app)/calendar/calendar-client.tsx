@@ -8,10 +8,9 @@ import { setAvailability, addEvent, deleteEvent } from "./actions";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { useScrollLock } from "@/lib/use-scroll-lock";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SheetClose } from "@/components/ui/sheet-close";
+import { BottomSheet } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
@@ -47,7 +46,6 @@ export default function CalendarClient() {
 
   useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useScrollLock(showAddEvent);
 
   useEffect(() => {
     const key = `cal:${coupleId}:${year}:${month}`;
@@ -435,13 +433,15 @@ export default function CalendarClient() {
                     const cd = item.data;
                     const days = daysUntil(cd.target_date);
                     const d = new Date(cd.target_date + "T12:00:00");
+                    const o = resolveOwner(null); // countdowns are shared
                     return (
                       <div
                         key={cd.id}
-                        className="card-row accent-bar px-4 py-3 flex items-center gap-3"
-                        style={{ "--accent-bar": "#D4A427" } as React.CSSProperties}
+                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3"
+                        style={{ background: cardOmbre(o) }}
                       >
                         <span className="text-xl flex-shrink-0">{cd.emoji}</span>
+                        <OwnerAvatars people={o.people} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
@@ -464,81 +464,64 @@ export default function CalendarClient() {
       </div>
 
       {/* Add event sheet */}
-      {showAddEvent && (
-        <div className="fixed inset-0 z-[60] flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddEvent(false)} />
-          <div className="relative bg-background rounded-t-[28px] flex flex-col" style={{ maxHeight: "90dvh" }}>
-            {/* Drag handle */}
-            <div className="flex justify-center pt-3 flex-shrink-0">
-              <div className="w-9 h-1 rounded-full bg-border/60" />
-            </div>
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-4 pb-2 flex-shrink-0">
-              <p className="text-base font-semibold">new event</p>
-              <SheetClose onClick={() => setShowAddEvent(false)} />
-            </div>
-            {/* Scrollable body */}
-            <div className="flex-1 overflow-y-auto px-6 pt-2 pb-4 space-y-5">
-              {/* Title */}
-              <Input
-                value={eventTitle}
-                onChange={(e) => setEventTitle(e.target.value)}
-                placeholder="what's happening?"
-                className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
-                autoFocus
-              />
-              {/* Emoji */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
-                <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-                  {EVENT_EMOJIS.map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => setEventEmoji(e)}
-                      className={cn(
-                        "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
-                        eventEmoji === e ? "bg-foreground" : "bg-secondary"
-                      )}
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
+      <BottomSheet
+        open={showAddEvent}
+        onClose={() => setShowAddEvent(false)}
+        title="new event"
+        footer={
+          <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
+            add event
+          </Button>
+        }
+      >
+        <Input
+          value={eventTitle}
+          onChange={(e) => setEventTitle(e.target.value)}
+          placeholder="what's happening?"
+          className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
+          autoFocus
+        />
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
+          <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+            {EVENT_EMOJIS.map((e) => (
+              <button
+                key={e}
+                onClick={() => setEventEmoji(e)}
+                className={cn(
+                  "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
+                  eventEmoji === e ? "bg-foreground" : "bg-secondary"
+                )}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
+                <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
+                  {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                </p>
               </div>
-              {/* Dates */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="relative rounded-2xl overflow-hidden">
-                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
-                      <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
-                        {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                      </p>
-                    </div>
-                    <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                  </div>
-                  <div className="relative rounded-2xl overflow-hidden">
-                    <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                      <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                      <p className={cn("text-sm font-medium", eventEndDate ? "text-foreground" : "text-muted-foreground/40")}>
-                        {eventEndDate ? new Date(eventEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                      </p>
-                    </div>
-                    <input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                  </div>
-                </div>
-              </div>
+              <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
-            {/* Pinned submit */}
-            <div className="px-6 pt-3 flex-shrink-0" style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.25rem)" }}>
-              <Button onClick={handleAddEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
-                add event
-              </Button>
+            <div className="relative rounded-2xl overflow-hidden">
+              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                <p className={cn("text-sm font-medium", eventEndDate ? "text-foreground" : "text-muted-foreground/40")}>
+                  {eventEndDate ? new Date(eventEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                </p>
+              </div>
+              <input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
           </div>
         </div>
-      )}
+      </BottomSheet>
     </div>
   );
 }

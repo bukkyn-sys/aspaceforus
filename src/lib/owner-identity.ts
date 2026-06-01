@@ -15,12 +15,15 @@ export interface OwnerIdentity {
   shared: boolean;
 }
 
-/** Soft left-to-right ombre wash in the owner's accent (blended for shared). */
+// A dedicated "together" wash for shared items — a soft twilight lilac → slate
+// that deliberately matches none of the personal accent colours.
+const SHARED_A = "#E7E3F1";
+const SHARED_B = "#E2ECF0";
+
+/** Soft left-to-right ombre wash: the owner's accent, or the shared wash. */
 export function cardOmbre(o: OwnerIdentity): string {
   if (!o.shared) return `linear-gradient(100deg, ${o.people[0].light} 0%, #ffffff 46%)`;
-  const a = o.people[0].light;
-  const b = o.people[1]?.light ?? a;
-  return `linear-gradient(100deg, ${a} 0%, ${b} 22%, #ffffff 58%)`;
+  return `linear-gradient(100deg, ${SHARED_A} 0%, ${SHARED_B} 30%, #ffffff 60%)`;
 }
 
 /**
