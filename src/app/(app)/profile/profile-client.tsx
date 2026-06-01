@@ -305,7 +305,7 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
             <BellOff className="w-4 h-4" />
             <span>blocked by browser</span>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">
+          <p className="text-xs text-muted-foreground/60">
             go to your browser settings → site settings → notifications → allow for this site.
           </p>
         </div>
@@ -505,7 +505,7 @@ export default function ProfileClient({
           })}
         </div>
         {partnerAccentColor && (
-          <p className="text-[10px] text-muted-foreground/50 mt-2">
+          <p className="text-xs text-muted-foreground/50 mt-2">
             your partner already has{" "}
             {ACCENT_COLORS.find((c) => c.name === partnerAccentColor)?.name ?? partnerAccentColor}
           </p>
