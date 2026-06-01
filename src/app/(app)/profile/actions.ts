@@ -22,6 +22,11 @@ export async function updateCoupleBanner(coupleId: string, userId: string, url: 
   await supabase.rpc("update_couple_banner", { p_couple_id: coupleId, p_user_id: userId, p_url: url });
 }
 
+export async function updateCoupleCurrency(coupleId: string, userId: string, currency: string) {
+  const supabase = await createClient();
+  await supabase.rpc("update_couple_currency", { p_couple_id: coupleId, p_user_id: userId, p_currency: currency });
+}
+
 // Leave the current couple — clears your link to it so you can create or join
 // another. Your partner keeps the existing space and its data. Uses a
 // security-definer RPC (like the other profile mutations) so it's reliable

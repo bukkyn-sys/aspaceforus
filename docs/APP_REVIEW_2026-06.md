@@ -136,8 +136,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ---
 
-### [ ] 6. Currency inconsistency — expenses hardcoded £, pots multi-currency
-**Status:** NOT STARTED
+### [x] 6. Currency inconsistency — expenses hardcoded £, pots multi-currency
+**Status:** DONE (commit pending). DECISION: couple-level default. Added `couples.currency` column + `update_couple_currency` RPC (in schema.sql + security_hardening.sql). Currency flows via CoupleContext (loaded in (app)/layout). Ledger expenses (balance, rows, history, placeholder) now use it; new pots default to it (still overridable per-pot). Currency selector added to profile couple card. ⚠️ USER must run the new SQL (column + RPC) — it's in security_hardening.sql.
 **Severity:** Medium
 **Files:** `src/app/(app)/ledger/ledger-client.tsx` — `£` literals at :438, :443, :711, :761, :771, :828 etc.; pots use `pot.currency` (£/$/€).
 
@@ -174,8 +174,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 - **(c)** No offline fallback page — cold load with no network shows the browser error. Add a cached `/offline` shell.
 - **(d)** `CACHE = "us-v1"` never bumped, so activate-cleanup never triggers. Version it per deploy.
 
-### [ ] 10. Wordmark inconsistency (`us.` vs `aspaceforus.`)
-**Status:** NOT STARTED
+### [x] 10. Wordmark inconsistency (`us.` vs `aspaceforus.`)
+**Status:** BY DESIGN (user decision). Both are intentional: `aspaceforus` = full name, `us.` = short name + logo, used where best suited. No change.
 **Files:** login `src/app/auth/login/page.tsx:64` (`us.`), home banner `src/app/(app)/home/dashboard-client.tsx:318` (`us.`), metadata `src/app/layout.tsx:24,31` (`us.`), onboarding leads with `aspaceforus.`, manifest is `aspaceforus`.
 **Problem:** Brand is split between `us.` and `aspaceforus.`.
 **Fix (decision needed):** Pick one wordmark and apply everywhere (login, banner, metadata title, appleWebApp title). **Needs user decision** on which wins.
@@ -204,8 +204,8 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 **Problem:** Channel tears down/re-subscribes whenever `partner` object identity changes → subscribe churn.
 **Fix:** Key the channel effect on `coupleId`/`me.id` only.
 
-### [ ] 15. Calendar: can't mark yourself free on an event day
-**Status:** NOT STARTED
+### [x] 15. Calendar: can't mark yourself free on an event day
+**Status:** BY DESIGN (user decision: keep separate). Event days stay non-interactive for availability. No change.
 **File:** `src/app/(app)/calendar/calendar-client.tsx:300` (`onClick={() => !isPast && !isEventDay && handleDay(ds)}`)
 **Problem:** A day that has an event is non-interactive for availability — surprising for "we have dinner but I'm free after."
 **Fix (decision needed):** Separate the event band from the availability tap, or allow availability toggle on event days too. **Needs user decision** on interaction model.

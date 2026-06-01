@@ -423,6 +423,19 @@ alter table ledger_entries add column if not exists settled_at timestamptz; -- g
 alter table savings_pots add column if not exists target_date date;
 alter table savings_pots add column if not exists currency    text not null default '£';
 
+-- ── Couple-level default currency (expenses + new pots) ───────────────────────
+alter table couples add column if not exists currency text not null default '£';
+
+create or replace function update_couple_currency(p_couple_id uuid, p_user_id uuid, p_currency text)
+returns void language plpgsql security definer
+set search_path = public as $$
+begin
+  if p_user_id <> auth.uid() or not is_couple_member(p_couple_id) then
+    raise exception 'forbidden';
+  end if;
+  update couples set currency = p_currency where id = p_couple_id;
+end; $$;
+
 -- ── Storage buckets ───────────────────────────────────────────────────────────
 -- Run this block so vault photo uploads work (avatars/banners already exist).
 -- Creates the public "vault" bucket and policies allowing any authenticated user

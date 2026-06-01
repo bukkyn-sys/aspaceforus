@@ -203,6 +203,18 @@ begin
   update couples set started_at = p_date where id = p_couple_id;
 end; $$;
 
+-- update_couple_currency(p_couple_id, p_user_id, p_currency) — NEW (review item 6).
+-- Requires: alter table couples add column if not exists currency text not null default '£';
+create or replace function update_couple_currency(p_couple_id uuid, p_user_id uuid, p_currency text)
+returns void language plpgsql security definer
+set search_path = public as $$
+begin
+  if p_user_id <> auth.uid() or not is_couple_member(p_couple_id) then
+    raise exception 'forbidden';
+  end if;
+  update couples set currency = p_currency where id = p_couple_id;
+end; $$;
+
 -- update_couple_banner(p_couple_id, p_user_id, p_url)
 create or replace function update_couple_banner(p_couple_id uuid, p_user_id uuid, p_url text)
 returns void language plpgsql security definer

@@ -6,7 +6,10 @@ import Link from "next/link";
 import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
-import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, leaveCouple } from "./actions";
+import { useCouple } from "@/contexts/couple-context";
+import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, leaveCouple } from "./actions";
+
+const CURRENCIES = ["£", "$", "€"] as const;
 import { savePushSubscription } from "@/app/(app)/push-actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -341,7 +344,14 @@ export default function ProfileClient({
   const [showQR, setShowQR] = useState(false);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
+  const { currency: coupleCurrency } = useCouple();
+  const [currency, setCurrency] = useState(coupleCurrency);
   const [, startTransition] = useTransition();
+
+  function handleCurrency(c: string) {
+    setCurrency(c);
+    startTransition(() => { updateCoupleCurrency(profile.coupleId, profile.id, c); });
+  }
 
   async function handleLeaveCouple() {
     setLeaving(true);
@@ -591,6 +601,30 @@ export default function ProfileClient({
             </div>
           </div>
         )}
+
+        {/* Currency */}
+        <div className="px-4 py-3 border-t border-border/40 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground mb-0.5">currency</p>
+            <p className="text-sm font-medium text-foreground">used for expenses &amp; new pots</p>
+          </div>
+          <div className="flex gap-1.5" role="group" aria-label="currency">
+            {CURRENCIES.map((c) => (
+              <button
+                key={c}
+                onClick={() => handleCurrency(c)}
+                aria-pressed={currency === c}
+                aria-label={`use ${c}`}
+                className={cn(
+                  "w-9 h-9 rounded-xl text-sm font-bold border transition-colors",
+                  currency === c ? "bg-foreground text-background border-foreground" : "bg-white text-muted-foreground border-border/60"
+                )}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Invite QR */}

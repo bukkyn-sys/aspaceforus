@@ -39,6 +39,10 @@ export default async function AppLayout({
 
   if (!sd?.me?.couple_id) redirect("/onboarding");
 
+  const { data: coupleRow } = await supabase
+    .from("couples").select("currency").eq("id", sd.me.couple_id).single();
+  const currency = (coupleRow as { currency?: string } | null)?.currency ?? "£";
+
   const me: UserProfile = {
     id: sd.me.id,
     couple_id: sd.me.couple_id,
@@ -63,6 +67,7 @@ export default async function AppLayout({
     partner,
     myName: sd.me.display_name?.split(" ")[0] ?? "you",
     partnerName: sd.partner?.display_name?.split(" ")[0] ?? "partner",
+    currency,
   };
 
   return (

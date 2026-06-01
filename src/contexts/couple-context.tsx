@@ -18,6 +18,8 @@ export interface CoupleContextValue {
   myName: string;
   /** Partner's first name, falls back to "partner" */
   partnerName: string;
+  /** Couple's default currency symbol (£/$/€), used for expenses + new pots. */
+  currency: string;
 }
 
 const CoupleContext = createContext<CoupleContextValue | null>(null);

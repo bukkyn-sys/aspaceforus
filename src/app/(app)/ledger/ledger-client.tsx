@@ -164,8 +164,8 @@ function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSe
   );
 }
 
-function ExpenseRow({ e, meId, myName, partnerName, resolveOwner, onSelect }: {
-  e: Entry; meId: string; myName: string; partnerName: string;
+function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect }: {
+  e: Entry; meId: string; myName: string; partnerName: string; cur: string;
   resolveOwner: ResolveOwner; onSelect: (e: Entry) => void;
 }) {
   const amt = parseFloat(e.amount);
@@ -192,19 +192,19 @@ function ExpenseRow({ e, meId, myName, partnerName, resolveOwner, onSelect }: {
         <div className="flex items-center gap-1.5 mt-0.5">
           <OwnerAvatars people={o.people} />
           <p className="text-xs text-muted-foreground">
-            {paidByMe ? myName : partnerName} paid £{amt.toFixed(2)} · your share £{myShare.toFixed(2)}
+            {paidByMe ? myName : partnerName} paid {cur}{amt.toFixed(2)} · your share {cur}{myShare.toFixed(2)}
           </p>
         </div>
       </div>
       <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
-        {paidByMe ? `+£${(amt * (1 - ratio)).toFixed(2)}` : `-£${(amt * ratio).toFixed(2)}`}
+        {paidByMe ? `+${cur}${(amt * (1 - ratio)).toFixed(2)}` : `-${cur}${(amt * ratio).toFixed(2)}`}
       </div>
     </div>
   );
 }
 
 export default function LedgerClient() {
-  const { coupleId, me, partner, myName, partnerName } = useCouple();
+  const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
   const resolveOwner = useOwnerIdentity();
@@ -266,7 +266,7 @@ export default function LedgerClient() {
   const [potGoal, setPotGoal] = useState("");
   const [potFolderId, setPotFolderId] = useState<string | null>(null);
   const [potTarget, setPotTarget] = useState("");
-  const [potCurrency, setPotCurrency] = useState<string>("£");
+  const [potCurrency, setPotCurrency] = useState<string>(currency);
 
   // New folder form
   const [folderName, setFolderName] = useState("");
@@ -410,7 +410,7 @@ export default function LedgerClient() {
       target_date: potTarget || null, currency: potCurrency,
     };
     setPots((prev) => [optimistic, ...prev]);
-    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency("£"); setShowPot(false);
+    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency(currency); setShowPot(false);
     markActivity("ledger");
     startTransition(() => { addSavingsPot({ coupleId, userId: me.id, title: optimistic.title, goalAmount: goal, folderId, targetDate: potTarget || null, currency: potCurrency }); });
   }
@@ -465,7 +465,7 @@ export default function LedgerClient() {
           title={editingEntryId ? "edit expense" : "log expense"}
           footer={<Button onClick={handleSaveEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">{editingEntryId ? "save" : "add"}</Button>}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-white border-border/60" autoFocus />
-          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="amount (£)" type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
+          <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-white border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-2">category</p>
             <div className="flex gap-1.5 flex-wrap">
@@ -735,7 +735,7 @@ export default function LedgerClient() {
           <div className={cn("rounded-3xl p-5 mb-5", net > 0 ? "bg-sage-light" : "bg-terracotta-light")}>
             <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
             <p className={cn("text-4xl font-bold tabular-nums mb-1", net > 0 ? "text-sage" : "text-terracotta")}>
-              {net > 0 ? `+£${net.toFixed(2)}` : `-£${Math.abs(net).toFixed(2)}`}
+              {net > 0 ? `+${currency}${net.toFixed(2)}` : `-${currency}${Math.abs(net).toFixed(2)}`}
             </p>
             <p className="text-sm text-muted-foreground">{net > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}</p>
             <button onClick={() => setShowSettleConfirm(true)} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground bg-white/70 rounded-xl px-3 py-1.5">
@@ -785,7 +785,7 @@ export default function LedgerClient() {
                   <div key={s.key} className="card-row p-4">
                     <div className="flex items-center justify-between mb-2.5">
                       <p className="text-sm font-semibold text-foreground">{s.date ? `settled ${s.date}` : "earlier settlements"}</p>
-                      <p className="text-sm font-semibold text-muted-foreground tabular-nums">£{s.total.toFixed(2)}</p>
+                      <p className="text-sm font-semibold text-muted-foreground tabular-nums">{currency}{s.total.toFixed(2)}</p>
                     </div>
                     <div className="space-y-1.5">
                       {s.entries.map((e) => {
@@ -795,7 +795,7 @@ export default function LedgerClient() {
                           <div key={e.id} className="flex items-center gap-2 text-xs">
                             {cat && <span className="text-sm leading-none flex-shrink-0">{cat.emoji}</span>}
                             <span className="text-foreground truncate flex-1">{e.title}</span>
-                            <span className="text-muted-foreground/70 flex-shrink-0 tabular-nums">{paidByName} · £{parseFloat(e.amount).toFixed(2)}</span>
+                            <span className="text-muted-foreground/70 flex-shrink-0 tabular-nums">{paidByName} · {currency}{parseFloat(e.amount).toFixed(2)}</span>
                           </div>
                         );
                       })}
@@ -831,7 +831,7 @@ export default function LedgerClient() {
               <div className="space-y-2">
                 {visibleEntries.map((e) => (
                   <ExpenseRow key={e.id} e={e} meId={me.id} myName={myName} partnerName={partnerName}
-                    resolveOwner={resolveOwner} onSelect={(en) => setActionEntry(en)} />
+                    cur={currency} resolveOwner={resolveOwner} onSelect={(en) => setActionEntry(en)} />
                 ))}
               </div>
             </>
