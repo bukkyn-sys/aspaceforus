@@ -43,7 +43,17 @@ export default async function AppLayout({
   // redirect loop. Surface the error instead. Only a clean "no couple" result
   // means the user genuinely needs onboarding.
   if (sessionError) throw new Error(sessionError.message);
-  if (!sd?.me?.couple_id) redirect("/onboarding");
+  if (!sd?.me?.couple_id) {
+    // TEMP DIAGNOSTIC — remove after debugging the onboarding loop.
+    // Shows exactly what /home resolved so we can see if it's an account mismatch.
+    const diag = {
+      auth_user_id: user.id,
+      auth_email: user.email,
+      rpc_returned_me: sd?.me ?? null,
+      me_couple_id: sd?.me?.couple_id ?? null,
+    };
+    throw new Error("ONBOARDING-LOOP DIAGNOSTIC → " + JSON.stringify(diag, null, 2));
+  }
 
   const { data: coupleRow } = await supabase
     .from("couples").select("currency").eq("id", sd.me.couple_id).single();
