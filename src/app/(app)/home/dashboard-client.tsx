@@ -8,7 +8,7 @@ import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2 } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -312,6 +312,12 @@ export default function DashboardClient() {
     setEditingCountdownId(null); setShowCountdownSheet(false);
   }
 
+  function planFreeDay(ds: string) {
+    setCdTitle(""); setCdDate(ds); setCdEndDate(""); setCdEmoji("🍽️"); setCdCustomEmoji("");
+    setEditingCountdownId(null);
+    setShowCountdownSheet(true);
+  }
+
   function openEditCountdown(cd: Countdown) {
     setActionCountdown(null);
     setEditingCountdownId(cd.id);
@@ -537,12 +543,18 @@ export default function DashboardClient() {
                 const diff = Math.round((d.getTime() - Date.now()) / 86400000);
                 return (
                   <div key={ds} className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">
-                      {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
-                    </p>
-                    <span className="text-xs font-medium text-sage">
-                      in {diff} day{diff !== 1 ? "s" : ""}
-                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+                      </p>
+                      <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>
+                    </div>
+                    <button
+                      onClick={() => planFreeDay(ds)}
+                      className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-foreground active:scale-95 transition-transform flex-shrink-0"
+                    >
+                      <Plus className="w-3 h-3" strokeWidth={2.5} /> plan
+                    </button>
                   </div>
                 );
               })}
@@ -554,10 +566,7 @@ export default function DashboardClient() {
       {/* Money — settlement snapshot + savings pots */}
       {!loading && (
         <div className="card p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-muted-foreground font-medium tracking-wide">money</p>
-            <Link href="/ledger" className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors">ledger →</Link>
-          </div>
+          <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">accounts</p>
 
           {/* Settlement snapshot */}
           {Math.abs(data.balance) < 0.01 ? (
@@ -584,7 +593,7 @@ export default function DashboardClient() {
               {data.pots.map((pot) => {
                 const pct = pot.goal > 0 ? Math.min(100, Math.round((pot.saved / pot.goal) * 100)) : 0;
                 return (
-                  <Link key={pot.id} href="/ledger?tab=pots"
+                  <Link key={pot.id} href={`/ledger?tab=pots&pot=${pot.id}`}
                     className="flex-shrink-0 w-36 rounded-2xl bg-secondary/60 p-3 active:scale-[0.98] transition-transform">
                     <p className="text-xs font-medium text-foreground truncate">{pot.title}</p>
                     <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">

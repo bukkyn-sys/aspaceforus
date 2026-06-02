@@ -7,16 +7,16 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
   addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, contributeToPot,
-  deleteSavingsPot, addPotFolder, deletePotFolder,
+  deleteSavingsPot, addPotFolder,
 } from "./actions";
-import { Plus, X, Check, Trash2, Pencil, ChevronLeft, ChevronRight, Repeat } from "lucide-react";
+import { Check, Trash2, Pencil, Repeat } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
@@ -80,9 +80,6 @@ const RECURRENCES: { id: Recurrence; label: string }[] = [
   { id: "monthly", label: "monthly" },
 ];
 
-const FOLDER_EMOJIS = ["🫙", "💰", "🏦", "✈️", "🏡", "💍", "🎓", "🚗", "🎁", "🏖️", "💻", "🛋️"];
-const POT_PANEL_COLORS = ["#E8F0EA", "#F5EDD3", "#E3EEF8", "#EDE9F5", "#F5E3E5"];
-const potPanelColor = (sortOrder: number) => POT_PANEL_COLORS[sortOrder % POT_PANEL_COLORS.length];
 
 // Group settled expenses into "receipts" — one per settle-up batch (shared
 // settled_at). Older rows without a timestamp fall into one "earlier" group.
@@ -223,21 +220,9 @@ export default function LedgerClient() {
   const [tab, setTabState] = useState<"entries" | "pots">(() => searchParams.get("tab") === "pots" ? "pots" : "entries");
   const [, startTransition] = useTransition();
 
-  // Pot folder navigation
-  const [activePotFolder, setActivePotFolder] = useState<PotFolder | null>(null);
-
-  // Keep tab + open folder in the URL so a refresh stays on the same view.
-  function openPotFolder(folder: PotFolder) {
-    setActivePotFolder(folder);
-    router.replace(`/ledger?tab=pots&folder=${folder.id}`, { scroll: false });
-  }
-  function closePotFolder() {
-    setActivePotFolder(null);
-    router.replace("/ledger?tab=pots", { scroll: false });
-  }
+  // Keep the tab in the URL so a refresh stays on the same view.
   function setTab(t: "entries" | "pots") {
     setTabState(t);
-    setActivePotFolder(null);
     router.replace(t === "pots" ? "/ledger?tab=pots" : "/ledger", { scroll: false });
   }
 
@@ -251,7 +236,6 @@ export default function LedgerClient() {
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [actionEntry, setActionEntry] = useState<Entry | null>(null);
   const [showPot, setShowPot] = useState(false);
-  const [showFolder, setShowFolder] = useState(false);
   const [selectedPot, setSelectedPot] = useState<Pot | null>(null);
   const [showSettleConfirm, setShowSettleConfirm] = useState(false);
 
@@ -270,10 +254,6 @@ export default function LedgerClient() {
   const [potTarget, setPotTarget] = useState("");
   const [potCurrency, setPotCurrency] = useState<string>(currency);
 
-  // New folder form
-  const [folderName, setFolderName] = useState("");
-  const [folderEmoji, setFolderEmoji] = useState("🫙");
-
   // Contribute sheet
   const [contribDelta, setContribDelta] = useState("");
   const [contribMode, setContribMode] = useState<"add" | "withdraw">("add");
@@ -286,11 +266,11 @@ export default function LedgerClient() {
   useEffect(() => {
     setAction(() => {
       if (tab === "entries") { resetEntryForm(); setEditingEntryId(null); setShowAdd(true); return; }
-      setPotFolderId(activePotFolder?.id ?? defaultFolderId);
+      setPotFolderId(defaultFolderId);
       setShowPot(true);
     });
     return () => setAction(null);
-  }, [tab, activePotFolder, defaultFolderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, defaultFolderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const supabase = createClient();
@@ -317,11 +297,11 @@ export default function LedgerClient() {
       setLoading(false);
       setCache(`ledger:${coupleId}`, { entries, pots, folders });
 
-      // Restore the open pot folder from the URL so a refresh stays put.
-      const folderParam = searchParams.get("folder");
-      if (folderParam) {
-        const f = folders.find((x) => x.id === folderParam);
-        if (f) setActivePotFolder(f);
+      // Open a specific pot if linked from the home dashboard (?pot=<id>).
+      const potParam = searchParams.get("pot");
+      if (potParam) {
+        const p = pots.find((x) => x.id === potParam);
+        if (p) { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }
       }
     });
   }, [coupleId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -436,25 +416,6 @@ export default function LedgerClient() {
     setPots((prev) => prev.filter((p) => p.id !== pot.id));
     setSelectedPot(null);
     startTransition(() => { deleteSavingsPot(pot.id, coupleId); });
-  }
-
-  function handleAddFolder() {
-    if (!folderName.trim()) return;
-    const optimistic: PotFolder = {
-      id: crypto.randomUUID(), name: folderName.trim(), emoji: folderEmoji,
-      is_default: false, sort_order: folders.length, created_by: me.id, created_at: new Date().toISOString(),
-    };
-    setFolders((prev) => [...prev, optimistic]);
-    setShowFolder(false); setFolderName(""); setFolderEmoji("🫙");
-    startTransition(() => { addPotFolder({ coupleId, userId: me.id, name: optimistic.name, emoji: optimistic.emoji }); });
-  }
-
-  function handleDeleteFolder(folder: PotFolder) {
-    if (!defaultFolderId || folder.id === defaultFolderId) return;
-    // Pots move to the default folder — never deleted.
-    setPots((prev) => prev.map((p) => p.folder_id === folder.id ? { ...p, folder_id: defaultFolderId } : p));
-    setFolders((prev) => prev.filter((f) => f.id !== folder.id));
-    startTransition(() => { deletePotFolder(folder.id, coupleId, defaultFolderId); });
   }
 
   // ── Sheets (shared) ──────────────────────────────────────────────────────────
@@ -592,38 +553,6 @@ export default function LedgerClient() {
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
             <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-card border-border/60" />
           </div>
-          {/* Folder picker only when adding from the folder list — inside a
-              folder the pot just goes here. */}
-          {!activePotFolder && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">folder</p>
-              <div className="flex gap-2 flex-wrap">
-                {folders.map((f) => (
-                  <button key={f.id} onClick={() => setPotFolderId(f.id)}
-                    className={cn("px-3 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1.5",
-                      (potFolderId ?? defaultFolderId) === f.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
-                    )}><span>{f.emoji}</span>{f.name}</button>
-                ))}
-              </div>
-            </div>
-          )}
-        </BottomSheet>
-
-        {/* New folder */}
-        <BottomSheet open={showFolder} onClose={() => setShowFolder(false)} title="new folder"
-          footer={<Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">create folder</Button>}>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
-              {FOLDER_EMOJIS.map((e) => (
-                <button key={e} onClick={() => setFolderEmoji(e)}
-                  className={cn("w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
-                    folderEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70"
-                  )}>{e}</button>
-              ))}
-            </div>
-          </div>
-          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-card border-border/60" />
         </BottomSheet>
 
         {/* Expense action prompt — creator only */}
@@ -663,63 +592,6 @@ export default function LedgerClient() {
           </div>
         </Dialog>
       </>
-    );
-  }
-
-  // ── Detail view: pots within a folder ───────────────────────────────────────
-
-  if (tab === "pots" && activePotFolder) {
-    const folderPots = pots.filter((p) => p.folder_id === activePotFolder.id);
-    const avgPct = folderPots.length
-      ? Math.round(folderPots.reduce((s, p) => {
-          const g = parseFloat(p.goal_amount) || 1;
-          const t = parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0");
-          return s + Math.min(100, (t / g) * 100);
-        }, 0) / folderPots.length)
-      : 0;
-    return (
-      <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
-        <div className="flex items-center gap-2 mb-5">
-          <button onClick={closePotFolder}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0">
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
-            <span className="mr-1.5">{activePotFolder.emoji}</span>{activePotFolder.name}
-          </h1>
-        </div>
-
-        {folderPots.length > 0 && (
-          <div className="card-row p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-muted-foreground font-medium tracking-wide">overall progress</p>
-              <p className="text-sm font-semibold text-foreground tabular-nums">{avgPct}%</p>
-            </div>
-            <div className="h-2 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${avgPct}%` }} />
-            </div>
-            <p className="text-[11px] text-muted-foreground/60 mt-2">{folderPots.length} {folderPots.length === 1 ? "pot" : "pots"} in this folder</p>
-          </div>
-        )}
-
-        {folderPots.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl opacity-60">{activePotFolder.emoji}</div>
-            <p className="text-muted-foreground text-sm">no pots in here yet</p>
-            <p className="text-muted-foreground/60 text-xs mt-1">tap + to create one</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {folderPots.map((pot) => (
-              <PotCard key={pot.id} pot={pot} meId={me.id} myName={myName} partnerName={partnerName}
-                myAccent={myAccent} partnerAccent={partnerAccent}
-                onSelect={(p) => { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }} />
-            ))}
-          </div>
-        )}
-
-        {renderSheets()}
-      </div>
     );
   }
 
@@ -849,45 +721,21 @@ export default function LedgerClient() {
           )}
         </>
       ) : (
-        // ── Pot folders list ──
-        <div className="space-y-2.5">
-          {folders.map((folder) => {
-            const folderPots = pots.filter((p) => p.folder_id === folder.id);
-            const saved = folderPots.reduce((s, p) => s + parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0"), 0);
-            return (
-              <button key={folder.id} onClick={() => openPotFolder(folder)}
-                className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ backgroundImage: panelOmbre(potPanelColor(folder.sort_order)), backgroundOrigin: "border-box", backgroundClip: "border-box", backgroundRepeat: "no-repeat" }}>
-                <div className="flex-shrink-0 pl-3.5 py-3">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: panelTint(potPanelColor(folder.sort_order)) }}>
-                    {folder.emoji}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-0 px-3 py-3">
-                  <p className="text-sm font-semibold text-foreground leading-snug">{folder.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {folderPots.length === 0 ? "no pots yet" : `${folderPots.length} ${folderPots.length === 1 ? "pot" : "pots"} · £${saved.toFixed(0)} saved`}
-                  </p>
-                </div>
-                <div className="flex items-center pr-3.5 gap-1 flex-shrink-0">
-                  {!folder.is_default ? (
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  ) : <div className="w-7" />}
-                  <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
-                </div>
-              </button>
-            );
-          })}
-
-          <button onClick={() => setShowFolder(true)}
-            className="w-full rounded-2xl border border-dashed border-border/50 h-[66px] flex items-center justify-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:border-border/80 transition-colors">
-            <Plus className="w-4 h-4" strokeWidth={2} />
-            <span className="text-sm font-medium">new folder</span>
-          </button>
-        </div>
+        // ── Savings pots (flat list) ──
+        pots.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-muted-foreground text-sm">no savings pots yet</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">tap + to create one</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {pots.map((pot) => (
+              <PotCard key={pot.id} pot={pot} meId={me.id} myName={myName} partnerName={partnerName}
+                myAccent={myAccent} partnerAccent={partnerAccent}
+                onSelect={(p) => { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }} />
+            ))}
+          </div>
+        )
       )}
 
       {renderSheets()}
