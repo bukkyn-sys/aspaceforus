@@ -217,6 +217,7 @@ export default function LedgerClient() {
   const [pots, setPots] = useState<Pot[]>(() => cached?.pots ?? []);
   const [folders, setFolders] = useState<PotFolder[]>(() => cached?.folders ?? []);
   const [loading, setLoading] = useState(() => cached === undefined);
+  const [rtick, setRtick] = useState(0);
   const [tab, setTabState] = useState<"entries" | "pots">(() => searchParams.get("tab") === "pots" ? "pots" : "entries");
   const [, startTransition] = useTransition();
 
@@ -263,6 +264,17 @@ export default function LedgerClient() {
 
   useEffect(() => { markSeen("ledger"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Live updates — partner adding expenses / contributing to pots.
+  useEffect(() => {
+    const supabase = createClient();
+    const bump = () => setRtick((t) => t + 1);
+    const channel = supabase.channel(`ledger-${coupleId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, bump)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [coupleId]);
+
   useEffect(() => {
     setAction(() => {
       if (tab === "entries") { resetEntryForm(); setEditingEntryId(null); setShowAdd(true); return; }
@@ -304,7 +316,7 @@ export default function LedgerClient() {
         if (p) { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }
       }
     });
-  }, [coupleId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadHistory() {
     if (settledEntries) return;

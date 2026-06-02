@@ -345,6 +345,19 @@ export default function VaultClient() {
 
   useEffect(() => { markSeen("vault"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [rtick, setRtick] = useState(0);
+
+  // Live updates — partner adds/changes vault items without requiring a refresh.
+  useEffect(() => {
+    const supabase = createClient();
+    const bump = () => setRtick((t) => t + 1);
+    const channel = supabase.channel(`vault-${coupleId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vault_folders", filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vault_items",   filter: `couple_id=eq.${coupleId}` }, bump)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [coupleId]);
+
   // Load folders + item counts
   useEffect(() => {
     const load = async () => {
@@ -393,9 +406,9 @@ export default function VaultClient() {
       setFoldersLoading(false);
     };
     load();
-  }, [coupleId, me.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, me.id, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load items when folder is opened
+  // Load items when folder is opened (or partner changes something)
   useEffect(() => {
     if (!activeFolder) return;
     setItemsLoading(true);
@@ -410,7 +423,7 @@ export default function VaultClient() {
         setItems((data as VaultItem[]) ?? []);
         setItemsLoading(false);
       });
-  }, [activeFolder, coupleId]);
+  }, [activeFolder, coupleId, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 

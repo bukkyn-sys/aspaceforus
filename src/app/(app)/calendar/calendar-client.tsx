@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
@@ -36,6 +36,7 @@ export default function CalendarClient() {
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rtick, setRtick] = useState(0);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
@@ -101,7 +102,19 @@ export default function CalendarClient() {
       setLoading(false);
       setCache(key, { rows, events, countdowns });
     });
-  }, [coupleId, year, month]);
+  }, [coupleId, year, month, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live updates — partner's availability / event changes come in without refresh.
+  useEffect(() => {
+    const supabase = createClient();
+    const bump = () => setRtick((t) => t + 1);
+    const channel = supabase.channel(`cal-${coupleId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "availability",   filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events",        filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",    filter: `couple_id=eq.${coupleId}` }, bump)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [coupleId]);
 
   function getStatus(userId: string, dateStr: string): Status {
     return rows.find((r) => r.user_id === userId && r.date === dateStr)?.status ?? null;
