@@ -27,16 +27,22 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  // getSession() reads the JWT from the cookie locally — no network call.
-  // Middleware has already verified and refreshed the token, so this is safe.
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user;
+  // Use getUser() (not getSession()): it validates the token and guarantees the
+  // client carries a fresh access token into the rpc below. getSession() only
+  // decodes the cookie locally, so a stale token would make auth.uid() null
+  // inside the hardened get_session_data — it would raise, null the result, and
+  // bounce us to /onboarding even though a couple exists (redirect loop).
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect("/auth/login");
 
-  const { data: sessionData } = await supabase.rpc("get_session_data", { p_user_id: user.id });
+  const { data: sessionData, error: sessionError } = await supabase.rpc("get_session_data", { p_user_id: user.id });
   const sd = sessionData as SessionData | null;
 
+  // A valid user but a failed rpc must NOT bounce to onboarding — that's the
+  // redirect loop. Surface the error instead. Only a clean "no couple" result
+  // means the user genuinely needs onboarding.
+  if (sessionError) throw new Error(sessionError.message);
   if (!sd?.me?.couple_id) redirect("/onboarding");
 
   const { data: coupleRow } = await supabase
