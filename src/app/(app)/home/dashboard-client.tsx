@@ -32,6 +32,7 @@ const COUNTDOWN_TYPES = [
 ];
 
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
+interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
 
 interface DashboardData {
   myMood: number | null;
@@ -46,6 +47,8 @@ interface DashboardData {
   inviteCode: string | null;
   partnerAction: { text: string; at: string } | null;
   freeDays: string[];
+  balance: number;   // + means partner owes you, − means you owe partner
+  pots: PotMini[];
 }
 
 function timeUntil(dateStr: string) {
@@ -88,13 +91,13 @@ function timeAgo(iso: string | null): string | null {
 type DashCache = { data: DashboardData; hasPartner: boolean };
 
 export default function DashboardClient() {
-  const { coupleId, me, partner, myName, partnerName } = useCouple();
+  const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const [data, setData] = useState<DashboardData>(() => {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeDays: [],
+      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeDays: [], balance: 0, pots: [],
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -143,7 +146,7 @@ export default function DashboardClient() {
       const [
         { data: myProfile }, { data: partnerProfile }, { data: coupleData }, { data: countdowns },
         { data: pCalEvent }, { data: pVaultItem }, { data: pLedgerEntry }, { data: availData },
-        { data: pAvail },
+        { data: pAvail }, { data: ledgerRows }, { data: potRows },
       ] = await Promise.all([
         supabase.rpc("get_my_profile", { p_user_id: me.id }),
         supabase.rpc("get_partner_profile", { p_couple_id: coupleId, p_my_id: me.id }),
@@ -160,6 +163,8 @@ export default function DashboardClient() {
           .gte("date", today).lte("date", in60),
         supabase.from("availability").select("date, status, created_at").eq("couple_id", coupleId)
           .neq("user_id", me.id).not("status", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("ledger_entries").select("amount, split_ratio, paid_by").eq("couple_id", coupleId).eq("settled", false),
+        supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, currency").eq("couple_id", coupleId).order("created_at", { ascending: false }),
       ]);
 
       const partner = partnerProfile as { id: string; current_mood: number | null; mood_updated_at: string | null } | null;
@@ -194,6 +199,24 @@ export default function DashboardClient() {
         }
       }
 
+      // Net balance from unsettled expenses (+ = partner owes you, − = you owe)
+      type LedgerRow = { amount: string; split_ratio: string | null; paid_by: string };
+      let youOwe = 0, theyOwe = 0;
+      for (const e of (ledgerRows as LedgerRow[]) ?? []) {
+        const amt = parseFloat(e.amount);
+        const ratio = parseFloat(e.split_ratio ?? "0.5");
+        if (e.paid_by !== me.id) youOwe += amt * ratio;
+        else theyOwe += amt * (1 - ratio);
+      }
+      const balance = theyOwe - youOwe;
+
+      type PotRow = { id: string; title: string; goal_amount: string; his_amount: string; hers_amount: string; currency: string };
+      const pots: PotMini[] = ((potRows as PotRow[]) ?? []).map((p) => ({
+        id: p.id, title: p.title,
+        saved: parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0"),
+        goal: parseFloat(p.goal_amount), currency: p.currency ?? "£",
+      }));
+
       const newData: DashboardData = {
         myMood: me_?.current_mood ?? null,
         myMoodAt: me_?.mood_updated_at ?? null,
@@ -207,6 +230,8 @@ export default function DashboardClient() {
         countdowns: (countdowns as Countdown[]) ?? [],
         partnerAction,
         freeDays,
+        balance,
+        pots,
       };
       const hasP = !!partner;
       setHasPartner(hasP);
@@ -519,6 +544,56 @@ export default function DashboardClient() {
                       in {diff} day{diff !== 1 ? "s" : ""}
                     </span>
                   </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Money — settlement snapshot + savings pots */}
+      {!loading && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground font-medium tracking-wide">money</p>
+            <Link href="/ledger" className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors">ledger →</Link>
+          </div>
+
+          {/* Settlement snapshot */}
+          {Math.abs(data.balance) < 0.01 ? (
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-sage-light flex items-center justify-center flex-shrink-0">
+                <span className="text-sage text-sm">✓</span>
+              </div>
+              <p className="text-sm font-medium text-foreground">all settled up</p>
+            </div>
+          ) : (
+            <Link href="/ledger" className="flex items-baseline justify-between">
+              <p className="text-sm text-muted-foreground">
+                {data.balance > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}
+              </p>
+              <p className={cn("text-xl font-bold tabular-nums", data.balance > 0 ? "text-sage" : "text-terracotta")}>
+                {data.balance > 0 ? "+" : "−"}{currency}{Math.abs(data.balance).toFixed(2)}
+              </p>
+            </Link>
+          )}
+
+          {/* Savings pots — horizontal scroll */}
+          {data.pots.length > 0 && (
+            <div className="flex gap-2.5 overflow-x-auto mt-4 -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: "none" }}>
+              {data.pots.map((pot) => {
+                const pct = pot.goal > 0 ? Math.min(100, Math.round((pot.saved / pot.goal) * 100)) : 0;
+                return (
+                  <Link key={pot.id} href="/ledger?tab=pots"
+                    className="flex-shrink-0 w-36 rounded-2xl bg-secondary/60 p-3 active:scale-[0.98] transition-transform">
+                    <p className="text-xs font-medium text-foreground truncate">{pot.title}</p>
+                    <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
+                      {pot.currency}{pot.saved.toFixed(0)} / {pot.currency}{pot.goal.toFixed(0)}
+                    </p>
+                    <div className="h-1.5 bg-foreground/10 rounded-full overflow-hidden mt-2">
+                      <div className="h-full bg-sage rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                  </Link>
                 );
               })}
             </div>

@@ -27,16 +27,22 @@ export function HomeBanner({ bannerUrl, focus = 50 }: { bannerUrl: string | null
   const h = Math.max(MIN, FULL - scrollY);
   const progress = (FULL - h) / (FULL - MIN); // 0 → 1 as it collapses
   const fontSize = 48 - progress * 22;         // 48px → 26px
+  // Full banner keeps the chosen (centred) crop; it pans toward `focus` only as
+  // it collapses, so adjusting the condensed crop never changes the expanded one.
+  const objectY = 50 + (focus - 50) * progress;
+  const shadow = progress > 0.01
+    ? `0 8px 18px -8px rgba(0,0,0,${(0.42 * Math.min(1, progress * 2)).toFixed(3)})`
+    : "none";
 
   return (
-    <div className="sticky top-0 z-20 w-full overflow-hidden" style={{ height: h }}>
+    <div className="sticky top-0 z-20 w-full overflow-hidden" style={{ height: h, boxShadow: shadow }}>
       {bannerUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={bannerUrl}
           alt="couple"
           className="w-full h-full object-cover"
-          style={{ objectPosition: `50% ${focus}%` }}
+          style={{ objectPosition: `50% ${objectY}%` }}
         />
       ) : (
         <div className="w-full h-full bg-gradient-to-b from-secondary to-background" />
