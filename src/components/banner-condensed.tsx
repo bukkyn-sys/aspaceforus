@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { SignedImg } from "@/components/signed-img";
 
 /** The condensed banner bar shown once the full home banner scrolls away — a
  *  thin crop of the couple photo with the "us." wordmark. Also used in profile
@@ -7,8 +8,7 @@ export function BannerCondensed({ bannerUrl, focus = 50, className }: { bannerUr
   return (
     <div className={cn("relative w-full h-14 overflow-hidden bg-background", className)}>
       {bannerUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={bannerUrl} alt="" className="w-full h-full object-cover" style={{ objectPosition: `50% ${focus}%` }} />
+        <SignedImg src={bannerUrl} className="w-full h-full object-cover" style={{ objectPosition: `50% ${focus}%` }} />
       ) : (
         <div className="w-full h-full bg-gradient-to-b from-secondary to-background" />
       )}

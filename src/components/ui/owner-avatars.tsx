@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { SignedImg } from "@/components/signed-img";
 
 interface AvatarPerson {
   url: string | null;
@@ -20,8 +21,7 @@ export function OwnerAvatars({ people, className }: { people: AvatarPerson[]; cl
           style={{ boxShadow: shared ? `0 0 0 1.5px ${p.hex}, 0 0 0 3px var(--card)` : `0 0 0 1.5px ${p.hex}` }}
         >
           {p.url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={p.url} alt="" className="w-full h-full object-cover" />
+            <SignedImg src={p.url} className="w-full h-full object-cover" />
           ) : (
             <span className="text-[8px] font-semibold text-muted-foreground">{p.name[0]?.toUpperCase()}</span>
           )}

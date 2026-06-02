@@ -2,6 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useSignedUrl } from "@/lib/use-signed-url";
 
 const FULL = 176; // px — expanded height
 const MIN = 76;   // px — collapsed bar height
@@ -12,6 +13,7 @@ const MIN = 76;   // px — collapsed bar height
  *  banner is fully opaque so content scrolling under it never shows through.
  *  `focus` (0–100) only re-crops as it collapses, keeping the chosen full crop. */
 export function HomeBanner({ bannerUrl, focus = 50 }: { bannerUrl: string | null; focus?: number }) {
+  const signedUrl = useSignedUrl(bannerUrl);
   const ref = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const wordRef = useRef<HTMLParagraphElement>(null);
@@ -41,7 +43,7 @@ export function HomeBanner({ bannerUrl, focus = 50 }: { bannerUrl: string | null
     <div ref={ref} className="sticky top-0 z-20 w-full overflow-hidden bg-secondary" style={{ height: FULL }}>
       {bannerUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img ref={imgRef} src={bannerUrl} alt="couple" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} />
+        <img ref={imgRef} src={signedUrl ?? ""} alt="couple" className="w-full h-full object-cover" style={{ objectPosition: "50% 50%" }} />
       ) : (
         <div className="w-full h-full bg-gradient-to-b from-secondary to-background" />
       )}

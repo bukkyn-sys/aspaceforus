@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
+import { SignedImg } from "@/components/signed-img";
 import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
@@ -197,7 +198,7 @@ function VisualPicker({
           </div>
         ) : image ? (
           <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl">
-            <img src={image ?? ""} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            <SignedImg src={image ?? ""} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
             <div className="flex-1 min-w-0">
               {imageTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{imageTitle}</p>}
               <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-medium text-foreground mt-0.5">change photo</button>
@@ -884,7 +885,7 @@ export default function VaultClient() {
 
                   {/* Thumbnail (smaller — sits alongside the emoji) */}
                   {item.og_image && (
-                    <img src={item.og_image ?? ""} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
+                    <SignedImg src={item.og_image ?? ""} className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
                   )}
 
                   {isMine ? (

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
+import { SignedImg } from "@/components/signed-img";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -372,7 +373,7 @@ export default function DashboardClient() {
           style={{ boxShadow: `0 0 0 1.5px ${myAccent.hex}` }}
         >
           {me.avatar_url ? (
-            <img src={me.avatar_url} alt="" className="w-full h-full object-cover" />
+            <SignedImg src={me.avatar_url} className="w-full h-full object-cover" />
           ) : (
             <User className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
           )}
@@ -389,7 +390,7 @@ export default function DashboardClient() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0"
                 style={{ boxShadow: `0 0 0 2px ${myAccent.hex}` }}>
                 {me.avatar_url
-                  ? <img src={me.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ? <SignedImg src={me.avatar_url} className="w-full h-full object-cover" />
                   : <div className="w-full h-full flex items-center justify-center text-xs font-semibold text-muted-foreground">{myName[0]?.toUpperCase()}</div>}
               </div>
               <div className="min-w-0">
@@ -422,7 +423,7 @@ export default function DashboardClient() {
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0"
                   style={{ boxShadow: `0 0 0 2px ${partnerAccent.hex}` }}>
                   {partner?.avatar_url
-                    ? <img src={partner.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ? <SignedImg src={partner.avatar_url} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-xs font-semibold text-muted-foreground">{partnerName[0]?.toUpperCase()}</div>}
                 </div>
                 <div className="min-w-0">

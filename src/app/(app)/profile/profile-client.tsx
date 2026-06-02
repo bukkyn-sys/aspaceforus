@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/theme-toggle";
 import { BannerCondensed } from "@/components/banner-condensed";
+import { SignedImg } from "@/components/signed-img";
 import { cn } from "@/lib/utils";
 
 interface InitialProfile {
@@ -459,7 +460,7 @@ export default function ProfileClient({
           className="relative w-24 h-24 rounded-full overflow-hidden bg-secondary mb-3 group"
         >
           {profile.avatarUrl ? (
-            <img src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+            <SignedImg src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-muted-foreground">
               {profile.displayName?.[0]?.toUpperCase() ?? "?"}
@@ -565,7 +566,7 @@ export default function ProfileClient({
           className="relative w-full h-32 bg-secondary overflow-hidden group block"
         >
           {couple.bannerUrl ? (
-            <img src={couple.bannerUrl} alt="banner" className="w-full h-full object-cover" />
+            <SignedImg src={couple.bannerUrl} alt="banner" className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-muted-foreground/50">
               <Camera className="w-5 h-5" />
