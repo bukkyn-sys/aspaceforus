@@ -24,6 +24,7 @@ import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } fr
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
+import { validateImage } from "@/lib/validate-image";
 
 // Only allow http/https links — blocks javascript:/data:/etc. (stored XSS).
 function safeExternalUrl(url: string | null | undefined): string | null {
@@ -528,6 +529,8 @@ export default function VaultClient() {
 
   async function handlePickFile(file: File, isEdit: boolean) {
     setImgError(null);
+    const validationError = validateImage(file);
+    if (validationError) { setImgError(validationError); return; }
     if (isEdit) setEditUploadingImg(true); else setUploadingImg(true);
     const { url, error } = await uploadVaultImage(file);
     if (url) {

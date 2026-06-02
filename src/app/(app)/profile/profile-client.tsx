@@ -18,6 +18,7 @@ import { Dialog } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/theme-toggle";
 import { BannerCondensed } from "@/components/banner-condensed";
 import { SignedImg } from "@/components/signed-img";
+import { validateImage } from "@/lib/validate-image";
 import { cn } from "@/lib/utils";
 
 interface InitialProfile {
@@ -343,6 +344,7 @@ export default function ProfileClient({
   const [nameSaved, setNameSaved] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [uploading, setUploading] = useState<"avatar" | "banner" | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [cropState, setCropState] = useState<{ file: File; purpose: "avatar" | "banner" } | null>(null);
   const [showLeave, setShowLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -432,6 +434,11 @@ export default function ProfileClient({
 
   return (
     <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
+      {uploadError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-destructive text-destructive-foreground text-xs font-medium px-4 py-2 rounded-xl shadow-lg" onClick={() => setUploadError(null)}>
+          {uploadError}
+        </div>
+      )}
       {cropState && (
         <CropModal
           file={cropState.file}
@@ -481,7 +488,11 @@ export default function ProfileClient({
           accept="image/*"
           className="hidden"
           onChange={(e) => {
-            if (e.target.files?.[0]) { setCropState({ file: e.target.files[0], purpose: "avatar" }); e.target.value = ""; }
+            const f = e.target.files?.[0]; e.target.value = "";
+            if (!f) return;
+            const err = validateImage(f);
+            if (err) { setUploadError(err); return; }
+            setUploadError(null); setCropState({ file: f, purpose: "avatar" });
           }}
         />
         <p className="text-xs text-muted-foreground">tap to change photo</p>
@@ -588,7 +599,11 @@ export default function ProfileClient({
           accept="image/*"
           className="hidden"
           onChange={(e) => {
-            if (e.target.files?.[0]) { setCropState({ file: e.target.files[0], purpose: "banner" }); e.target.value = ""; }
+            const f = e.target.files?.[0]; e.target.value = "";
+            if (!f) return;
+            const err = validateImage(f);
+            if (err) { setUploadError(err); return; }
+            setUploadError(null); setCropState({ file: f, purpose: "banner" });
           }}
         />
 

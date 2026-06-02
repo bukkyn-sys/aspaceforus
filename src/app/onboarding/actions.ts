@@ -31,6 +31,7 @@ export async function joinCouple(userId: string, code: string) {
   const supabase = await createClient();
   const { data: result, error } = await supabase.rpc("join_couple_for_user", { p_user_id: userId, p_code: code });
   if (error) return { error: error.message };
+  if (result === "rate_limited") return { error: "too many attempts — try again in 15 minutes." };
   if (result === "not_found") return { error: "code not found — double-check with your partner." };
   if (result === "full") return { error: "that space already has two people in it." };
   redirect("/home");

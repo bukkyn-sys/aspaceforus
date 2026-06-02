@@ -9,6 +9,7 @@ import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus
 import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
+import { validateImage } from "@/lib/validate-image";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -587,9 +588,12 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setCropFile(file);
     e.target.value = "";
+    if (!file) return;
+    const err = validateImage(file);
+    if (err) { setError(err); return; }
+    setError(null);
+    setCropFile(file);
   }
 
   function handleCropConfirm(blob: Blob) {
