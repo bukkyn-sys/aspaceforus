@@ -1,7 +1,27 @@
 import type { NextConfig } from "next";
 
-// Security headers applied to every route. (A full Content-Security-Policy is a
-// separate, tested step — these are the safe, non-breaking protections.)
+// Build the CSP from the Supabase origin so it works across envs.
+const supabaseOrigin = (() => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  try { return new URL(url).origin; } catch { return ""; }
+})();
+const supabaseWs = supabaseOrigin.replace(/^https:/, "wss:");
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",   // Next.js hydration requires unsafe-inline
+  "style-src 'self' 'unsafe-inline'",    // Tailwind inline styles
+  `img-src 'self' data: blob: ${supabaseOrigin}`,
+  `connect-src 'self' ${supabaseOrigin} ${supabaseWs}`,
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+  "upgrade-insecure-requests",
+].join("; ");
+
 const securityHeaders = [
   // Clickjacking — the app must never be framed.
   { key: "X-Frame-Options", value: "DENY" },
@@ -13,6 +33,7 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
   // Force HTTPS for two years, incl. subdomains.
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "Content-Security-Policy", value: csp },
 ];
 
 const nextConfig: NextConfig = {

@@ -3,23 +3,32 @@
 import { createClient } from "@/lib/supabase/server";
 import { notifyPartner } from "@/lib/push";
 
-export async function setMood(userId: string, mood: number, coupleId?: string) {
+async function getUid() {
   const supabase = await createClient();
-  await supabase.rpc("update_my_mood", { p_user_id: userId, p_mood: mood });
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, uid: user?.id ?? null };
+}
+
+export async function setMood(userId: string, mood: number, coupleId?: string) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("update_my_mood", { p_user_id: uid, p_mood: mood });
   if (coupleId) {
     const emojis = ["", "😔", "😕", "😐", "🙂", "😊"];
-    await notifyPartner(coupleId, userId, "us.", `your partner updated their mood ${emojis[mood] ?? ""}`, "/home");
+    await notifyPartner(coupleId, uid, "us.", `your partner updated their mood ${emojis[mood] ?? ""}`, "/home");
   }
 }
 
 export async function updateNote(coupleId: string, userId: string, note: string) {
-  const supabase = await createClient();
-  await supabase.rpc("update_shared_note", { p_couple_id: coupleId, p_user_id: userId, p_note: note });
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("update_shared_note", { p_couple_id: coupleId, p_user_id: uid, p_note: note });
 }
 
 export async function setStartedAt(coupleId: string, userId: string, date: string) {
-  const supabase = await createClient();
-  await supabase.rpc("update_couple_started_at", { p_couple_id: coupleId, p_user_id: userId, p_date: date });
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("update_couple_started_at", { p_couple_id: coupleId, p_user_id: uid, p_date: date });
 }
 
 export async function addCountdown(data: {
@@ -30,10 +39,11 @@ export async function addCountdown(data: {
   endDate?: string | null;
   emoji: string;
 }) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase.from("countdowns").insert({
     couple_id: data.coupleId,
-    created_by: data.userId,
+    created_by: uid,
     title: data.title,
     target_date: data.targetDate,
     end_date: data.endDate ?? null,
@@ -41,7 +51,6 @@ export async function addCountdown(data: {
   });
 }
 
-// Update / delete restricted to the creator (created_by filter enforces it).
 export async function updateCountdown(data: {
   id: string;
   coupleId: string;
@@ -51,7 +60,8 @@ export async function updateCountdown(data: {
   endDate?: string | null;
   emoji: string;
 }) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("countdowns")
     .update({
@@ -62,15 +72,16 @@ export async function updateCountdown(data: {
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId)
-    .eq("created_by", data.userId);
+    .eq("created_by", uid);
 }
 
 export async function deleteCountdown(id: string, coupleId: string, userId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("countdowns")
     .delete()
     .eq("id", id)
     .eq("couple_id", coupleId)
-    .eq("created_by", userId);
+    .eq("created_by", uid);
 }

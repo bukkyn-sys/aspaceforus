@@ -2,16 +2,23 @@
 
 import { createClient } from "@/lib/supabase/server";
 
+async function getUid() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, uid: user?.id ?? null };
+}
+
 export async function setAvailability(
   coupleId: string,
   userId: string,
   date: string,
   status: "free" | null
 ) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase.rpc("set_availability", {
     p_couple_id: coupleId,
-    p_user_id: userId,
+    p_user_id: uid,
     p_date: date,
     p_status: status,
   });
@@ -25,10 +32,11 @@ export async function addEvent(data: {
   endAt?: string | null;
   emoji?: string;
 }) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase.from("events").insert({
     couple_id: data.coupleId,
-    created_by: data.userId,
+    created_by: uid,
     title: data.title,
     start_at: data.startAt,
     end_at: data.endAt ?? null,
@@ -36,7 +44,6 @@ export async function addEvent(data: {
   });
 }
 
-// Update / delete restricted to the creator (created_by filter enforces it).
 export async function updateEvent(data: {
   id: string;
   coupleId: string;
@@ -46,7 +53,8 @@ export async function updateEvent(data: {
   endAt?: string | null;
   emoji?: string;
 }) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("events")
     .update({
@@ -57,15 +65,16 @@ export async function updateEvent(data: {
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId)
-    .eq("created_by", data.userId);
+    .eq("created_by", uid);
 }
 
 export async function deleteEvent(id: string, coupleId: string, userId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("events")
     .delete()
     .eq("id", id)
     .eq("couple_id", coupleId)
-    .eq("created_by", userId);
+    .eq("created_by", uid);
 }
