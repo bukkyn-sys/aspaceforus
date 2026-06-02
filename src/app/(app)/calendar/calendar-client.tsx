@@ -16,6 +16,7 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
+import { useScrolled } from "@/lib/use-scrolled";
 
 type Status = "free" | null;
 interface Row { user_id: string; date: string; status: Status; }
@@ -45,6 +46,7 @@ export default function CalendarClient() {
   const [eventEmoji, setEventEmoji] = useState("📅");
   const [, startTransition] = useTransition();
 
+  const scrolled = useScrolled();
   const year = current.getFullYear();
   const month = current.getMonth();
 
@@ -219,7 +221,7 @@ export default function CalendarClient() {
     <div className="max-w-lg mx-auto pb-8">
 
       {/* ── Header (sticky) ───────────────────────────────── */}
-      <div className="sticky top-0 z-30 bg-background px-5 pt-10 pb-3">
+      <div className={cn("sticky top-0 z-30 bg-background px-5 pt-10 pb-3 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
         <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
         <p className={cn("text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
           {overlaps > 0

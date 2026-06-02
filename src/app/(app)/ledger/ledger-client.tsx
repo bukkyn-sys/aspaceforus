@@ -19,6 +19,7 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
+import { useScrolled } from "@/lib/use-scrolled";
 
 type Recurrence = "none" | "weekly" | "monthly";
 
@@ -212,6 +213,7 @@ export default function LedgerClient() {
   const searchParams = useSearchParams();
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
+  const scrolled = useScrolled();
 
   const cached = getCache<LedgerCache>(`ledger:${coupleId}`);
   const [entries, setEntries] = useState<Entry[]>(() => cached?.entries ?? []);
@@ -728,7 +730,7 @@ export default function LedgerClient() {
 
   return (
     <div className="px-4 pb-6 max-w-lg mx-auto">
-      <div className="sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-4">
+      <div className={cn("sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-4 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
         <h1 className="font-heading text-3xl text-foreground tracking-tight">ledger.</h1>
         <p className="text-sm text-muted-foreground mt-0.5">shared expenses &amp; savings</p>
       </div>
