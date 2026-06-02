@@ -8,7 +8,7 @@ import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMin
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
-import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, leaveCouple } from "./actions";
+import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple } from "./actions";
 
 const CURRENCIES = ["£", "$", "€"] as const;
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -30,6 +30,7 @@ interface InitialProfile {
 interface InitialCouple {
   bannerUrl: string | null;
   inviteCode: string | null;
+  bannerFocus: number;
 }
 
 function CropModal({
@@ -352,8 +353,19 @@ export default function ProfileClient({
   // Accent comes from the couple context (get_session_data returns accent_color);
   // the page's get_my_profile does NOT, so the prop would always read "sage".
   const [accent, setAccent] = useState(me.accent_color ?? initialProfile.accentColor ?? "sage");
+  const [bannerFocus, setBannerFocus] = useState(initialCouple.bannerFocus);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
   const [, startTransition] = useTransition();
+
+  function handleBannerFocus(v: number) {
+    setBannerFocus(v);
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    // debounce the save while dragging the slider
+    focusTimer.current = setTimeout(() => {
+      startTransition(async () => { await updateCoupleBannerFocus(profile.coupleId, profile.id, v); router.refresh(); });
+    }, 450);
+  }
 
   function handleCurrency(c: string) {
     setCurrency(c);
@@ -579,13 +591,21 @@ export default function ProfileClient({
           }}
         />
 
-        {/* Condensed-bar preview — how the banner looks as the scrolled header */}
-        <div className="px-4 py-3 border-t border-border/40">
-          <p className="text-xs text-muted-foreground mb-2">condensed header (when scrolled)</p>
-          <div className="rounded-xl overflow-hidden border border-border/40">
-            <BannerCondensed bannerUrl={couple.bannerUrl} />
+        {/* Condensed-header crop — drag to choose which band of the photo shows */}
+        {couple.bannerUrl && (
+          <div className="px-4 py-3 border-t border-border/40">
+            <p className="text-xs text-muted-foreground mb-2">condensed header — drag to position</p>
+            <div className="rounded-xl overflow-hidden border border-border/40">
+              <BannerCondensed bannerUrl={couple.bannerUrl} focus={bannerFocus} />
+            </div>
+            <input
+              type="range" min={0} max={100} value={bannerFocus}
+              onChange={(e) => handleBannerFocus(Number(e.target.value))}
+              aria-label="banner vertical position"
+              className="w-full mt-2.5 accent-foreground"
+            />
           </div>
-        </div>
+        )}
 
         {/* Invite code */}
         {couple.inviteCode && (

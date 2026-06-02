@@ -21,7 +21,7 @@ export default async function ProfilePage() {
   const [{ data: coupleData }, { data: partnerData }] = await Promise.all([
     supabase
       .from("couples")
-      .select("id, banner_url, started_at, invite_code")
+      .select("id, banner_url, started_at, invite_code, banner_focus")
       .eq("id", profile.couple_id)
       .single(),
     supabase.rpc("get_partner_profile", {
@@ -44,6 +44,7 @@ export default async function ProfilePage() {
       initialCouple={{
         bannerUrl: coupleData?.banner_url ?? null,
         inviteCode: coupleData?.invite_code ?? null,
+        bannerFocus: coupleData?.banner_focus ?? 50,
       }}
       partnerAccentColor={partnerAccentColor}
     />
