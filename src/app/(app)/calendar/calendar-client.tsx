@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -437,7 +437,7 @@ export default function CalendarClient() {
                         key={evt.id}
                         onClick={() => isMe && setActionEvent(evt)}
                         className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", isMe && "cursor-pointer active:scale-[0.99] transition-transform")}
-                        style={{ background: cardOmbre(o) }}
+                        style={ownerCardStyle(o)}
                       >
                         <span className="text-xl flex-shrink-0">{evt.emoji}</span>
                         <OwnerAvatars people={o.people} />
@@ -461,7 +461,7 @@ export default function CalendarClient() {
                         key={cd.id}
                         onClick={() => mine && setActionCountdown(cd)}
                         className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
-                        style={{ background: cardOmbre(o) }}
+                        style={ownerCardStyle(o)}
                       >
                         <span className="text-xl flex-shrink-0">{cd.emoji}</span>
                         <OwnerAvatars people={o.people} />

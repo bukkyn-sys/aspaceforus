@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -834,7 +834,7 @@ export default function VaultClient() {
                 <div key={item.id}
                   onClick={() => handleCardTap(item)}
                   className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                  style={{ background: cardOmbre(o) }}
+                  style={ownerCardStyle(o)}
                 >
                   {/* Emoji tile (kept even when a photo is set) */}
                   {item.item_emoji && (

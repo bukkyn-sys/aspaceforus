@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCouple } from "@/contexts/couple-context";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -27,25 +28,25 @@ const SHARED_B = "#E2ECF0";
  * to the card colour (no angled corner sliver) and clears the right ~third so
  * trailing content/chevrons sit on a clean surface.
  */
-// A clean 3px accent stroke down the right edge at full opacity. Because the
-// cards are overflow-hidden + rounded, the background clips to the rounded shape
-// so the stroke curves neatly into the corners.
-const STROKE_W = "3px";
-// A clear "together" tone for the shared stroke (the pale shared washes are too
-// faint to read as a 100%-opacity line).
-const SHARED_STROKE = "#8B80B0";
-function rightStroke(hex: string): string {
-  return `linear-gradient(90deg, transparent calc(100% - ${STROKE_W}), ${hex} calc(100% - ${STROKE_W}))`;
-}
-
-export function cardOmbre(o: OwnerIdentity): string {
-  if (!o.shared) {
-    const tint = `color-mix(in srgb, ${o.people[0].hex} var(--wash-accent), var(--card))`;
-    return `${rightStroke(o.people[0].hex)}, linear-gradient(90deg, ${tint} 0%, var(--card) 64%)`;
+/**
+ * Card styling by ownership. The accent lives entirely on the RIGHT — a clean
+ * grey/card left, a gentle accent rise on the right, and a curved accent stroke
+ * (inset box-shadow follows the rounded corners). Shared/unattached cards get a
+ * neutral grey rise and NO stroke, so only personal cards carry colour.
+ */
+export function ownerCardStyle(o: OwnerIdentity): CSSProperties {
+  if (o.shared) {
+    return {
+      background: `linear-gradient(90deg, var(--card) 55%, var(--event-band) 100%)`,
+      boxShadow: `var(--card-shadow)`,
+    };
   }
-  const a = `color-mix(in srgb, ${SHARED_A} var(--wash-shared), var(--card))`;
-  const b = `color-mix(in srgb, ${SHARED_B} var(--wash-shared), var(--card))`;
-  return `${rightStroke(SHARED_STROKE)}, linear-gradient(90deg, ${a} 0%, ${b} 30%, var(--card) 66%)`;
+  const hex = o.people[0].hex;
+  const tint = `color-mix(in srgb, ${hex} var(--wash-accent), var(--card))`;
+  return {
+    background: `linear-gradient(90deg, var(--card) 50%, ${tint} 100%)`,
+    boxShadow: `inset -2.5px 0 0 0 ${hex}, var(--card-shadow)`,
+  };
 }
 
 /** A subtle accent tint over the card surface — for emoji tiles, chips, etc. */
@@ -58,11 +59,10 @@ export function panelTint(hex: string): string {
   return `color-mix(in srgb, ${hex} var(--panel-accent), var(--card))`;
 }
 
-/** Full folder-panel background: left tint + clean middle + right accent stroke.
- *  Panel colours are pale, so the stroke uses a more saturated mix to read. */
+/** Folder-panel background — pale category tint on the right, clean left. No
+ *  stroke (folders aren't owned by a person). */
 export function panelOmbre(hex: string): string {
-  const stroke = `color-mix(in srgb, ${hex} 70%, var(--foreground))`;
-  return `${rightStroke(stroke)}, linear-gradient(90deg, ${panelTint(hex)} 0%, var(--card) 58%)`;
+  return `linear-gradient(90deg, var(--card) 50%, ${panelTint(hex)} 100%)`;
 }
 
 /**
