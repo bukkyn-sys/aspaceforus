@@ -47,6 +47,7 @@ interface Pot {
   created_by?: string | null;
   target_date: string | null;
   currency: string;
+  emoji: string | null;
 }
 
 interface PotFolder {
@@ -142,7 +143,7 @@ function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSe
       className="w-full card-row p-4 text-left active:scale-[0.99] transition-transform"
     >
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium text-foreground">{pot.title}</p>
+        <p className="text-sm font-medium text-foreground">{pot.emoji ? `${pot.emoji} ` : ""}{pot.title}</p>
         <p className="text-sm font-semibold text-foreground tabular-nums">{cur}{total.toFixed(0)} / {cur}{goal.toFixed(0)}</p>
       </div>
       <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2 flex">
@@ -254,6 +255,7 @@ export default function LedgerClient() {
   const [potFolderId, setPotFolderId] = useState<string | null>(null);
   const [potTarget, setPotTarget] = useState("");
   const [potCurrency, setPotCurrency] = useState<string>(currency);
+  const [potEmoji, setPotEmoji] = useState<string | null>(null);
 
   // Contribute sheet
   const [contribDelta, setContribDelta] = useState("");
@@ -288,7 +290,7 @@ export default function LedgerClient() {
     const supabase = createClient();
     Promise.all([
       supabase.from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", false).order("created_at", { ascending: false }),
-      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency").eq("couple_id", coupleId).order("created_at", { ascending: false }),
+      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency, emoji").eq("couple_id", coupleId).order("created_at", { ascending: false }),
       supabase.from("pot_folders").select("id, name, emoji, is_default, sort_order, created_by, created_at").eq("couple_id", coupleId).order("sort_order").order("created_at"),
     ]).then(async ([{ data: e }, { data: p }, { data: f }]) => {
       const entries = (e as Entry[]) ?? [];
@@ -394,19 +396,27 @@ export default function LedgerClient() {
     startTransition(() => { settleAll(coupleId); });
   }
 
-  function handleAddPot() {
+  async function handleAddPot() {
     const folderId = potFolderId ?? defaultFolderId;
     if (!potTitle.trim() || !potGoal || !folderId) return;
     const goal = parseFloat(potGoal);
+    const tempId = `temp-${Date.now()}`;
+    const snap = { title: potTitle.trim(), targetDate: potTarget || null, currency: potCurrency, emoji: potEmoji };
+    // Optimistic: show immediately with temp id
     const optimistic: Pot = {
-      id: crypto.randomUUID(), title: potTitle.trim(), goal_amount: goal.toString(),
+      id: tempId, title: snap.title, goal_amount: goal.toString(),
       his_amount: "0", hers_amount: "0", folder_id: folderId, created_by: me.id,
-      target_date: potTarget || null, currency: potCurrency,
+      target_date: snap.targetDate, currency: snap.currency, emoji: snap.emoji,
     };
     setPots((prev) => [optimistic, ...prev]);
-    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency(currency); setShowPot(false);
+    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency(currency); setPotEmoji(null); setShowPot(false);
     markActivity("ledger");
-    startTransition(() => { addSavingsPot({ coupleId, userId: me.id, title: optimistic.title, goalAmount: goal, folderId, targetDate: potTarget || null, currency: potCurrency }); });
+    // Await real DB id so the first contribution uses the correct pot id.
+    const realId = await addSavingsPot({ coupleId, userId: me.id, title: snap.title, goalAmount: goal, folderId, targetDate: snap.targetDate, currency: snap.currency, emoji: snap.emoji });
+    if (realId) {
+      setPots((prev) => prev.map((p) => p.id === tempId ? { ...p, id: realId } : p));
+      setSelectedPot((prev) => prev?.id === tempId ? { ...prev, id: realId } : prev);
+    }
   }
 
   function handleContribute() {
@@ -548,7 +558,24 @@ export default function LedgerClient() {
         {/* Add pot */}
         <BottomSheet open={showPot} onClose={() => setShowPot(false)} title="new savings pot"
           footer={<Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>}>
-          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60" />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="w-11 h-11 rounded-xl bg-secondary text-xl flex items-center justify-center flex-shrink-0"
+              onClick={() => setPotEmoji(null)}
+            >
+              {potEmoji ?? "🎯"}
+            </button>
+            <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60 flex-1" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto py-0.5" style={{ scrollbarWidth: "none" }}>
+            {["🎯","🏠","✈️","🚗","💍","🎁","📱","🌴","🎓","🐾","💻","🎸","🍽️","🏋️","👶","🐕"].map((e) => (
+              <button key={e} type="button" onClick={() => setPotEmoji(e)}
+                className={cn("w-10 h-10 rounded-xl text-lg flex items-center justify-center flex-shrink-0 transition-all",
+                  potEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary"
+                )}>{e}</button>
+            ))}
+          </div>
           <div>
             <p className="text-xs text-muted-foreground mb-2">currency</p>
             <div className="flex gap-2">
@@ -561,9 +588,9 @@ export default function LedgerClient() {
             </div>
           </div>
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
-          <div>
+          <div className="overflow-hidden">
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
-            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 rounded-xl bg-card border-border/60" />
+            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 w-full rounded-xl bg-card border-border/60" />
           </div>
         </BottomSheet>
 

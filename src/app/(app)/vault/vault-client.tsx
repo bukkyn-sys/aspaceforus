@@ -96,8 +96,8 @@ const SORT_LABELS: Record<SortBy, string> = {
   oldest: "oldest",
   az: "a – z",
   za: "z – a",
-  price_low: "price: low → high",
-  price_high: "price: high → low",
+  price_low: "price low–hi",
+  price_high: "price hi–low",
 };
 const SORT_CYCLE: SortBy[] = ["newest", "oldest", "az", "za", "price_low", "price_high"];
 
@@ -769,9 +769,9 @@ export default function VaultClient() {
           </h1>
         </div>
 
-        {/* Filter + sort on one row */}
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5 flex-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        {/* Filter + sort — filters scroll horizontally, sort never overlaps */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex gap-1.5 min-w-0 flex-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
             {ownerOptions.map(({ value, label }) => (
               <button
                 key={value}
@@ -788,7 +788,7 @@ export default function VaultClient() {
               </button>
             ))}
           </div>
-          {/* Sort dropdown */}
+          {/* Sort dropdown — always right-anchored, never overlaps filters */}
           <div className="relative flex-shrink-0">
             {showSort && (
               <div className="fixed inset-0 z-10" onClick={() => setShowSort(false)} />
@@ -802,13 +802,13 @@ export default function VaultClient() {
               <ChevronDown className={cn("w-3 h-3 transition-transform", showSort && "rotate-180")} />
             </button>
             {showSort && (
-              <div className="absolute right-0 top-full mt-1.5 bg-card rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[110px]">
+              <div className="absolute right-0 top-full mt-1.5 bg-card rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[130px]">
                 {SORT_CYCLE.map((s) => (
                   <button
                     key={s}
                     onClick={() => { setSortBy(s); setShowSort(false); }}
                     className={cn(
-                      "w-full text-left px-4 py-2.5 text-sm transition-colors",
+                      "w-full text-left px-4 py-2.5 text-xs whitespace-nowrap transition-colors",
                       sortBy === s ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -939,7 +939,6 @@ export default function VaultClient() {
           type="url"
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
           <VisualPicker
             emoji={emoji}
             onEmojiChange={setEmoji}
@@ -1001,7 +1000,6 @@ export default function VaultClient() {
           type="url"
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-2">photo &amp; emoji <span className="opacity-50">(optional)</span></p>
           <VisualPicker
             emoji={editEmoji}
             onEmojiChange={setEditEmoji}

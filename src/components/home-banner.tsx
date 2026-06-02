@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { useSignedUrl } from "@/lib/use-signed-url";
 
-const HEIGHT = 176;
+const HEIGHT = 130;
 
 /** Sticky header banner — fixed height, always-on shadow. No collapse. */
 export function HomeBanner({ bannerUrl, focus = 50 }: { bannerUrl: string | null; focus?: number }) {

@@ -612,18 +612,6 @@ export default function ProfileClient({
           }}
         />
 
-        {/* Banner vertical crop */}
-        {couple.bannerUrl && (
-          <div className="px-4 py-3 border-t border-border/40">
-            <p className="text-xs text-muted-foreground mb-2">banner position</p>
-            <input
-              type="range" min={0} max={100} value={bannerFocus}
-              onChange={(e) => handleBannerFocus(Number(e.target.value))}
-              aria-label="banner vertical position"
-              className="w-full accent-foreground"
-            />
-          </div>
-        )}
 
         {/* Invite code */}
         {couple.inviteCode && (

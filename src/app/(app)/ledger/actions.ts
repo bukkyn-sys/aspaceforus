@@ -92,10 +92,11 @@ export async function addSavingsPot(data: {
   folderId: string;
   targetDate?: string | null;
   currency?: string;
-}) {
+  emoji?: string | null;
+}): Promise<string | undefined> {
   const { supabase, uid } = await getUid();
-  if (!uid) return;
-  await supabase.from("savings_pots").insert({
+  if (!uid) return undefined;
+  const { data: row } = await supabase.from("savings_pots").insert({
     couple_id: data.coupleId,
     created_by: uid,
     folder_id: data.folderId,
@@ -103,9 +104,11 @@ export async function addSavingsPot(data: {
     goal_amount: data.goalAmount,
     target_date: data.targetDate || null,
     currency: data.currency || "£",
+    emoji: data.emoji || null,
     his_amount: 0,
     hers_amount: 0,
-  });
+  }).select("id").single();
+  return row?.id as string | undefined;
 }
 
 export async function contributeToPot(potId: string, coupleId: string, userId: string, delta: number) {
