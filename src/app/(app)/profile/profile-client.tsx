@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/theme-toggle";
+import { BannerCondensed } from "@/components/banner-condensed";
 import { cn } from "@/lib/utils";
 
 interface InitialProfile {
@@ -577,6 +578,14 @@ export default function ProfileClient({
             if (e.target.files?.[0]) { setCropState({ file: e.target.files[0], purpose: "banner" }); e.target.value = ""; }
           }}
         />
+
+        {/* Condensed-bar preview — how the banner looks as the scrolled header */}
+        <div className="px-4 py-3 border-t border-border/40">
+          <p className="text-xs text-muted-foreground mb-2">condensed header (when scrolled)</p>
+          <div className="rounded-xl overflow-hidden border border-border/40">
+            <BannerCondensed bannerUrl={couple.bannerUrl} />
+          </div>
+        </div>
 
         {/* Invite code */}
         {couple.inviteCode && (

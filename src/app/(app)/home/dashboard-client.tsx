@@ -15,6 +15,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
+import { BannerCondensed } from "@/components/banner-condensed";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -103,6 +104,15 @@ export default function DashboardClient() {
   const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [, startTransition] = useTransition();
+  const [condensed, setCondensed] = useState(false);
+
+  // Collapse the banner into a condensed bar once it's scrolled past.
+  useEffect(() => {
+    const onScroll = () => setCondensed(window.scrollY > 150);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   // Countdown form
   const [cdTitle, setCdTitle] = useState("");
@@ -305,8 +315,18 @@ export default function DashboardClient() {
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
-      {/* Banner — sticky header, "us." logo centred */}
-      <div className="sticky top-0 z-20 relative w-full h-44 overflow-hidden">
+      {/* Condensed banner bar — fades in once the full banner scrolls away */}
+      <div className={cn(
+        "fixed top-0 inset-x-0 z-30 transition-all duration-300",
+        condensed ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-full pointer-events-none"
+      )}>
+        <div className="max-w-lg mx-auto shadow-card">
+          <BannerCondensed bannerUrl={data.bannerUrl} />
+        </div>
+      </div>
+
+      {/* Banner — scrolls away; the condensed bar (above) takes over on scroll */}
+      <div className="relative w-full h-44 overflow-hidden">
         {data.bannerUrl ? (
           <img src={data.bannerUrl} alt="couple" className="w-full h-full object-cover" />
         ) : (

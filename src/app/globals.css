@@ -174,9 +174,12 @@
     font-family: var(--font-jakarta), system-ui, sans-serif;
     padding-bottom: env(safe-area-inset-bottom);
     overflow-x: hidden;
+    /* No rubber-band overscroll — it detached the sticky banner and showed gaps. */
+    overscroll-behavior: none;
   }
   html {
     -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
   }
 }
 
