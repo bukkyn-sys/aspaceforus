@@ -278,11 +278,7 @@ export default function CalendarClient() {
       </div>
 
       {/* ── Grid ───────────────────────────────────────────── */}
-      {loading ? (
-        <div className="h-64 flex items-center justify-center">
-          <p className="text-sm text-muted-foreground">loading…</p>
-        </div>
-      ) : (
+      {(
         <div className="grid grid-cols-7 gap-y-2 px-2">
           {cells.map((day, i) => {
             if (!day) return <div key={i} />;

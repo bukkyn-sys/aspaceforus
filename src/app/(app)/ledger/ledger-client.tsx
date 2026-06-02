@@ -685,9 +685,7 @@ export default function LedgerClient() {
         ))}
       </div>
 
-      {loading ? (
-        <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
-      ) : tab === "entries" ? (
+      {loading ? null : tab === "entries" ? (
         <>
           {/* History toggle */}
           <div className="flex items-center justify-between mb-3">

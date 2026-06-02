@@ -660,9 +660,7 @@ export default function VaultClient() {
           <p className="text-sm text-muted-foreground mt-0.5">your shared space</p>
         </div>
 
-        {foldersLoading ? (
-          <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
-        ) : (
+        {foldersLoading ? null : (
           <div className="space-y-2.5">
             {folders.map((folder) => (
               <button
@@ -831,9 +829,7 @@ export default function VaultClient() {
 
       {/* List */}
       <div className="px-4 pb-24">
-        {itemsLoading ? (
-          <p className="text-sm text-muted-foreground text-center py-12">loading…</p>
-        ) : filteredItems.length === 0 ? (
+        {itemsLoading ? null : filteredItems.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl opacity-60">{activeFolder?.emoji}</div>
             <p className="text-muted-foreground text-sm">nothing here yet</p>
