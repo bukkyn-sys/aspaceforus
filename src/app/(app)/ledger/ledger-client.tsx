@@ -464,7 +464,7 @@ export default function LedgerClient() {
         <BottomSheet open={showAdd} onClose={() => { setShowAdd(false); setEditingEntryId(null); }}
           title={editingEntryId ? "edit expense" : "log expense"}
           footer={<Button onClick={handleSaveEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">{editingEntryId ? "save" : "add"}</Button>}>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-card border-border/60" />
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-card border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-2">category</p>
@@ -554,7 +554,7 @@ export default function LedgerClient() {
                 </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">{cur}</span>
-                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-card border-border/60 pl-8" autoFocus />
+                  <Input value={contribDelta} onChange={(e) => setContribDelta(e.target.value)} type="number" min="0" step="0.01" placeholder="0" className="h-11 rounded-xl bg-card border-border/60 pl-8" />
                 </div>
               </div>
               <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
@@ -567,7 +567,7 @@ export default function LedgerClient() {
         {/* Add pot */}
         <BottomSheet open={showPot} onClose={() => setShowPot(false)} title="new savings pot"
           footer={<Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>}>
-          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
+          <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-2">currency</p>
             <div className="flex gap-2">
@@ -606,16 +606,16 @@ export default function LedgerClient() {
           footer={<Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">create folder</Button>}>
           <div>
             <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
               {FOLDER_EMOJIS.map((e) => (
                 <button key={e} onClick={() => setFolderEmoji(e)}
-                  className={cn("aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                  className={cn("w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
                     folderEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70"
                   )}>{e}</button>
               ))}
             </div>
           </div>
-          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-card border-border/60" autoFocus />
+          <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="folder name" className="h-11 rounded-xl bg-card border-border/60" />
         </BottomSheet>
 
         {/* Expense action prompt — creator only */}

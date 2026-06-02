@@ -216,14 +216,14 @@ function VisualPicker({
       {/* Emoji — shown on the card tile */}
       <div>
         <p className="text-xs text-muted-foreground mb-2">emoji</p>
-        <div className="grid grid-cols-6 gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           {ITEM_EMOJIS.map((e) => (
             <button
               key={e}
               type="button"
               onClick={() => onEmojiChange(emoji === e ? null : e)}
               className={cn(
-                "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                "w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
                 emoji === e
                   ? "bg-foreground/10 ring-2 ring-foreground/40"
                   : "bg-secondary hover:bg-secondary/70"
@@ -716,13 +716,13 @@ export default function VaultClient() {
         >
           <div>
             <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
               {EMOJI_OPTIONS.map((e) => (
                 <button
                   key={e}
                   onClick={() => setFolderEmoji(e)}
                   className={cn(
-                    "aspect-square rounded-xl text-xl flex items-center justify-center transition-all",
+                    "w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
                     folderEmoji === e
                       ? "bg-foreground/10 ring-2 ring-foreground/40"
                       : "bg-secondary hover:bg-secondary/70"
@@ -736,7 +736,6 @@ export default function VaultClient() {
             onChange={(e) => setFolderName(e.target.value)}
             placeholder="folder name"
             className="h-11 rounded-xl bg-card border-border/60"
-            autoFocus
           />
         </BottomSheet>
       </div>
@@ -922,7 +921,6 @@ export default function VaultClient() {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="title"
           className="h-11 rounded-xl bg-card border-border/60"
-          autoFocus
         />
         <Input
           value={url}
@@ -987,7 +985,6 @@ export default function VaultClient() {
           onChange={(e) => setEditTitle(e.target.value)}
           placeholder="title"
           className="h-11 rounded-xl bg-card border-border/60"
-          autoFocus
         />
         <Input
           value={editUrl}

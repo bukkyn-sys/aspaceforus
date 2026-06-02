@@ -477,7 +477,6 @@ export default function ProfileClient({
               onChange={(e) => setNameDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && saveName()}
               className="h-10 rounded-xl bg-secondary border-0 flex-1"
-              autoFocus
             />
             <button
               onClick={saveName}

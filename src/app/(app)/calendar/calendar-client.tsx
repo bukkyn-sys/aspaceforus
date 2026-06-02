@@ -502,7 +502,6 @@ export default function CalendarClient() {
           onChange={(e) => setEventTitle(e.target.value)}
           placeholder="what's happening?"
           className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
-          autoFocus
         />
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
