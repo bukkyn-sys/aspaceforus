@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre, ownerTint, panelTint } from "@/lib/owner-identity";
+import { useOwnerIdentity, cardOmbre, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -468,10 +468,10 @@ export default function LedgerClient() {
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-card border-border/60" />
           <div>
             <p className="text-xs text-muted-foreground mb-2">category</p>
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-1.5 overflow-x-auto py-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
               {CATEGORIES.map((c) => (
                 <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
-                  className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
+                  className={cn("flex-shrink-0 px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
                     category === c.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}><span>{c.emoji}</span>{c.label}</button>
               ))}
@@ -606,7 +606,7 @@ export default function LedgerClient() {
           footer={<Button onClick={handleAddFolder} disabled={!folderName.trim()} className="w-full h-11 rounded-xl">create folder</Button>}>
           <div>
             <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+            <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
               {FOLDER_EMOJIS.map((e) => (
                 <button key={e} onClick={() => setFolderEmoji(e)}
                   className={cn("w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
@@ -846,7 +846,7 @@ export default function LedgerClient() {
             return (
               <button key={folder.id} onClick={() => openPotFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: `linear-gradient(90deg, ${panelTint(potPanelColor(folder.sort_order))} 0%, var(--card) 60%)` }}>
+                style={{ background: panelOmbre(potPanelColor(folder.sort_order)) }}>
                 <div className="flex-shrink-0 pl-3.5 py-3">
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: panelTint(potPanelColor(folder.sort_order)) }}>
                     {folder.emoji}

@@ -558,10 +558,10 @@ export default function DashboardClient() {
           </Button>
         }
       >
-        {/* Type grid */}
+        {/* Type — single scrollable row */}
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="flex gap-2 overflow-x-auto py-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
             {COUNTDOWN_TYPES.map((t) => (
               <button
                 key={t.label}
@@ -571,7 +571,7 @@ export default function DashboardClient() {
                   if (isDefault) setCdTitle(t.label);
                 }}
                 className={cn(
-                  "flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
+                  "flex-shrink-0 w-[68px] flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
                   cdEmoji === t.emoji && !cdCustomEmoji
                     ? "bg-foreground text-background"
                     : "bg-secondary text-muted-foreground"

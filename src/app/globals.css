@@ -84,6 +84,11 @@
   --wash-shared: 46%;  /* shared "together" ombre   */
   --tile-accent: 22%;  /* emoji tiles / chips        */
   --panel-accent: 55%; /* folder list panels         */
+  --arc-accent: 30%;   /* soft accent arc on card right edge */
+
+  /* Calendar "both free" cell — a fresh, inviting green (more alive than sage). */
+  --free-cell: oklch(0.90 0.10 150);
+  --free-ink:  oklch(0.45 0.13 150);
 
   --radius: 1rem;
 
@@ -140,6 +145,9 @@
   --wash-shared: 20%;
   --tile-accent: 34%;
   --panel-accent: 28%;
+  --arc-accent: 34%;
+  --free-cell: oklch(0.56 0.14 150);
+  --free-ink:  oklch(0.97 0.02 150);
 
   --sidebar: oklch(0.205 0.004 85);
   --sidebar-foreground: oklch(0.945 0.004 85);

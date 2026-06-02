@@ -316,7 +316,7 @@ export default function CalendarClient() {
                   "aspect-square w-full flex flex-col items-center justify-center relative transition-all select-none",
                   isEventDay
                     ? cn(eventRounding, "cursor-default")
-                    : cn("rounded-lg", overlap && "bg-sage-light"),
+                    : cn("rounded-lg", overlap && "bg-[var(--free-cell)]"),
                   isPast && "opacity-30 cursor-default",
                 )}
                 style={isEventDay ? { backgroundColor: "var(--event-band)" } : undefined}
@@ -336,7 +336,7 @@ export default function CalendarClient() {
                 ) : (
                   <span className={cn(
                     "text-xs font-semibold leading-none",
-                    overlap && !isEventDay ? "text-sage font-bold" : "text-foreground/75",
+                    overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
                     isEventDay ? "text-foreground/55 mb-0" : "mb-1.5",
                   )}>
                     {day}
@@ -383,7 +383,7 @@ export default function CalendarClient() {
         )}
         {partner && (
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-sage-light" />
+            <div className="w-3 h-3 rounded bg-[var(--free-cell)]" />
             <span className="text-xs text-muted-foreground/60">both free</span>
           </div>
         )}

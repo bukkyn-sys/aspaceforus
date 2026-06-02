@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, cardOmbre, ownerTint, panelTint } from "@/lib/owner-identity";
+import { useOwnerIdentity, cardOmbre, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 
@@ -216,7 +216,7 @@ function VisualPicker({
       {/* Emoji — shown on the card tile */}
       <div>
         <p className="text-xs text-muted-foreground mb-2">emoji</p>
-        <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+        <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
           {ITEM_EMOJIS.map((e) => (
             <button
               key={e}
@@ -653,7 +653,7 @@ export default function VaultClient() {
                 key={folder.id}
                 onClick={() => openFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: `linear-gradient(90deg, ${panelTint(folderPanelColor(folder))} 0%, var(--card) 60%)` }}
+                style={{ background: panelOmbre(folderPanelColor(folder)) }}
               >
                 {/* Emoji tile */}
                 <div className="flex-shrink-0 pl-3.5 py-3">
@@ -716,7 +716,7 @@ export default function VaultClient() {
         >
           <div>
             <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+            <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
               {EMOJI_OPTIONS.map((e) => (
                 <button
                   key={e}
