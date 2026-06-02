@@ -53,14 +53,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         });
       });
 
-    const channel = supabase.channel(`notif-${coupleId}`)
+    const channel = supabase.channel(`notif-${coupleId}`, { config: { private: true } })
       .on("broadcast", { event: "activity" },
         ({ payload }: { payload: { section: Section; uid: string } }) => {
           if (payload.uid !== me.id) {
             setBadges((prev) => ({ ...prev, [payload.section]: true }));
           }
-        })
-      .subscribe();
+        });
+
+    // Private channel: auth the realtime socket with the user's JWT, then join.
+    supabase.auth.getSession().then(({ data }) => {
+      supabase.realtime.setAuth(data.session?.access_token);
+      channel.subscribe();
+    });
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); channelRef.current = null; };

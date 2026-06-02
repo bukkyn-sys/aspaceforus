@@ -244,7 +244,7 @@ export default function DashboardClient() {
     load();
 
     // Realtime: note via postgres_changes, moods via broadcast (RLS blocks postgres_changes on profiles)
-    const channel = supabase.channel(`dash-${coupleId}`)
+    const channel = supabase.channel(`dash-${coupleId}`, { config: { private: true } })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${coupleId}` },
         (p) => setData((prev) => ({ ...prev, sharedNote: p.new.shared_note ?? "", startedAt: p.new.started_at ?? null })))
       .on("broadcast", { event: "mood" },
@@ -259,8 +259,13 @@ export default function DashboardClient() {
           if (p.new?.couple_id === coupleId && p.new?.id !== me.id) {
             setHasPartner(true);
           }
-        })
-      .subscribe();
+        });
+
+    // Private channel: auth the realtime socket with the user's JWT, then join.
+    supabase.auth.getSession().then(({ data }) => {
+      supabase.realtime.setAuth(data.session?.access_token);
+      channel.subscribe();
+    });
 
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); channelRef.current = null; };
