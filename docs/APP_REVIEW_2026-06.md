@@ -276,6 +276,13 @@ Note: `CropModal` (`src/app/(app)/profile/profile-client.tsx:64`) already does t
 
 ---
 
+## ONBOARDING POLISH (2026-06-02, user-reported)
+
+### [x] 22. Onboarding fixes
+**Status:** DONE (commit pending). (a) Scroll locked — container is now `fixed inset-0` + body overflow hidden (also kills the cheap empty bands above/below the bg). (b) Keyboard no longer covers fields on screen open — removed `autoFocus` from the name input (the existing onFocus scrollIntoView still centres it on tap). (c) Dark-mode button text fixed — `accentBtn` no longer hard-codes `text-white`; white is applied only when an accent bg is set, else the Button's theme-aware default text shows (fixes invisible "continue" on name/photo/colour). (d) Bloom/Ambient box glitch fixed — removed `scale`/opacity animation on the blurred blobs (that re-rasterises the blur into a hard box); now translate-only + `willChange/translateZ`. (e) Completion loop — post-onboarding nav uses `window.location.replace` (onboarding no longer in history; back-nav was bouncing through /onboarding) and handleFinish always navigates even if the optional start-date save fails. ⚠️ If the loop persists it's a server-side couple_id issue — would need logs.
+
+---
+
 ## 🔴 ITEMS DISCOVERED DURING THE LIVE-SCHEMA CAPTURE (2026-06-02)
 
 ### [ ] 21. Push functions broke — fixed in `push_fix.sql` (⚠️ run it)

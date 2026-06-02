@@ -27,20 +27,23 @@ const screenVariants: Variants = {
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.04 } } };
 const rise: Variants = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE } } };
 
-// Soft, slowly-drifting accent glow behind everything.
+// Soft, slowly-drifting accent glow behind everything. We animate only
+// translate (never scale/opacity on a blurred layer — that makes the browser
+// re-rasterise the blur and flash a hard-edged box) and promote each blob to
+// its own GPU layer with translateZ so the blur stays clipped and smooth.
 function Ambient({ accent }: { accent: string }) {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden z-0">
       <motion.div
         className="absolute -top-28 -right-20 w-72 h-72 rounded-full blur-3xl"
-        style={{ backgroundColor: accent, opacity: 0.28 }}
-        animate={{ x: [0, 22, 0], y: [0, 26, 0], scale: [1, 1.08, 1] }}
+        style={{ backgroundColor: accent, opacity: 0.26, willChange: "transform", transform: "translateZ(0)" }}
+        animate={{ x: [0, 22, 0], y: [0, 26, 0] }}
         transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         className="absolute -bottom-32 -left-24 w-80 h-80 rounded-full blur-3xl"
-        style={{ backgroundColor: accent, opacity: 0.18 }}
-        animate={{ x: [0, -18, 0], y: [0, -22, 0], scale: [1, 1.12, 1] }}
+        style={{ backgroundColor: accent, opacity: 0.16, willChange: "transform", transform: "translateZ(0)" }}
+        animate={{ x: [0, -18, 0], y: [0, -22, 0] }}
         transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
       />
     </div>
@@ -545,6 +548,13 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
 
+  // Onboarding is a full-screen, no-scroll experience — lock the page behind it.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // Capture the install prompt early so it's ready by the install step.
   useEffect(() => {
     const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e as BeforeInstallPromptEvent); };
@@ -621,7 +631,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
       if (result?.error) { setError(result.error); return; }
-      window.location.href = "/home";
+      window.location.replace("/home");
     });
   }
 
@@ -634,12 +644,20 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
 
   function handleFinish() {
     startTransition(async () => {
-      if (startDate && coupleId) await setOnboardingStartDate(userId, coupleId, startDate);
-      window.location.href = "/home";
+      try {
+        if (startDate && coupleId) await setOnboardingStartDate(userId, coupleId, startDate);
+      } catch {
+        // Saving the (optional) start date shouldn't block finishing.
+      }
+      window.location.replace("/home");
     });
   }
 
-  const accentBtn = "w-full h-12 rounded-xl text-white text-[15px] font-medium";
+  // Base button styling. When an accent background is set (brandBg) we force
+  // white text; otherwise the Button's default variant supplies a theme-aware
+  // text colour (so it stays readable in dark mode instead of white-on-light).
+  const accentBtn = "w-full h-12 rounded-xl text-[15px] font-medium";
+  const accentBtnCls = cn(accentBtn, brandBg && "text-white");
   const greetName = (firstName || "").trim().split(/\s+/)[0] || "there";
   const lastPillar = PILLARS.length - 1;
 
@@ -660,7 +678,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               </motion.p>
             </motion.div>
             <motion.div variants={rise} initial="hidden" animate="show" className="max-w-sm w-full mx-auto">
-              <Button onClick={() => setStep("pillars")} className={accentBtn} style={brandBg}>
+              <Button onClick={() => setStep("pillars")} className={accentBtnCls} style={brandBg}>
                 take a look around
               </Button>
             </motion.div>
@@ -727,15 +745,15 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       // ── Name ────────────────────────────────────────────────────────────────
       case "name":
         return (
-          <SetupShell index={0} total={4} onBack={() => { setPillarDir(-1); setPillar(lastPillar); setStep("pillars"); }} title="what's your name?" subtitle="so your partner always knows it's you." footer={<Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtn} style={brandBg}>continue</Button>}>
-            <Input value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="your first name" maxLength={30} autoFocus className="h-12 rounded-xl bg-card border-border/60 text-base" />
+          <SetupShell index={0} total={4} onBack={() => { setPillarDir(-1); setPillar(lastPillar); setStep("pillars"); }} title="what's your name?" subtitle="so your partner always knows it's you." footer={<Button onClick={() => setStep("photo")} disabled={!name.trim()} className={accentBtnCls} style={brandBg}>continue</Button>}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }} placeholder="your first name" maxLength={30} className="h-12 rounded-xl bg-card border-border/60 text-base" />
           </SetupShell>
         );
 
       // ── Photo ───────────────────────────────────────────────────────────────
       case "photo":
         return (
-          <SetupShell index={1} total={4} onBack={() => setStep("name")} title="add a photo" subtitle="optional — it helps your space feel like yours. you can change it later." footer={<><Button onClick={() => setStep("colour")} className={accentBtn} style={brandBg}>continue</Button>{!avatarPreview && <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>}</>}>
+          <SetupShell index={1} total={4} onBack={() => setStep("name")} title="add a photo" subtitle="optional — it helps your space feel like yours. you can change it later." footer={<><Button onClick={() => setStep("colour")} className={accentBtnCls} style={brandBg}>continue</Button>{!avatarPreview && <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>}</>}>
             <div className="flex justify-center">
               <button type="button" onClick={() => fileRef.current?.click()} className="relative w-28 h-28 rounded-full focus:outline-none group">
                 {avatarPreview ? (
@@ -762,7 +780,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       // ── Colour ──────────────────────────────────────────────────────────────
       case "colour":
         return (
-          <SetupShell index={2} total={4} onBack={() => setStep("photo")} title="pick your colour" subtitle="this is how you'll show up across your shared space." footer={<Button onClick={() => setStep("couple")} className={accentBtn} style={brandBg}>continue</Button>}>
+          <SetupShell index={2} total={4} onBack={() => setStep("photo")} title="pick your colour" subtitle="this is how you'll show up across your shared space." footer={<Button onClick={() => setStep("couple")} className={accentBtnCls} style={brandBg}>continue</Button>}>
             <div className="flex justify-center mb-8">
               <div className="w-20 h-20 rounded-full overflow-hidden bg-secondary flex items-center justify-center transition-all duration-300" style={{ boxShadow: `0 0 0 3px ${brandHex}` }}>
                 {avatarPreview
@@ -782,7 +800,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       // ── Couple ──────────────────────────────────────────────────────────────
       case "couple":
         return (
-          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtn} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtn, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
+          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtnCls} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtnCls, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
             <div className="flex bg-secondary rounded-2xl p-1 mb-5">
               {(["create", "join"] as Tab[]).map((t) => (
                 <button key={t} onClick={() => { setTab(t); setError(null); }} className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{t === "create" ? "create" : "join with code"}</button>
@@ -826,7 +844,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               </motion.div>
             </motion.div>
             <div className="max-w-sm w-full mx-auto">
-              <Button onClick={handleFinish} disabled={isPending} className={accentBtn} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue"}</Button>
+              <Button onClick={handleFinish} disabled={isPending} className={accentBtnCls} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "continue"}</Button>
             </div>
           </div>
         );
@@ -834,7 +852,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
   }
 
   return (
-    <div className="relative min-h-dvh bg-background overflow-hidden">
+    <div className="fixed inset-0 bg-background overflow-hidden">
       <Ambient accent={colourPicked ? selectedAccent.hex : NEUTRAL_GLOW} />
       {cropFile && <CropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
       <AnimatePresence initial={false} custom={direction}>
