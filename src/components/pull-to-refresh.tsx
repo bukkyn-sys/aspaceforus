@@ -66,7 +66,10 @@ export default function PullToRefresh() {
       if (y >= THRESHOLD && !refreshing) {
         setRefreshing(true);
         setPullY(0);
+        // Refresh server components AND tell the active client screen to refetch
+        // its own data (screens load via client effects that router.refresh can't rerun).
         router.refresh();
+        window.dispatchEvent(new Event("app:refresh"));
         setTimeout(() => setRefreshing(false), 1200);
       } else {
         setPullY(0);

@@ -330,11 +330,9 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
 export default function ProfileClient({
   initialProfile,
   initialCouple,
-  partnerAccentColor,
 }: {
   initialProfile: InitialProfile;
   initialCouple: InitialCouple;
-  partnerAccentColor: string | null;
 }) {
   const [profile, setProfile] = useState(initialProfile);
   const [couple, setCouple] = useState(initialCouple);
@@ -350,8 +348,10 @@ export default function ProfileClient({
   const [showQR, setShowQR] = useState(false);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const { currency: coupleCurrency, me } = useCouple();
+  const { currency: coupleCurrency, me, partner } = useCouple();
   const [currency, setCurrency] = useState(coupleCurrency);
+  // Partner's accent comes straight from context — no extra server fetch needed.
+  const partnerAccentColor = partner?.accent_color ?? null;
   // Accent comes from the couple context (get_session_data returns accent_color);
   // the page's get_my_profile does NOT, so the prop would always read "sage".
   const [accent, setAccent] = useState(me.accent_color ?? initialProfile.accentColor ?? "sage");

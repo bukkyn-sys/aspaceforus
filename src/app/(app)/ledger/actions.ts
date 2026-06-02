@@ -36,7 +36,8 @@ export async function addLedgerEntry(data: {
 }
 
 export async function settleAll(coupleId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("ledger_entries")
     .update({ settled: true, settled_at: new Date().toISOString() })
@@ -132,7 +133,8 @@ export async function contributeToPot(potId: string, coupleId: string, userId: s
 }
 
 export async function deleteSavingsPot(potId: string, coupleId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase.from("savings_pots").delete().eq("id", potId).eq("couple_id", coupleId);
 }
 
@@ -160,7 +162,8 @@ export async function addPotFolder(data: {
 }
 
 export async function deletePotFolder(id: string, coupleId: string, defaultFolderId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   if (id === defaultFolderId) return;
   await supabase
     .from("savings_pots")

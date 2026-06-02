@@ -19,6 +19,7 @@ type ProfileRow = {
 type SessionData = {
   me: ProfileRow | null;
   partner: (ProfileRow & { couple_id: string }) | null;
+  currency: string | null;
 };
 
 export default async function AppLayout({
@@ -47,9 +48,8 @@ export default async function AppLayout({
   if (sessionError) throw new Error(sessionError.message);
   if (!sd?.me?.couple_id) redirect("/onboarding");
 
-  const { data: coupleRow } = await supabase
-    .from("couples").select("currency").eq("id", sd.me.couple_id).single();
-  const currency = (coupleRow as { currency?: string } | null)?.currency ?? "£";
+  // currency now comes from get_session_data (no extra couples query).
+  const currency = sd.currency ?? "£";
 
   const me: UserProfile = {
     id: sd.me.id,

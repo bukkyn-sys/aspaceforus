@@ -18,19 +18,11 @@ export default async function ProfilePage() {
 
   if (!profile?.couple_id) redirect("/onboarding");
 
-  const [{ data: coupleData }, { data: partnerData }] = await Promise.all([
-    supabase
-      .from("couples")
-      .select("id, banner_url, started_at, invite_code, banner_focus")
-      .eq("id", profile.couple_id)
-      .single(),
-    supabase.rpc("get_partner_profile", {
-      p_couple_id: profile.couple_id,
-      p_my_id: user.id,
-    }),
-  ]);
-
-  const partnerAccentColor = (partnerData as { accent_color?: string | null } | null)?.accent_color ?? null;
+  const { data: coupleData } = await supabase
+    .from("couples")
+    .select("id, banner_url, started_at, invite_code, banner_focus")
+    .eq("id", profile.couple_id)
+    .single();
 
   return (
     <ProfileClient
@@ -46,7 +38,6 @@ export default async function ProfilePage() {
         inviteCode: coupleData?.invite_code ?? null,
         bannerFocus: coupleData?.banner_focus ?? 50,
       }}
-      partnerAccentColor={partnerAccentColor}
     />
   );
 }

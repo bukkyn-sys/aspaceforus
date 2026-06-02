@@ -37,7 +37,8 @@ export async function addVaultFolder(data: {
 }
 
 export async function deleteVaultFolder(id: string, coupleId: string) {
-  const supabase = await createClient();
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
   await supabase
     .from("vault_folders")
     .delete()

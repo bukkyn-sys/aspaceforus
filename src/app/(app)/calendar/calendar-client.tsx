@@ -107,14 +107,22 @@ export default function CalendarClient() {
   // Live updates — partner's availability / event changes come in without refresh.
   useEffect(() => {
     const supabase = createClient();
-    const bump = () => setRtick((t) => t + 1);
+    // Skip our own INSERTs: the optimistic UI already shows them, so reloading
+    // would be redundant work. Partner inserts + all edits/deletes still reload.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onChange = (p: any) => {
+      if (p.eventType === "INSERT" && (p.new?.created_by === me.id || p.new?.user_id === me.id)) return;
+      setRtick((t) => t + 1);
+    };
     const channel = supabase.channel(`cal-${coupleId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "availability",   filter: `couple_id=eq.${coupleId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "events",        filter: `couple_id=eq.${coupleId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",    filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "availability", filter: `couple_id=eq.${coupleId}` }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events",       filter: `couple_id=eq.${coupleId}` }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",   filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [coupleId]);
+    const onRefresh = () => setRtick((t) => t + 1);
+    window.addEventListener("app:refresh", onRefresh);
+    return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
+  }, [coupleId, me.id]);
 
   function getStatus(userId: string, dateStr: string): Status {
     return rows.find((r) => r.user_id === userId && r.date === dateStr)?.status ?? null;
@@ -445,13 +453,12 @@ export default function CalendarClient() {
                   if (item.kind === "event") {
                     const evt = item.data;
                     const d = new Date(evt.start_at);
-                    const isMe = evt.created_by === me.id;
                     const o = resolveOwner(evt.created_by);
                     return (
                       <div
                         key={evt.id}
-                        onClick={() => isMe && setActionEvent(evt)}
-                        className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", isMe && "cursor-pointer active:scale-[0.99] transition-transform")}
+                        onClick={() => setActionEvent(evt)}
+                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
                         style={ownerCardStyle(o)}
                       >
                         <span className="text-xl flex-shrink-0">{evt.emoji}</span>
@@ -470,12 +477,11 @@ export default function CalendarClient() {
                     const days = daysUntil(cd.target_date);
                     const d = new Date(cd.target_date + "T12:00:00");
                     const o = resolveOwner(null); // countdowns are shared
-                    const mine = cd.created_by === me.id;
                     return (
                       <div
                         key={cd.id}
-                        onClick={() => mine && setActionCountdown(cd)}
-                        className={cn("card-row overflow-hidden px-4 py-3 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
+                        onClick={() => setActionCountdown(cd)}
+                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
                         style={ownerCardStyle(o)}
                       >
                         <span className="text-xl flex-shrink-0">{cd.emoji}</span>

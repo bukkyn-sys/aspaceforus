@@ -61,7 +61,9 @@ function timeUntil(dateStr: string) {
 }
 
 function duration(startedAt: string): string {
-  const start = new Date(startedAt);
+  // Anchor date-only values at local noon so the year/month maths can't slip a
+  // day (UTC-midnight parsing shifts to the previous day in negative timezones).
+  const start = new Date(startedAt.length === 10 ? startedAt + "T12:00:00" : startedAt);
   const now = new Date();
   let years = now.getFullYear() - start.getFullYear();
   let months = now.getMonth() - start.getMonth();
@@ -116,16 +118,22 @@ export default function DashboardClient() {
   const [cdDate, setCdDate] = useState("");
   const [cdEndDate, setCdEndDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("✈️");
-  const [cdCustomEmoji, setCdCustomEmoji] = useState("");
 
   useRegisterFab(() => {
-    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
+    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
     setEditingCountdownId(null);
     setShowCountdownSheet(true);
   });
 
   // Note debounce ref
   useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pull-to-refresh → refetch this screen's data.
+  useEffect(() => {
+    const onRefresh = () => loadRef.current?.();
+    window.addEventListener("app:refresh", onRefresh);
+    return () => window.removeEventListener("app:refresh", onRefresh);
+  }, []);
 
 
   // Keep the cache in sync with optimistic updates (add/delete countdown, mood,
@@ -135,6 +143,8 @@ export default function DashboardClient() {
   }, [data, hasPartner, loading, coupleId]);
 
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noteFocusedRef = useRef(false);
+  const loadRef = useRef<(() => void) | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -243,28 +253,52 @@ export default function DashboardClient() {
     }
 
     load();
+    loadRef.current = load;
 
-    // Realtime: note via postgres_changes, moods via broadcast (RLS blocks postgres_changes on profiles)
+    // Debounced full reload when the partner changes something that feeds a home
+    // card (free days, balance, pots, countdowns, activity line). Bursts collapse
+    // into one reload; our own inserts are ignored (optimistic UI already shows them).
+    let reloadTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleReload = () => {
+      if (reloadTimer) clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(() => { load(); }, 700);
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onPartnerChange = (p: any) => {
+      if (p.eventType === "INSERT" && (p.new?.created_by === me.id || p.new?.user_id === me.id)) return;
+      scheduleReload();
+    };
+
+    // Realtime: note/started_at via postgres_changes, moods via broadcast.
     const channel = supabase.channel(`dash-${coupleId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${coupleId}` },
-        (p) => setData((prev) => ({ ...prev, sharedNote: p.new.shared_note ?? "", startedAt: p.new.started_at ?? null })))
+        (p) => setData((prev) => ({
+          ...prev,
+          startedAt: p.new.started_at ?? null,
+          // Don't clobber the textarea while the user is actively editing it.
+          sharedNote: noteFocusedRef.current ? prev.sharedNote : (p.new.shared_note ?? ""),
+        })))
       .on("broadcast", { event: "mood" },
         ({ payload }: { payload: { user_id: string; mood: number; at: string } }) => {
           if (payload.user_id === me.id) setData((prev) => ({ ...prev, myMood: payload.mood, myMoodAt: payload.at }));
           else setData((prev) => ({ ...prev, partnerMood: payload.mood, partnerMoodAt: payload.at }));
         })
-      // Still listen for profile inserts to detect when partner first joins
+      // Partner first joins → reflect immediately + pull their data
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (p: any) => {
-          if (p.new?.couple_id === coupleId && p.new?.id !== me.id) {
-            setHasPartner(true);
-          }
+          if (p.new?.couple_id === coupleId && p.new?.id !== me.id) { setHasPartner(true); scheduleReload(); }
         })
+      // Keep the home cards live for partner changes made elsewhere in the app.
+      .on("postgres_changes", { event: "*", schema: "public", table: "availability",  filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "events",         filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .subscribe();
 
     channelRef.current = channel;
-    return () => { supabase.removeChannel(channel); channelRef.current = null; };
+    return () => { if (reloadTimer) clearTimeout(reloadTimer); supabase.removeChannel(channel); channelRef.current = null; };
   }, [coupleId, me.id, partner]);
 
   function handleMood(mood: number) {
@@ -315,12 +349,12 @@ export default function DashboardClient() {
         if (wasFreeDay) setAvailability(coupleId, me.id, cdDate, null);
       });
     }
-    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
+    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
     setEditingCountdownId(null); setShowCountdownSheet(false);
   }
 
   function planFreeDay(ds: string) {
-    setCdTitle(""); setCdDate(ds); setCdEndDate(""); setCdEmoji("🍽️"); setCdCustomEmoji("");
+    setCdTitle(""); setCdDate(ds); setCdEndDate(""); setCdEmoji("🍽️");
     setEditingCountdownId(null);
     setShowCountdownSheet(true);
   }
@@ -329,7 +363,7 @@ export default function DashboardClient() {
     setActionCountdown(null);
     setEditingCountdownId(cd.id);
     setCdTitle(cd.title); setCdDate(cd.target_date); setCdEndDate(cd.end_date ?? "");
-    setCdEmoji(cd.emoji); setCdCustomEmoji("");
+    setCdEmoji(cd.emoji);
     setShowCountdownSheet(true);
   }
 
@@ -346,7 +380,7 @@ export default function DashboardClient() {
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
-      {/* Banner — sticky header that collapses as you scroll */}
+      {/* Banner — fixed-height sticky header */}
       <HomeBanner bannerUrl={data.bannerUrl} focus={data.bannerFocus} />
 
       <div className="px-4 space-y-4 pt-4">
@@ -487,6 +521,8 @@ export default function DashboardClient() {
         <textarea
           value={data.sharedNote}
           onChange={(e) => handleNote(e.target.value)}
+          onFocus={() => { noteFocusedRef.current = true; }}
+          onBlur={() => { noteFocusedRef.current = false; }}
           placeholder="jot something for both of you to see…"
           className="w-full text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent resize-none outline-none leading-relaxed min-h-[80px]"
           rows={3}
@@ -509,11 +545,10 @@ export default function DashboardClient() {
             <p className="text-xs font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
             {data.countdowns.map((cd, i) => {
               const { days } = timeUntil(cd.target_date);
-              const mine = cd.created_by === me.id;
               return (
                 <div key={cd.id}
-                  onClick={() => mine && setActionCountdown(cd)}
-                  className={cn("flex items-center gap-3 px-5 py-3.5", i > 0 && "border-t border-border/30", mine && "cursor-pointer active:bg-black/[0.02]")}
+                  onClick={() => setActionCountdown(cd)}
+                  className={cn("flex items-center gap-3 px-5 py-3.5 cursor-pointer active:bg-black/[0.02]", i > 0 && "border-t border-border/30")}
                 >
                   <span className="text-2xl flex-shrink-0">{cd.emoji}</span>
                   <div className="flex-1 min-w-0">
@@ -647,13 +682,13 @@ export default function DashboardClient() {
               <button
                 key={t.label}
                 onClick={() => {
-                  setCdEmoji(t.emoji); setCdCustomEmoji("");
+                  setCdEmoji(t.emoji);
                   const isDefault = !cdTitle || COUNTDOWN_TYPES.some((ct) => ct.label === cdTitle);
                   if (isDefault) setCdTitle(t.label);
                 }}
                 className={cn(
                   "flex-shrink-0 w-[68px] flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
-                  cdEmoji === t.emoji && !cdCustomEmoji
+                  cdEmoji === t.emoji
                     ? "bg-foreground text-background"
                     : "bg-secondary text-muted-foreground"
                 )}

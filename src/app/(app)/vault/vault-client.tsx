@@ -351,13 +351,20 @@ export default function VaultClient() {
   // Live updates — partner adds/changes vault items without requiring a refresh.
   useEffect(() => {
     const supabase = createClient();
-    const bump = () => setRtick((t) => t + 1);
+    // Skip our own INSERTs (optimistic UI already shows them) to avoid a redundant refetch.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onChange = (p: any) => {
+      if (p.eventType === "INSERT" && p.new?.created_by === me.id) return;
+      setRtick((t) => t + 1);
+    };
     const channel = supabase.channel(`vault-${coupleId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "vault_folders", filter: `couple_id=eq.${coupleId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "vault_items",   filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vault_folders", filter: `couple_id=eq.${coupleId}` }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vault_items",   filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [coupleId]);
+    const onRefresh = () => setRtick((t) => t + 1);
+    window.addEventListener("app:refresh", onRefresh);
+    return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
+  }, [coupleId, me.id]);
 
   // Load folders + item counts
   useEffect(() => {

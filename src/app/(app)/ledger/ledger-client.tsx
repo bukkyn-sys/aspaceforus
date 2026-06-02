@@ -269,13 +269,21 @@ export default function LedgerClient() {
   // Live updates — partner adding expenses / contributing to pots.
   useEffect(() => {
     const supabase = createClient();
-    const bump = () => setRtick((t) => t + 1);
+    // Skip our own INSERTs (optimistic UI already shows them). Contributions are
+    // UPDATEs to a pot, so they still reload — that's intended (amounts must sync).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onChange = (p: any) => {
+      if (p.eventType === "INSERT" && p.new?.created_by === me.id) return;
+      setRtick((t) => t + 1);
+    };
     const channel = supabase.channel(`ledger-${coupleId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [coupleId]);
+    const onRefresh = () => setRtick((t) => t + 1);
+    window.addEventListener("app:refresh", onRefresh);
+    return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
+  }, [coupleId, me.id]);
 
   useEffect(() => {
     setAction(() => {

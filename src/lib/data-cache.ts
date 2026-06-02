@@ -30,12 +30,3 @@ export function setCache<T>(key: string, data: T): void {
   mem.set(key, { data, at: Date.now() });
   ssSet(key, data);
 }
-
-export function invalidateCache(prefix: string): void {
-  for (const key of mem.keys()) {
-    if (key.startsWith(prefix)) {
-      mem.delete(key);
-      try { sessionStorage.removeItem(`uc:${key}`); } catch { /* ignore */ }
-    }
-  }
-}

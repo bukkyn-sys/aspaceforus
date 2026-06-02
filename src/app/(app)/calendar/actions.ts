@@ -55,6 +55,8 @@ export async function updateEvent(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Shared calendar: either partner may edit any event in their couple
+  // (RLS scopes writes to the couple).
   await supabase
     .from("events")
     .update({
@@ -64,17 +66,16 @@ export async function updateEvent(data: {
       emoji: data.emoji ?? "📅",
     })
     .eq("id", data.id)
-    .eq("couple_id", data.coupleId)
-    .eq("created_by", uid);
+    .eq("couple_id", data.coupleId);
 }
 
 export async function deleteEvent(id: string, coupleId: string, userId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Shared calendar: either partner may delete any event in their couple.
   await supabase
     .from("events")
     .delete()
     .eq("id", id)
-    .eq("couple_id", coupleId)
-    .eq("created_by", uid);
+    .eq("couple_id", coupleId);
 }

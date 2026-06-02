@@ -62,6 +62,7 @@ export async function updateCountdown(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Shared countdowns: either partner may edit any countdown in their couple.
   await supabase
     .from("countdowns")
     .update({
@@ -71,17 +72,16 @@ export async function updateCountdown(data: {
       emoji: data.emoji,
     })
     .eq("id", data.id)
-    .eq("couple_id", data.coupleId)
-    .eq("created_by", uid);
+    .eq("couple_id", data.coupleId);
 }
 
 export async function deleteCountdown(id: string, coupleId: string, userId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Shared countdowns: either partner may delete any countdown in their couple.
   await supabase
     .from("countdowns")
     .delete()
     .eq("id", id)
-    .eq("couple_id", coupleId)
-    .eq("created_by", uid);
+    .eq("couple_id", coupleId);
 }
