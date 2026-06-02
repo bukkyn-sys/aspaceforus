@@ -251,6 +251,8 @@ declare
 begin
   -- SECURITY: callers may only create a couple for themselves.
   if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
+  -- Self-healing: ensure the profile exists so the couple link can't no-op.
+  insert into profiles (id) values (p_user_id) on conflict (id) do nothing;
   insert into couples default values
   returning id, invite_code into v_couple_id, v_code;
 
@@ -269,6 +271,8 @@ declare
 begin
   -- SECURITY: callers may only join a couple as themselves.
   if p_user_id <> auth.uid() then raise exception 'forbidden'; end if;
+  -- Self-healing: ensure the profile exists so the couple link can't no-op.
+  insert into profiles (id) values (p_user_id) on conflict (id) do nothing;
   select id into v_couple_id from couples where invite_code = p_code;
   if not found then return 'not_found'; end if;
 
