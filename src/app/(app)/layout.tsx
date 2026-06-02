@@ -42,17 +42,25 @@ export default async function AppLayout({
   // A valid user but a failed rpc must NOT bounce to onboarding — that's the
   // redirect loop. Surface the error instead. Only a clean "no couple" result
   // means the user genuinely needs onboarding.
-  if (sessionError) throw new Error(sessionError.message);
-  if (!sd?.me?.couple_id) {
-    // TEMP DIAGNOSTIC — remove after debugging the onboarding loop.
-    // Shows exactly what /home resolved so we can see if it's an account mismatch.
+  // TEMP DIAGNOSTIC — render (don't redirect/throw) so the info is visible.
+  // Remove after debugging the onboarding loop.
+  if (sessionError || !sd?.me?.couple_id) {
     const diag = {
       auth_user_id: user.id,
       auth_email: user.email,
+      rpc_error: sessionError?.message ?? null,
       rpc_returned_me: sd?.me ?? null,
       me_couple_id: sd?.me?.couple_id ?? null,
     };
-    throw new Error("ONBOARDING-LOOP DIAGNOSTIC → " + JSON.stringify(diag, null, 2));
+    return (
+      <div style={{ padding: 24, fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}>
+        <p style={{ fontWeight: 700, marginBottom: 12 }}>ONBOARDING-LOOP DIAGNOSTIC</p>
+        <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{JSON.stringify(diag, null, 2)}</pre>
+        <p style={{ marginTop: 16 }}>
+          <a href="/onboarding" style={{ textDecoration: "underline" }}>→ go to onboarding</a>
+        </p>
+      </div>
+    );
   }
 
   const { data: coupleRow } = await supabase
