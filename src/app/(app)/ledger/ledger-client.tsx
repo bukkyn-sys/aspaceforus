@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
-import { cn } from "@/lib/utils";
+import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -176,7 +176,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
   const mine = e.created_by === meId;
   return (
     <div
-      onClick={() => mine && onSelect(e)}
+      {...(mine ? clickable(() => onSelect(e)) : {})}
       className={cn("card-row overflow-hidden p-4 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
       style={ownerCardStyle(o)}
     >

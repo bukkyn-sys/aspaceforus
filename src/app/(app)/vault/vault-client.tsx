@@ -21,7 +21,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
 import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
-import { cn } from "@/lib/utils";
+import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 import { validateImage } from "@/lib/validate-image";
@@ -849,7 +849,7 @@ export default function VaultClient() {
               const isMine = item.created_by === me.id;
               return (
                 <div key={item.id}
-                  onClick={() => handleCardTap(item)}
+                  {...clickable(() => handleCardTap(item))}
                   className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
                   style={ownerCardStyle(o)}
                 >

@@ -13,7 +13,7 @@ import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
+import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
@@ -547,7 +547,7 @@ export default function DashboardClient() {
               const { days } = timeUntil(cd.target_date);
               return (
                 <div key={cd.id}
-                  onClick={() => setActionCountdown(cd)}
+                  {...clickable(() => setActionCountdown(cd))}
                   className={cn("flex items-center gap-3 px-5 py-3.5 cursor-pointer active:bg-black/[0.02]", i > 0 && "border-t border-border/30")}
                 >
                   <span className="text-2xl flex-shrink-0">{cd.emoji}</span>

@@ -34,8 +34,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Zoom intentionally left enabled (accessibility). Inputs use 16px text so iOS
+  // won't auto-zoom on focus, so we don't need to lock scaling.
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#F9F8F6" },
     { media: "(prefers-color-scheme: dark)", color: "#1A1A18" },

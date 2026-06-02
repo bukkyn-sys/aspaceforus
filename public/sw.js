@@ -1,4 +1,4 @@
-const CACHE = "us-v2";
+const CACHE = "us-v3";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
@@ -10,26 +10,37 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// Network-first: serve fresh, fall back to cache. Only cache successful,
-// same-origin, non-API responses so we never poison the cache with errors,
-// opaque cross-origin responses, RSC payloads, or auth/API traffic.
+// Cache ONLY static, public build assets (immutable, no user data). Authenticated
+// HTML page documents and RSC payloads are never cached — they could leak a
+// signed-in user's content to the next person on a shared browser, and go stale
+// across deploys. Everything that isn't a static asset is left to the network.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
 
   const url = new URL(e.request.url);
-  const isApi = url.pathname.startsWith("/api/") || url.pathname.startsWith("/auth/");
   const sameOrigin = url.origin === self.location.origin;
+  const isStaticAsset =
+    sameOrigin &&
+    (url.pathname.startsWith("/_next/static/") ||
+      url.pathname.startsWith("/icons/") ||
+      /\.(?:css|js|woff2?|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$/.test(url.pathname));
 
+  if (!isStaticAsset) return; // navigations, RSC, API → straight to network (no caching)
+
+  // Cache-first for build assets (hashed/immutable), refreshed in the background.
   e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        if (sameOrigin && !isApi && res.ok && res.type === "basic") {
-          const clone = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, clone));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+    caches.match(e.request).then((cached) => {
+      const network = fetch(e.request)
+        .then((res) => {
+          if (res.ok && res.type === "basic") {
+            const clone = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => cached);
+      return cached || network;
+    })
   );
 });
 

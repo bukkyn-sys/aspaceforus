@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
-import { cn } from "@/lib/utils";
+import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -457,7 +457,7 @@ export default function CalendarClient() {
                     return (
                       <div
                         key={evt.id}
-                        onClick={() => setActionEvent(evt)}
+                        {...clickable(() => setActionEvent(evt))}
                         className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
                         style={ownerCardStyle(o)}
                       >
@@ -480,7 +480,7 @@ export default function CalendarClient() {
                     return (
                       <div
                         key={cd.id}
-                        onClick={() => setActionCountdown(cd)}
+                        {...clickable(() => setActionCountdown(cd))}
                         className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
                         style={ownerCardStyle(o)}
                       >
