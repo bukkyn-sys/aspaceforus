@@ -13,7 +13,6 @@ import {
   updateVaultStage,
   updateVaultItem,
   deleteVaultItem,
-  fetchOgPreview,
 } from "./actions";
 import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,11 +24,15 @@ import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
-function proxyImg(src: string | null | undefined): string | null {
-  if (!src) return null;
-  // Supabase storage URLs are already on our domain — serve directly.
-  if (src.includes("supabase.co") || src.startsWith("/")) return src;
-  return `/api/img-proxy?src=${encodeURIComponent(src)}`;
+// Only allow http/https links — blocks javascript:/data:/etc. (stored XSS).
+function safeExternalUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 type VaultKind = "date_idea" | "wishlist" | "general";
@@ -164,13 +167,12 @@ function PriceInput({ value, onChange }: { value: string | null; onChange: (v: s
 }
 
 function VisualPicker({
-  emoji, onEmojiChange, image, imageTitle, scraping, uploading, error, onPickFile, onRemoveImage,
+  emoji, onEmojiChange, image, imageTitle, uploading, error, onPickFile, onRemoveImage,
 }: {
   emoji: string | null;
   onEmojiChange: (v: string | null) => void;
   image: string | null;
   imageTitle: string | null;
-  scraping?: boolean;
   uploading?: boolean;
   error?: string | null;
   onPickFile: (file: File) => void;
@@ -179,7 +181,7 @@ function VisualPicker({
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-3">
-      {/* Photo — auto from a link's preview, or upload your own */}
+      {/* Photo — upload your own */}
       <div>
         <input
           ref={fileRef}
@@ -188,14 +190,14 @@ function VisualPicker({
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) onPickFile(f); e.target.value = ""; }}
         />
-        {scraping || uploading ? (
+        {uploading ? (
           <div className="flex items-center gap-2 p-2.5 bg-secondary rounded-xl">
             <div className="w-4 h-4 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin flex-shrink-0" />
-            <span className="text-xs text-muted-foreground">{uploading ? "uploading…" : "fetching preview…"}</span>
+            <span className="text-xs text-muted-foreground">uploading…</span>
           </div>
         ) : image ? (
           <div className="flex items-center gap-3 p-2.5 bg-secondary rounded-xl">
-            <img src={proxyImg(image) ?? ""} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            <img src={image ?? ""} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
             <div className="flex-1 min-w-0">
               {imageTitle && <p className="text-xs text-muted-foreground leading-tight line-clamp-2">{imageTitle}</p>}
               <button type="button" onClick={() => fileRef.current?.click()} className="text-xs font-medium text-foreground mt-0.5">change photo</button>
@@ -312,7 +314,6 @@ export default function VaultClient() {
   const [notes, setNotes] = useState("");
   const [priceRange, setPriceRange] = useState<string | null>(null);
   const [ogPreview, setOgPreview] = useState<OgPreview | null>(null);
-  const [fetchingOg, setFetchingOg] = useState(false);
   const [uploadingImg, setUploadingImg] = useState(false);
   const [emoji, setEmoji] = useState<string | null>(null);
   const [imgError, setImgError] = useState<string | null>(null);
@@ -324,7 +325,6 @@ export default function VaultClient() {
   const [editNotes, setEditNotes] = useState("");
   const [editPriceRange, setEditPriceRange] = useState<string | null>(null);
   const [editOgPreview, setEditOgPreview] = useState<OgPreview | null>(null);
-  const [fetchingEditOg, setFetchingEditOg] = useState(false);
   const [editUploadingImg, setEditUploadingImg] = useState(false);
   const [editEmoji, setEditEmoji] = useState<string | null>(null);
   const [editStage, setEditStage] = useState<Stage>("ideas");
@@ -525,23 +525,6 @@ export default function VaultClient() {
     if (isEdit) setEditUploadingImg(false); else setUploadingImg(false);
   }
 
-  // Auto-fill the photo from a link's preview only when one isn't already set.
-  async function handleUrlBlur(val: string) {
-    if (!val.trim() || ogPreview) return;
-    setFetchingOg(true);
-    const preview = await fetchOgPreview(val.trim());
-    if (preview?.image) setOgPreview(preview);
-    setFetchingOg(false);
-  }
-
-  async function handleEditUrlBlur(val: string) {
-    if (!val.trim() || editOgPreview) return;
-    setFetchingEditOg(true);
-    const preview = await fetchOgPreview(val.trim());
-    if (preview?.image) setEditOgPreview(preview);
-    setFetchingEditOg(false);
-  }
-
   function handleAdd() {
     if (!title.trim() || !activeFolder) return;
     const optimistic: VaultItem = {
@@ -639,7 +622,8 @@ export default function VaultClient() {
   // open the link (they can't edit a partner's entry).
   function handleCardTap(item: VaultItem) {
     if (item.created_by === me.id) { setActionItem(item); return; }
-    if (item.url) window.open(item.url, "_blank", "noopener,noreferrer");
+    const safe = safeExternalUrl(item.url);
+    if (safe) window.open(safe, "_blank", "noopener,noreferrer");
   }
 
   // ── FOLDERS VIEW ─────────────────────────────────────────────────────────────
@@ -886,10 +870,10 @@ export default function VaultClient() {
                           )}
                         </>
                       )}
-                      {item.url && (
+                      {safeExternalUrl(item.url) && (
                         <>
                           <span className="text-muted-foreground/25 text-[10px]">·</span>
-                          <a href={item.url} target="_blank" rel="noopener noreferrer"
+                          <a href={safeExternalUrl(item.url)!} target="_blank" rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs text-blue-400 hover:text-blue-600 transition-colors"
                           >link</a>
@@ -900,7 +884,7 @@ export default function VaultClient() {
 
                   {/* Thumbnail (smaller — sits alongside the emoji) */}
                   {item.og_image && (
-                    <img src={proxyImg(item.og_image) ?? ""} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
+                    <img src={item.og_image ?? ""} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
                   )}
 
                   {isMine ? (
@@ -933,7 +917,6 @@ export default function VaultClient() {
         <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          onBlur={(e) => handleUrlBlur(e.target.value)}
           placeholder="url (optional)"
           className="h-11 rounded-xl bg-card border-border/60"
           type="url"
@@ -945,7 +928,6 @@ export default function VaultClient() {
             onEmojiChange={setEmoji}
             image={ogPreview?.image ?? null}
             imageTitle={ogPreview?.title ?? null}
-            scraping={fetchingOg}
             uploading={uploadingImg}
             error={imgError}
             onPickFile={(f) => handlePickFile(f, false)}
@@ -997,7 +979,6 @@ export default function VaultClient() {
         <Input
           value={editUrl}
           onChange={(e) => setEditUrl(e.target.value)}
-          onBlur={(e) => handleEditUrlBlur(e.target.value)}
           placeholder="url (optional)"
           className="h-11 rounded-xl bg-card border-border/60"
           type="url"
@@ -1009,7 +990,6 @@ export default function VaultClient() {
             onEmojiChange={setEditEmoji}
             image={editOgPreview?.image ?? null}
             imageTitle={editOgPreview?.title ?? null}
-            scraping={fetchingEditOg}
             uploading={editUploadingImg}
             error={imgError}
             onPickFile={(f) => handlePickFile(f, true)}
