@@ -7,6 +7,7 @@ import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
+import { setAvailability } from "@/app/(app)/calendar/actions";
 import Link from "next/link";
 import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -302,12 +303,17 @@ export default function DashboardClient() {
       startTransition(() => { updateCountdown({ id, coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
     } else {
       const cd: Countdown = { id: crypto.randomUUID(), title, target_date: cdDate, end_date: endDate, emoji: cdEmoji, created_by: me.id };
+      const wasFreeDay = data.freeDays.includes(cdDate);
       setData((prev) => ({
         ...prev,
         countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
+        freeDays: wasFreeDay ? prev.freeDays.filter((d) => d !== cdDate) : prev.freeDays,
       }));
       markActivity("home");
-      startTransition(() => { addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
+      startTransition(() => {
+        addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
+        if (wasFreeDay) setAvailability(coupleId, me.id, cdDate, null);
+      });
     }
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️"); setCdCustomEmoji("");
     setEditingCountdownId(null); setShowCountdownSheet(false);

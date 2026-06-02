@@ -757,7 +757,8 @@ export default function VaultClient() {
     <div className="max-w-lg mx-auto">
       {/* Header */}
       <div className="px-4 pt-10 pb-5">
-        <div className="flex items-center gap-2 mb-5">
+        {/* Title row — back, name, sort icon */}
+        <div className="flex items-center gap-2 mb-3">
           <button
             onClick={goBack}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0"
@@ -767,39 +768,20 @@ export default function VaultClient() {
           <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
             <span className="mr-1.5">{activeFolder?.emoji}</span>{activeFolder?.name}
           </h1>
-        </div>
-
-        {/* Filter + sort — filters scroll horizontally, sort never overlaps */}
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex gap-1.5 min-w-0 flex-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-            {ownerOptions.map(({ value, label }) => (
-              <button
-                key={value}
-                onClick={() => setOwnerFilter(value)}
-                className={cn(
-                  "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
-                  ownerFilter === value
-                    ? "text-white shadow-sm"
-                    : "bg-card border border-border/50 text-muted-foreground hover:border-border/80"
-                )}
-                style={ownerFilter === value ? { backgroundColor: myAccent.hex } : undefined}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {/* Sort dropdown — always right-anchored, never overlaps filters */}
+          {/* Sort — icon-only in title row so filters never overlap */}
           <div className="relative flex-shrink-0">
             {showSort && (
               <div className="fixed inset-0 z-10" onClick={() => setShowSort(false)} />
             )}
             <button
               onClick={() => setShowSort((v) => !v)}
-              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-card border border-border/50 px-3 py-1.5 rounded-full hover:border-border/80 transition-colors whitespace-nowrap"
+              className={cn(
+                "w-8 h-8 rounded-xl flex items-center justify-center transition-colors",
+                showSort ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary"
+              )}
+              aria-label="sort"
             >
-              <ArrowUpDown className="w-3 h-3" />
-              {SORT_LABELS[sortBy]}
-              <ChevronDown className={cn("w-3 h-3 transition-transform", showSort && "rotate-180")} />
+              <ArrowUpDown className="w-4 h-4" />
             </button>
             {showSort && (
               <div className="absolute right-0 top-full mt-1.5 bg-card rounded-2xl shadow-lg border border-border/30 py-1.5 z-20 min-w-[130px]">
@@ -818,6 +800,25 @@ export default function VaultClient() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Filter pills — full width, no competition with sort */}
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+          {ownerOptions.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setOwnerFilter(value)}
+              className={cn(
+                "flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap",
+                ownerFilter === value
+                  ? "text-white shadow-sm"
+                  : "bg-card border border-border/50 text-muted-foreground hover:border-border/80"
+              )}
+              style={ownerFilter === value ? { backgroundColor: myAccent.hex } : undefined}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 

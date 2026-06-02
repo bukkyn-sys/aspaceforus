@@ -45,8 +45,8 @@ function CropModal({
   onConfirm: (blob: Blob) => void;
   onCancel: () => void;
 }) {
-  const FRAME = purpose === "avatar" ? { w: 260, h: 260 } : { w: 320, h: 160 };
-  const OUTPUT = purpose === "avatar" ? { w: 800, h: 800 } : { w: 1600, h: 800 };
+  const FRAME = purpose === "avatar" ? { w: 260, h: 260 } : { w: 300, h: 100 };
+  const OUTPUT = purpose === "avatar" ? { w: 800, h: 800 } : { w: 1500, h: 500 };
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
 
