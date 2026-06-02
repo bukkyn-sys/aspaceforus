@@ -197,6 +197,20 @@
   .us-splash { animation-duration: 0.6s; }
 }
 
+/* Header float-in on page entry. Transform only (the page handles the fade);
+   `backwards` fill so it starts above with no residual transform after — keeps
+   sticky headers pristine. Replays on each navigation since pages re-mount. */
+@keyframes hdr-float-in {
+  from { transform: translateY(-16px); }
+  to   { transform: translateY(0); }
+}
+.hdr-float {
+  animation: hdr-float-in 0.36s cubic-bezier(0.33, 0, 0.2, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hdr-float { animation: none; }
+}
+
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
 @layer utilities {
   .font-heading {

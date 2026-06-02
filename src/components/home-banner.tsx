@@ -10,7 +10,7 @@ export function HomeBanner({ bannerUrl, focus = 50 }: { bannerUrl: string | null
   const signedUrl = useSignedUrl(bannerUrl);
   return (
     <div
-      className="sticky top-0 z-20 w-full overflow-hidden bg-secondary flex-shrink-0"
+      className="hdr-float sticky top-0 z-20 w-full overflow-hidden bg-secondary flex-shrink-0"
       style={{ height: HEIGHT, boxShadow: "0 4px 16px -4px rgba(0,0,0,0.32)" }}
     >
       {bannerUrl ? (

@@ -655,7 +655,7 @@ export default function VaultClient() {
   if (view === "folders") {
     return (
       <div className="px-4 pb-24 max-w-lg mx-auto">
-        <div className={cn("sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-3 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
+        <div className={cn("hdr-float sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-3 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
           <h1 className="font-heading text-3xl text-foreground tracking-tight">vault.</h1>
           <p className="text-sm text-muted-foreground mt-0.5">your shared space</p>
         </div>
@@ -763,7 +763,7 @@ export default function VaultClient() {
       {/* Header */}
       <div className="px-4 pt-10 pb-5">
         {/* Title row — back, name, sort icon */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="hdr-float flex items-center gap-2 mb-3">
           <button
             onClick={goBack}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors -ml-1 flex-shrink-0"

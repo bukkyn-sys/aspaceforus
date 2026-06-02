@@ -24,11 +24,11 @@ function FrozenRouter({ children }: { children: ReactNode }) {
 
 /**
  * Cross-fade between app screens: the current page fades to the background, then
- * the next page fades in and drops down into place. `mode="wait"` sequences them
- * (out → in) which also hides the new screen's load. Fully interruptible — a new
- * navigation just swaps the keyed child; there's no stuck half-state.
- *
- * Modals are portaled to <body>, so the small y-translate here can't affect them.
+ * the next fades in. `mode="wait"` sequences them (out → in), which also hides the
+ * new screen's load. Opacity only — no transform — so sticky headers and modals
+ * are untouched. Each screen's header additionally floats down via the `.hdr-float`
+ * CSS animation (replays on mount). Fully interruptible: a new navigation just
+ * swaps the keyed child, with no stuck half-state.
  */
 export default function PageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -36,11 +36,11 @@ export default function PageTransition({ children }: { children: ReactNode }) {
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
-        initial={{ opacity: 0, y: -14 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 0, transition: { duration: 0.22, ease: "easeIn" } }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0, transition: { duration: 0.22, ease: "easeIn" } }}
         transition={{ duration: 0.36, ease: [0.33, 0, 0.2, 1] }}
-        style={{ willChange: "opacity, transform" }}
+        style={{ willChange: "opacity" }}
       >
         <FrozenRouter>{children}</FrozenRouter>
       </motion.div>

@@ -454,7 +454,7 @@ export default function ProfileClient({
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
+      <div className="hdr-float flex items-center gap-3 mb-8">
         <Link
           href="/home"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
