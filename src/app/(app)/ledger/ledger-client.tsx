@@ -727,8 +727,11 @@ export default function LedgerClient() {
   const visibleEntries = categoryFilter === "all" ? entries : entries.filter((e) => e.category === categoryFilter);
 
   return (
-    <div className="px-4 pt-10 pb-6 max-w-lg mx-auto">
-      <h1 className="font-heading text-3xl text-foreground tracking-tight mb-6">ledger.</h1>
+    <div className="px-4 pb-6 max-w-lg mx-auto">
+      <div className="sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-4">
+        <h1 className="font-heading text-3xl text-foreground tracking-tight">ledger.</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">shared expenses &amp; savings</p>
+      </div>
 
       {/* Balance — slim pill when settled, full card when owing */}
       {!loading && (

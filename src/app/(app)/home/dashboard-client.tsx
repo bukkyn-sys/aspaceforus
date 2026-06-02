@@ -305,8 +305,8 @@ export default function DashboardClient() {
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
-      {/* Banner — always visible, "us." logo centred */}
-      <div className="relative w-full h-44 overflow-hidden">
+      {/* Banner — sticky header, "us." logo centred */}
+      <div className="sticky top-0 z-20 relative w-full h-44 overflow-hidden">
         {data.bannerUrl ? (
           <img src={data.bannerUrl} alt="couple" className="w-full h-full object-cover" />
         ) : (

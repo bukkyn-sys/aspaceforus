@@ -85,7 +85,7 @@ export default async function AppLayout({
           <div className="min-h-dvh bg-background flex flex-col">
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
             <PullToRefresh />
-            <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))]">
+            <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
               {children}
             </main>
             <BottomNav />

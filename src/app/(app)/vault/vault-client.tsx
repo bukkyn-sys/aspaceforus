@@ -644,8 +644,8 @@ export default function VaultClient() {
 
   if (view === "folders") {
     return (
-      <div className="px-4 pt-10 pb-24 max-w-lg mx-auto">
-        <div className="mb-8">
+      <div className="px-4 pb-24 max-w-lg mx-auto">
+        <div className="sticky top-0 z-30 bg-background -mx-4 px-4 pt-10 pb-3 mb-3">
           <h1 className="font-heading text-3xl text-foreground tracking-tight">vault.</h1>
           <p className="text-sm text-muted-foreground mt-0.5">your shared space</p>
         </div>

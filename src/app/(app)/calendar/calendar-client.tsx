@@ -218,8 +218,8 @@ export default function CalendarClient() {
   return (
     <div className="max-w-lg mx-auto pb-8">
 
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="px-5 pt-10 pb-2">
+      {/* ── Header (sticky) ───────────────────────────────── */}
+      <div className="sticky top-0 z-30 bg-background px-5 pt-10 pb-3">
         <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
         <p className={cn("text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
           {overlaps > 0
