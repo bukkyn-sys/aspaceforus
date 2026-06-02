@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode } from "lucide-react";
@@ -345,13 +346,18 @@ export default function ProfileClient({
   const [showQR, setShowQR] = useState(false);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
-  const { currency: coupleCurrency } = useCouple();
+  const { currency: coupleCurrency, me } = useCouple();
   const [currency, setCurrency] = useState(coupleCurrency);
+  // Accent comes from the couple context (get_session_data returns accent_color);
+  // the page's get_my_profile does NOT, so the prop would always read "sage".
+  const [accent, setAccent] = useState(me.accent_color ?? initialProfile.accentColor ?? "sage");
+  const router = useRouter();
   const [, startTransition] = useTransition();
 
   function handleCurrency(c: string) {
     setCurrency(c);
-    startTransition(() => { updateCoupleCurrency(profile.coupleId, profile.id, c); });
+    // refresh so the layout's CoupleContext (read app-wide) picks up the change
+    startTransition(async () => { await updateCoupleCurrency(profile.coupleId, profile.id, c); router.refresh(); });
   }
 
   async function handleLeaveCouple() {
@@ -370,7 +376,7 @@ export default function ProfileClient({
     if (!error) {
       const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
       setProfile((prev) => ({ ...prev, avatarUrl: publicUrl }));
-      startTransition(() => { updateAvatar(profile.id, publicUrl); });
+      startTransition(async () => { await updateAvatar(profile.id, publicUrl); router.refresh(); });
     }
     setUploading(null);
   }
@@ -383,7 +389,7 @@ export default function ProfileClient({
     if (!error) {
       const { data: { publicUrl } } = supabase.storage.from("banners").getPublicUrl(path);
       setCouple((prev) => ({ ...prev, bannerUrl: publicUrl }));
-      startTransition(() => { updateCoupleBanner(profile.coupleId, profile.id, publicUrl); });
+      startTransition(async () => { await updateCoupleBanner(profile.coupleId, profile.id, publicUrl); router.refresh(); });
     }
     setUploading(null);
   }
@@ -402,12 +408,12 @@ export default function ProfileClient({
     setEditingName(false);
     setNameSaved(true);
     setTimeout(() => setNameSaved(false), 2000);
-    startTransition(() => { updateDisplayName(profile.id, trimmed); });
+    startTransition(async () => { await updateDisplayName(profile.id, trimmed); router.refresh(); });
   }
 
   function handleAccentColor(name: string) {
-    setProfile((prev) => ({ ...prev, accentColor: name }));
-    startTransition(() => { updateAccentColor(profile.id, name); });
+    setAccent(name);
+    startTransition(async () => { await updateAccentColor(profile.id, name); router.refresh(); });
   }
 
   return (
@@ -505,7 +511,7 @@ export default function ProfileClient({
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">your colour</p>
         <div className="flex justify-between">
           {ACCENT_COLORS.map((color) => {
-            const isMine = profile.accentColor === color.name;
+            const isMine = accent === color.name;
             const isPartners = partnerAccentColor === color.name;
             return (
               <button

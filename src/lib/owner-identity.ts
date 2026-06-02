@@ -27,22 +27,25 @@ const SHARED_B = "#E2ECF0";
  * to the card colour (no angled corner sliver) and clears the right ~third so
  * trailing content/chevrons sit on a clean surface.
  */
-// Soft accent arc hugging the right edge — fills the otherwise-plain right side
-// of a card with a gentle curved glow of the accent. Sits on top of the linear
-// wash and fades to transparent so the middle of the card stays clean.
-function rightArc(hex: string): string {
-  const arc = `color-mix(in srgb, ${hex} var(--arc-accent), var(--card))`;
-  return `radial-gradient(56% 132% at 118% 50%, ${arc} 0%, transparent 58%)`;
+// A clean 3px accent stroke down the right edge at full opacity. Because the
+// cards are overflow-hidden + rounded, the background clips to the rounded shape
+// so the stroke curves neatly into the corners.
+const STROKE_W = "3px";
+// A clear "together" tone for the shared stroke (the pale shared washes are too
+// faint to read as a 100%-opacity line).
+const SHARED_STROKE = "#8B80B0";
+function rightStroke(hex: string): string {
+  return `linear-gradient(90deg, transparent calc(100% - ${STROKE_W}), ${hex} calc(100% - ${STROKE_W}))`;
 }
 
 export function cardOmbre(o: OwnerIdentity): string {
   if (!o.shared) {
     const tint = `color-mix(in srgb, ${o.people[0].hex} var(--wash-accent), var(--card))`;
-    return `${rightArc(o.people[0].hex)}, linear-gradient(90deg, ${tint} 0%, var(--card) 64%)`;
+    return `${rightStroke(o.people[0].hex)}, linear-gradient(90deg, ${tint} 0%, var(--card) 64%)`;
   }
   const a = `color-mix(in srgb, ${SHARED_A} var(--wash-shared), var(--card))`;
   const b = `color-mix(in srgb, ${SHARED_B} var(--wash-shared), var(--card))`;
-  return `${rightArc(SHARED_A)}, linear-gradient(90deg, ${a} 0%, ${b} 30%, var(--card) 66%)`;
+  return `${rightStroke(SHARED_STROKE)}, linear-gradient(90deg, ${a} 0%, ${b} 30%, var(--card) 66%)`;
 }
 
 /** A subtle accent tint over the card surface — for emoji tiles, chips, etc. */
@@ -55,9 +58,11 @@ export function panelTint(hex: string): string {
   return `color-mix(in srgb, ${hex} var(--panel-accent), var(--card))`;
 }
 
-/** Full folder-panel background: left tint + clean middle + right accent arc. */
+/** Full folder-panel background: left tint + clean middle + right accent stroke.
+ *  Panel colours are pale, so the stroke uses a more saturated mix to read. */
 export function panelOmbre(hex: string): string {
-  return `${rightArc(hex)}, linear-gradient(90deg, ${panelTint(hex)} 0%, var(--card) 58%)`;
+  const stroke = `color-mix(in srgb, ${hex} 70%, var(--foreground))`;
+  return `${rightStroke(stroke)}, linear-gradient(90deg, ${panelTint(hex)} 0%, var(--card) 58%)`;
 }
 
 /**
