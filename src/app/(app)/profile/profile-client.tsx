@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/theme-toggle";
-import { BannerCondensed } from "@/components/banner-condensed";
 import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
 import { cn } from "@/lib/utils";
@@ -386,10 +385,13 @@ export default function ProfileClient({
 
   async function doUploadAvatar(blob: Blob) {
     setUploading("avatar");
+    setUploadError(null);
     const supabase = createClient();
     const path = `${profile.id}/avatar-${Date.now()}.jpg`;
     const { error } = await supabase.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg" });
-    if (!error) {
+    if (error) {
+      setUploadError("photo upload failed — please try again");
+    } else {
       const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
       setProfile((prev) => ({ ...prev, avatarUrl: publicUrl }));
       startTransition(async () => { await updateAvatar(profile.id, publicUrl); router.refresh(); });
@@ -399,10 +401,13 @@ export default function ProfileClient({
 
   async function doUploadBanner(blob: Blob) {
     setUploading("banner");
+    setUploadError(null);
     const supabase = createClient();
     const path = `${profile.coupleId}/banner-${Date.now()}.jpg`;
     const { error } = await supabase.storage.from("banners").upload(path, blob, { contentType: "image/jpeg" });
-    if (!error) {
+    if (error) {
+      setUploadError("banner upload failed — please try again");
+    } else {
       const { data: { publicUrl } } = supabase.storage.from("banners").getPublicUrl(path);
       setCouple((prev) => ({ ...prev, bannerUrl: publicUrl }));
       startTransition(async () => { await updateCoupleBanner(profile.coupleId, profile.id, publicUrl); router.refresh(); });
@@ -607,18 +612,15 @@ export default function ProfileClient({
           }}
         />
 
-        {/* Condensed-header crop — drag to choose which band of the photo shows */}
+        {/* Banner vertical crop */}
         {couple.bannerUrl && (
           <div className="px-4 py-3 border-t border-border/40">
-            <p className="text-xs text-muted-foreground mb-2">condensed header — drag to position</p>
-            <div className="rounded-xl overflow-hidden border border-border/40">
-              <BannerCondensed bannerUrl={couple.bannerUrl} focus={bannerFocus} />
-            </div>
+            <p className="text-xs text-muted-foreground mb-2">banner position</p>
             <input
               type="range" min={0} max={100} value={bannerFocus}
               onChange={(e) => handleBannerFocus(Number(e.target.value))}
               aria-label="banner vertical position"
-              className="w-full mt-2.5 accent-foreground"
+              className="w-full accent-foreground"
             />
           </div>
         )}
