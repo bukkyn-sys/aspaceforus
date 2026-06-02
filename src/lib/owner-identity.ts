@@ -35,19 +35,22 @@ const SHARED_B = "#E2ECF0";
  * neutral grey rise and NO stroke, so only personal cards carry colour.
  */
 export function ownerCardStyle(o: OwnerIdentity): CSSProperties {
+  // No border on owner cards — the faint card border left only a lone hairline on
+  // the left once the accent stroke covered the right edge, which read as a glitch.
+  // The gradient + drop shadow define the card instead.
   if (o.shared) {
     return {
       background: `linear-gradient(90deg, var(--card) 55%, var(--event-band) 100%)`,
+      borderColor: "transparent",
     };
   }
   const hex = o.people[0].hex;
   const tint = `color-mix(in srgb, ${hex} var(--wash-accent), var(--card))`;
-  // The accent stroke is a 3px right border — it follows the card's rounded
-  // corners and (unlike an inset shadow) never bleeds onto the left edge.
+  // Right accent stroke via inset shadow — follows the rounded corners (curves).
   return {
     background: `linear-gradient(90deg, var(--card) 50%, ${tint} 100%)`,
-    borderRightColor: hex,
-    borderRightWidth: "3px",
+    borderColor: "transparent",
+    boxShadow: `inset -2.5px 0 0 0 ${hex}, var(--card-shadow)`,
   };
 }
 
