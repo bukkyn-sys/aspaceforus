@@ -183,6 +183,20 @@
   }
 }
 
+/* ── Cold-start splash ─────────────────────────────────────────────────────────
+   Pure CSS so it shows on first paint and dissolves on its own even if JS is slow
+   to hydrate. Only plays on a full document load (not client navigations). */
+@keyframes us-splash-out {
+  0%, 45%  { opacity: 1; }
+  100%     { opacity: 0; visibility: hidden; }
+}
+.us-splash {
+  animation: us-splash-out 0.85s ease-out 0.1s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .us-splash { animation-duration: 0.4s; }
+}
+
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
 @layer utilities {
   .font-heading {

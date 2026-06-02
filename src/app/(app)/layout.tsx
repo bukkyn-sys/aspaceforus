@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/bottom-nav";
 import PushSubscribe from "@/components/push-subscribe";
 import PullToRefresh from "@/components/pull-to-refresh";
+import PageTransition from "@/components/page-transition";
 import { CoupleProvider } from "@/contexts/couple-context";
 import { FabProvider } from "@/contexts/fab-context";
 import { NotificationProvider } from "@/contexts/notification-context";
@@ -86,9 +87,16 @@ export default async function AppLayout({
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
             <PullToRefresh />
             <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-              {children}
+              <PageTransition>{children}</PageTransition>
             </main>
             <BottomNav />
+            {/* Cold-start splash — bg + wordmark, dissolves into the app (CSS only). */}
+            <div
+              className="us-splash fixed inset-0 z-[100] flex items-center justify-center bg-background pointer-events-none"
+              aria-hidden
+            >
+              <span className="font-heading text-5xl text-foreground tracking-tight">us.</span>
+            </div>
           </div>
         </NotificationProvider>
       </CoupleProvider>

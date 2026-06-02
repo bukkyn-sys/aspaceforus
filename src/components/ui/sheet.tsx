@@ -1,9 +1,19 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SheetClose } from "./sheet-close";
 import { useScrollLock } from "@/lib/use-scroll-lock";
+
+// Render to document.body so sheets/dialogs are never affected by an ancestor's
+// transform (page transitions) — their fixed positioning always maps to the viewport.
+function Portal({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
 
 const SHEET_SPRING = { type: "spring" as const, damping: 32, stiffness: 320 };
 const DIALOG_SPRING = { type: "spring" as const, damping: 28, stiffness: 380 };
@@ -28,6 +38,7 @@ export function BottomSheet({
 }) {
   useScrollLock(open);
   return (
+    <Portal>
     <AnimatePresence>
       {open && (
         <div data-sheet="" className="fixed inset-0 z-[60] flex flex-col justify-end">
@@ -72,6 +83,7 @@ export function BottomSheet({
         </div>
       )}
     </AnimatePresence>
+    </Portal>
   );
 }
 
@@ -87,6 +99,7 @@ export function Dialog({
 }) {
   useScrollLock(open);
   return (
+    <Portal>
     <AnimatePresence>
       {open && (
         <div data-sheet="" className="fixed inset-0 z-[60] flex items-center justify-center p-6">
@@ -110,5 +123,6 @@ export function Dialog({
         </div>
       )}
     </AnimatePresence>
+    </Portal>
   );
 }
