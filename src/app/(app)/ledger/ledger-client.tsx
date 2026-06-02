@@ -480,12 +480,18 @@ export default function LedgerClient() {
           <div>
             <p className="text-xs text-muted-foreground mb-2">who paid?</p>
             <div className="flex gap-2">
-              {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => (
-                <button key={v} onClick={() => setPaidBy(v)} aria-pressed={paidBy === v}
-                  className={cn("flex-1 py-2 text-sm rounded-xl border transition-colors",
-                    paidBy === v ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
-                  )}>{l}</button>
-              ))}
+              {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => {
+                const selected = paidBy === v;
+                const accent = v === "me" ? myAccent.hex : partnerAccent.hex;
+                return (
+                  <button key={v} onClick={() => setPaidBy(v)} aria-pressed={selected}
+                    className={cn("flex-1 py-2 text-sm rounded-xl border-2 transition-colors",
+                      selected ? "bg-foreground text-background" : "bg-card text-muted-foreground border-border/60"
+                    )}
+                    style={selected ? { borderColor: accent } : undefined}
+                  >{l}</button>
+                );
+              })}
             </div>
           </div>
           <div>

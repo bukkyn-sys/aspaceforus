@@ -237,7 +237,7 @@ function VisualPicker({
 }
 
 function OwnerButtons({
-  value, onChange, meId, myName, partner, partnerName,
+  value, onChange, meId, myName, partner, partnerName, myAccentHex, partnerAccentHex,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -245,23 +245,28 @@ function OwnerButtons({
   myName: string;
   partner: { id: string } | null;
   partnerName: string;
+  myAccentHex: string;
+  partnerAccentHex: string;
 }) {
   return (
     <div className="flex gap-2">
       {[
-        { value: "shared", label: "shared" },
-        { value: meId,     label: myName },
-        ...(partner ? [{ value: partner.id, label: partnerName }] : []),
-      ].map((o) => (
-        <button key={o.value} onClick={() => onChange(o.value)}
-          className={cn(
-            "flex-1 py-2 text-sm rounded-xl border transition-colors capitalize",
-            value === o.value
-              ? "bg-foreground text-background border-foreground"
-              : "bg-card text-muted-foreground border-border/60"
-          )}
-        >{o.label}</button>
-      ))}
+        { value: "shared", label: "shared", accent: null as string | null },
+        { value: meId,     label: myName,   accent: myAccentHex },
+        ...(partner ? [{ value: partner.id, label: partnerName, accent: partnerAccentHex }] : []),
+      ].map((o) => {
+        const selected = value === o.value;
+        return (
+          <button key={o.value} onClick={() => onChange(o.value)}
+            className={cn(
+              "flex-1 py-2 text-sm rounded-xl border-2 transition-colors capitalize",
+              selected ? "bg-foreground text-background" : "bg-card text-muted-foreground border-border/60",
+              selected && !o.accent && "border-foreground"
+            )}
+            style={selected && o.accent ? { borderColor: o.accent } : undefined}
+          >{o.label}</button>
+        );
+      })}
     </div>
   );
 }
@@ -326,6 +331,7 @@ export default function VaultClient() {
   const [, startTransition] = useTransition();
 
   const myAccent = getAccent(me.accent_color);
+  const partnerAccent = getAccent(partner?.accent_color);
 
 
   // FAB wires to the correct action per view
@@ -956,7 +962,7 @@ export default function VaultClient() {
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-2">for?</p>
-          <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
+          <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
         </div>
       </BottomSheet>
 
@@ -1020,7 +1026,7 @@ export default function VaultClient() {
         </div>
         <div>
           <p className="text-xs text-muted-foreground mb-2">for?</p>
-          <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
+          <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
         </div>
         {activeFolder?.kind === "date_idea" && (
           <div>
