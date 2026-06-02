@@ -22,27 +22,29 @@ const SHARED_B = "#E2ECF0";
 
 /**
  * Soft left-to-right ombre wash: the owner's accent, or the shared wash.
- * Built with color-mix over var(--card) so it adapts to light/dark automatically
- * (in light mode card is white → near-identical to the old hardcoded washes).
+ * Built with color-mix over var(--card) and mode-aware --wash-* strengths so it
+ * looks tuned in both light and dark. Uses a flat 90deg fade that fully resolves
+ * to the card colour (no angled corner sliver) and clears the right ~third so
+ * trailing content/chevrons sit on a clean surface.
  */
 export function cardOmbre(o: OwnerIdentity): string {
   if (!o.shared) {
-    const tint = `color-mix(in srgb, ${o.people[0].hex} 16%, var(--card))`;
-    return `linear-gradient(100deg, ${tint} 0%, var(--card) 55%)`;
+    const tint = `color-mix(in srgb, ${o.people[0].hex} var(--wash-accent), var(--card))`;
+    return `linear-gradient(90deg, ${tint} 0%, var(--card) 68%)`;
   }
-  const a = `color-mix(in srgb, ${SHARED_A} 60%, var(--card))`;
-  const b = `color-mix(in srgb, ${SHARED_B} 60%, var(--card))`;
-  return `linear-gradient(100deg, ${a} 0%, ${b} 28%, var(--card) 62%)`;
+  const a = `color-mix(in srgb, ${SHARED_A} var(--wash-shared), var(--card))`;
+  const b = `color-mix(in srgb, ${SHARED_B} var(--wash-shared), var(--card))`;
+  return `linear-gradient(90deg, ${a} 0%, ${b} 30%, var(--card) 70%)`;
 }
 
 /** A subtle accent tint over the card surface — for emoji tiles, chips, etc. */
 export function ownerTint(hex: string): string {
-  return `color-mix(in srgb, ${hex} 20%, var(--card))`;
+  return `color-mix(in srgb, ${hex} var(--tile-accent), var(--card))`;
 }
 
 /** A pale panel colour (folder lists) mixed toward the card so it adapts to dark. */
 export function panelTint(hex: string): string {
-  return `color-mix(in srgb, ${hex} 55%, var(--card))`;
+  return `color-mix(in srgb, ${hex} var(--panel-accent), var(--card))`;
 }
 
 /**

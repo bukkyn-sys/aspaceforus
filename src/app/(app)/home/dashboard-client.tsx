@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
+import { ownerTint } from "@/lib/owner-identity";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -386,7 +387,7 @@ export default function DashboardClient() {
                     "flex-1 text-lg py-1 rounded-xl transition-all",
                     data.myMood === i + 1 ? "scale-110" : "opacity-50 hover:opacity-80"
                   )}
-                  style={data.myMood === i + 1 ? { backgroundColor: myAccent.light } : undefined}
+                  style={data.myMood === i + 1 ? { backgroundColor: ownerTint(myAccent.hex) } : undefined}
                 >
                   {emoji}
                 </button>
@@ -416,7 +417,7 @@ export default function DashboardClient() {
                       "flex-1 text-lg py-1 rounded-xl text-center",
                       data.partnerMood === i + 1 ? "" : "opacity-20"
                     )}
-                    style={data.partnerMood === i + 1 ? { backgroundColor: partnerAccent.light } : undefined}
+                    style={data.partnerMood === i + 1 ? { backgroundColor: ownerTint(partnerAccent.hex) } : undefined}
                   >
                     {emoji}
                   </div>

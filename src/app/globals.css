@@ -78,6 +78,13 @@
   --match:                oklch(0.87 0.06 100);
   --event-band:           oklch(0.90 0.012 85); /* calendar event band (was #E4DFD4) */
 
+  /* Accent-wash strengths (how much accent is mixed over the card surface).
+     Light mode: pale pastels need a higher % to read as a soft tint over white. */
+  --wash-accent: 15%;  /* personal owner card ombre */
+  --wash-shared: 46%;  /* shared "together" ombre   */
+  --tile-accent: 22%;  /* emoji tiles / chips        */
+  --panel-accent: 55%; /* folder list panels         */
+
   --radius: 1rem;
 
   /* shadcn sidebar compat */
@@ -126,6 +133,13 @@
   --oat:                  oklch(0.245 0.005 85);
   --match:                oklch(0.55 0.07 100);
   --event-band:           oklch(0.30 0.008 85);
+
+  /* Dark mode: accents are mid-tone, so a lower % keeps washes tinted-yet-dark
+     (never lighter than the text). Shared pastels especially must stay subtle. */
+  --wash-accent: 26%;
+  --wash-shared: 20%;
+  --tile-accent: 34%;
+  --panel-accent: 28%;
 
   --sidebar: oklch(0.205 0.004 85);
   --sidebar-foreground: oklch(0.945 0.004 85);

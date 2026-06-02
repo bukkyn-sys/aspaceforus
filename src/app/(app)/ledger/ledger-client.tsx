@@ -846,7 +846,7 @@ export default function LedgerClient() {
             return (
               <button key={folder.id} onClick={() => openPotFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: `linear-gradient(100deg, ${panelTint(potPanelColor(folder.sort_order))} 0%, var(--card) 46%)` }}>
+                style={{ background: `linear-gradient(90deg, ${panelTint(potPanelColor(folder.sort_order))} 0%, var(--card) 60%)` }}>
                 <div className="flex-shrink-0 pl-3.5 py-3">
                   <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[22px] leading-none" style={{ backgroundColor: panelTint(potPanelColor(folder.sort_order)) }}>
                     {folder.emoji}
