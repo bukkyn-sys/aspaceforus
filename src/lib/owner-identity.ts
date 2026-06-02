@@ -35,21 +35,25 @@ const SHARED_B = "#E2ECF0";
  * neutral grey rise and NO stroke, so only personal cards carry colour.
  */
 export function ownerCardStyle(o: OwnerIdentity): CSSProperties {
-  // No border on owner cards — the faint card border left only a lone hairline on
-  // the left once the accent stroke covered the right edge, which read as a glitch.
-  // The gradient + drop shadow define the card instead.
+  // backgroundImage (not the `background` shorthand) + origin/clip border-box so
+  // the gradient spans the FULL card and never tiles. With a 1px border + the
+  // default padding-box origin, the gradient was 1px narrower than the paint area
+  // and repeated — wrapping the right colour onto the left edge and vice-versa.
+  const base: CSSProperties = {
+    backgroundOrigin: "border-box",
+    backgroundClip: "border-box",
+    backgroundRepeat: "no-repeat",
+    borderColor: "transparent",
+  };
   if (o.shared) {
-    return {
-      background: `linear-gradient(90deg, var(--card) 55%, var(--event-band) 100%)`,
-      borderColor: "transparent",
-    };
+    return { ...base, backgroundImage: `linear-gradient(90deg, var(--card) 55%, var(--event-band) 100%)` };
   }
   const hex = o.people[0].hex;
   const tint = `color-mix(in srgb, ${hex} var(--wash-accent), var(--card))`;
   // Right accent stroke via inset shadow — follows the rounded corners (curves).
   return {
-    background: `linear-gradient(90deg, var(--card) 50%, ${tint} 100%)`,
-    borderColor: "transparent",
+    ...base,
+    backgroundImage: `linear-gradient(90deg, var(--card) 50%, ${tint} 100%)`,
     boxShadow: `inset -2.5px 0 0 0 ${hex}, var(--card-shadow)`,
   };
 }

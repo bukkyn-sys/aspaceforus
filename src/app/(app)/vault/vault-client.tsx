@@ -653,7 +653,7 @@ export default function VaultClient() {
                 key={folder.id}
                 onClick={() => openFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ background: panelOmbre(folderPanelColor(folder)) }}
+                style={{ backgroundImage: panelOmbre(folderPanelColor(folder)), backgroundOrigin: "border-box", backgroundClip: "border-box", backgroundRepeat: "no-repeat" }}
               >
                 {/* Emoji tile */}
                 <div className="flex-shrink-0 pl-3.5 py-3">
