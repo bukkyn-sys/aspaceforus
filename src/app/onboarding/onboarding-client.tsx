@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
 import { QRCodeSVG } from "qrcode.react";
+import ThemeToggle from "@/components/theme-toggle";
 
 type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "install";
 type Tab = "create" | "join";
@@ -667,6 +668,9 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       case "welcome":
         return (
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
+            <div className="flex justify-end max-w-sm w-full mx-auto">
+              <ThemeToggle compact />
+            </div>
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col items-center justify-center text-center">
               <motion.p variants={rise} className="font-heading text-2xl text-muted-foreground/50 tracking-tight mb-2">aspaceforus.</motion.p>
               <motion.h1 variants={rise} className="font-heading text-5xl text-foreground tracking-tight">hello, {greetName}.</motion.h1>

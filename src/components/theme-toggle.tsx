@@ -18,7 +18,7 @@ const OPTIONS: { id: Theme; label: string; Icon: typeof Sun }[] = [
   { id: "dark", label: "dark", Icon: Moon },
 ];
 
-export default function ThemeToggle() {
+export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const [theme, setTheme] = useState<Theme>("system");
 
   useEffect(() => {
@@ -38,6 +38,27 @@ export default function ThemeToggle() {
     setTheme(t);
     localStorage.setItem("theme", t);
     applyTheme(t);
+  }
+
+  if (compact) {
+    return (
+      <div className="inline-flex gap-1 p-1 rounded-full bg-secondary" role="group" aria-label="theme">
+        {OPTIONS.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => choose(id)}
+            aria-pressed={theme === id}
+            aria-label={`${label} theme`}
+            className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+              theme === id ? "bg-foreground text-background" : "text-muted-foreground"
+            )}
+          >
+            <Icon className="w-4 h-4" />
+          </button>
+        ))}
+      </div>
+    );
   }
 
   return (

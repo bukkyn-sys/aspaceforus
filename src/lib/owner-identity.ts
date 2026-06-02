@@ -38,14 +38,16 @@ export function ownerCardStyle(o: OwnerIdentity): CSSProperties {
   if (o.shared) {
     return {
       background: `linear-gradient(90deg, var(--card) 55%, var(--event-band) 100%)`,
-      boxShadow: `var(--card-shadow)`,
     };
   }
   const hex = o.people[0].hex;
   const tint = `color-mix(in srgb, ${hex} var(--wash-accent), var(--card))`;
+  // The accent stroke is a 3px right border — it follows the card's rounded
+  // corners and (unlike an inset shadow) never bleeds onto the left edge.
   return {
     background: `linear-gradient(90deg, var(--card) 50%, ${tint} 100%)`,
-    boxShadow: `inset -2.5px 0 0 0 ${hex}, var(--card-shadow)`,
+    borderRightColor: hex,
+    borderRightWidth: "3px",
   };
 }
 
