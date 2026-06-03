@@ -38,9 +38,9 @@ function isWebView(): boolean {
 
 const RESEND_SECONDS = 40;
 
-// Email 6-digit-code sign-in. Shown only inside in-app browsers, where Google
-// OAuth is blocked — the whole flow (request code → type code → session) happens
-// in this one window, so there's no browser hop and nothing for Google to block.
+// Email 6-digit-code sign-in. Available in every browser so an account made with
+// email is always reachable, and so it works inside in-app browsers where Google
+// OAuth is blocked — the whole flow happens in one window, no browser hop.
 function EmailCodeForm() {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
@@ -49,7 +49,6 @@ function EmailCodeForm() {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
-  const [copied, setCopied] = useState(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
@@ -102,16 +101,9 @@ function EmailCodeForm() {
     window.location.href = "/home";
   }
 
-  function copyLink() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
   if (step === "code") {
     return (
-      <div className="w-full max-w-xs space-y-4">
+      <div className="space-y-4">
         <button
           onClick={() => { setStep("email"); setError(null); }}
           className="inline-flex items-center gap-1 text-xs text-muted-foreground active:opacity-70"
@@ -157,38 +149,48 @@ function EmailCodeForm() {
   }
 
   return (
-    <div className="w-full max-w-xs space-y-4">
-      <p className="text-xs text-muted-foreground text-center leading-relaxed">
-        Google sign-in doesn’t work inside in-app browsers, so we’ll email you a code instead.
-      </p>
-
+    <form onSubmit={handleSend} className="space-y-2">
       {error && <p className="text-sm text-destructive text-center break-words">{error}</p>}
+      <Input
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="your email"
+        className="h-12 rounded-xl bg-card border-border/60 text-base text-center"
+      />
+      <Button type="submit" disabled={sending || !email.trim()} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
+        {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+        email me a code
+      </Button>
+    </form>
+  );
+}
 
-      <form onSubmit={handleSend} className="space-y-2">
-        <Input
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your email"
-          className="h-12 rounded-xl bg-card border-border/60 text-base text-center"
-        />
-        <Button type="submit" disabled={sending || !email.trim()} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
-          {sending && <Loader2 className="w-4 h-4 animate-spin" />}
-          email me a code
-        </Button>
-      </form>
-
-      <div className="text-center">
-        <button
-          onClick={copyLink}
-          className="inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground active:opacity-70"
-        >
-          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? "link copied" : "prefer Google? copy link & open in your browser"}
-        </button>
-      </div>
+// Shown inside in-app browsers: Google can't run here, so point the user to a
+// full browser (with a copy-link they can paste into Safari/Chrome) if they'd
+// rather use Google than the email code.
+function GoogleInBrowserHint() {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+  return (
+    <div className="rounded-2xl bg-secondary px-4 py-3 text-center space-y-2">
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Want to use Google instead? It only works in a full browser — open this page in Safari or Chrome.
+      </p>
+      <button
+        onClick={copy}
+        className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-foreground active:opacity-70"
+      >
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? "link copied" : "copy link"}
+      </button>
     </div>
   );
 }
@@ -216,25 +218,39 @@ function LoginForm() {
     if (error) { setError(error.message); setLoading(false); }
   }
 
-  // In-app browsers (Instagram/TikTok/etc.) can't do Google OAuth — give them
-  // the email-code flow, which signs in without leaving the app.
-  if (inWebView) return <EmailCodeForm />;
-
   return (
     <div className="w-full max-w-xs space-y-4">
       {error && (
         <p className="text-sm text-destructive text-center break-words">{error}</p>
       )}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleGoogle}
-        disabled={loading}
-        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
-      >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
-        continue with Google
-      </Button>
+
+      {/* Google — only in real browsers; in-app browsers block OAuth */}
+      {!inWebView && (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGoogle}
+            disabled={loading}
+            className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
+            continue with Google
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border/60" />
+            <span className="text-xs text-muted-foreground/60">or</span>
+            <div className="h-px flex-1 bg-border/60" />
+          </div>
+        </>
+      )}
+
+      {/* Email code — available everywhere, so an email account is always reachable */}
+      <EmailCodeForm />
+
+      {/* Inside an in-app browser, tell them Google is available in a real browser */}
+      {inWebView && <GoogleInBrowserHint />}
     </div>
   );
 }
