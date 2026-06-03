@@ -19,6 +19,7 @@ import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
+import { toast } from "@/lib/toast";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -374,7 +375,10 @@ export default function LedgerClient() {
       };
       setEntries((prev) => [optimistic, ...prev]);
       markActivity("ledger");
-      startTransition(() => { addLedgerEntry({ coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); });
+      startTransition(async () => {
+        try { await addLedgerEntry({ coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); }
+        catch { toast("couldn't save that expense — check your connection"); setRtick((x) => x + 1); }
+      });
     }
     resetEntryForm(); setEditingEntryId(null); setShowAdd(false);
   }
@@ -402,7 +406,10 @@ export default function LedgerClient() {
     setEntries((prev) => prev.filter((e) => e.recurrence !== "none"));
     setSettledEntries(null); // invalidate history cache
     setShowSettleConfirm(false);
-    startTransition(() => { settleAll(coupleId); });
+    startTransition(async () => {
+      try { await settleAll(coupleId); }
+      catch { toast("couldn't settle up — check your connection"); setRtick((x) => x + 1); }
+    });
   }
 
   async function handleAddPot() {
@@ -440,7 +447,10 @@ export default function LedgerClient() {
       return iAmCreator ? { ...p, his_amount: next } : { ...p, hers_amount: next };
     }));
     setSelectedPot(null); setContribDelta("");
-    startTransition(() => { contributeToPot(selectedPot.id, coupleId, me.id, delta); });
+    startTransition(async () => {
+      try { await contributeToPot(selectedPot.id, coupleId, me.id, delta); }
+      catch { toast("couldn't update the pot — check your connection"); setRtick((x) => x + 1); }
+    });
   }
 
   function handleDeletePot(pot: Pot) {

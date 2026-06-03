@@ -1,4 +1,4 @@
-const CACHE = "us-v9";
+const CACHE = "us-v10";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
