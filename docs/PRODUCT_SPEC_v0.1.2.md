@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Product** | aspaceforus (in‑app wordmark: **"us."**) |
-| **Version** | **0.1.1** (first private beta) |
+| **Version** | **0.1.2** (first private beta) |
 | **Status** | Beta‑ready; invite‑only |
 | **Document owner** | Bukky (bukkyn@gmail.com) |
 | **Last updated** | 2026‑06‑03 |
@@ -19,7 +19,7 @@
 
 The product blends **light organization** (a shared calendar, an expense ledger, savings pots, a vault of date‑ideas and wishlists, countdowns to things you're looking forward to) with **gentle connection** (daily mood check‑ins, a shared sticky note, presence cues, and a partner‑activity feed) inside a soft, premium, intentionally quiet interface.
 
-v0.1 is feature‑complete for a first beta: authentication, couple pairing, all five core surfaces (Home, Calendar, Vault, Ledger, Profile), realtime sync between partners, web‑push notifications (partner activity + scheduled re‑engagement), dark mode, and a hardened security posture.
+v0.1 is feature‑complete for a first beta: authentication (Google OAuth + passwordless email one‑time‑code, the latter added v0.1.2), couple pairing, all five core surfaces (Home, Calendar, Vault, Ledger, Profile), realtime sync between partners, web‑push notifications (partner activity + scheduled re‑engagement), dark mode, and a hardened security posture.
 
 ---
 
@@ -70,7 +70,7 @@ All three are served by the same surface; the app lets a couple use as much or a
 - In‑app messaging / chat.
 - Native iOS/Android apps (PWA only).
 - Monetization, payments, subscriptions.
-- Email/password or magic‑link auth (Google OAuth only for now).
+- Email/password auth and clickable magic‑links (v0.1.2 adds passwordless **email one‑time‑code** sign‑in alongside Google; classic password login and magic‑links remain out of scope).
 - Two‑way external calendar sync, bank/expense imports.
 - Analytics dashboards / admin tooling.
 
@@ -137,10 +137,15 @@ Notification badges (a single soft dot) appear on a tab when the partner has act
 > Each feature lists: purpose, behaviour, data, realtime, ownership/permissions, edge cases.
 
 ### 8.1 Authentication
-- **Method:** Google OAuth only (Supabase Auth, PKCE flow). Server‑side code exchange at `/auth/callback` writes session cookies before redirect (prevents a session race that bounced users back to login).
-- **WebView guard:** in‑app browsers (Instagram, WhatsApp, TikTok, etc.) where Google OAuth is blocked show a "open in your browser → copy link" banner instead of a dead button.
+Two passwordless methods, offered by context:
+- **Google OAuth** (Supabase Auth, PKCE). Server‑side code exchange at `/auth/callback` writes session cookies before redirect (prevents a session race that bounced users back to login). Shown in full browsers and the installed PWA.
+- **Email one‑time code** (added v0.1.2). The user enters their email, Supabase emails a numeric code (`signInWithOtp`), and they type it back on the same page; `verifyOtp` runs client‑side, then a full navigation to `/home` carries the fresh session cookies to the server (which routes new users on to onboarding). Verify tries `type: "email"` then falls back to `type: "signup"` so both returning and brand‑new users confirm with one code; the field accepts up to an 8‑digit code (project‑configurable length). A resend cooldown (40 s) matches Supabase's per‑user minimum interval.
+- **Availability by context.** Email‑code sign‑in is shown in **every** browser, so an account created with email is always reachable on any device. Google is shown **only where it can work** (real browsers) — inside in‑app browsers (Instagram, TikTok, WhatsApp, Snapchat, etc.) Google OAuth is blocked, so that path is hidden and replaced with the email‑code form plus a hint (and copy‑link) to open the page in Safari/Chrome if the user prefers Google.
+- **Why email code, not magic‑link.** A typed code completes in the same window, so it works inside in‑app browsers with no browser hop; a clickable magic‑link opened from an email app in a *different* browser breaks PKCE. (A `token_hash` magic‑link + `/auth/confirm` route was prototyped and dropped in favour of the code.)
+- **Sending.** Auth emails are delivered through **Resend** via custom SMTP configured in Supabase (sender `admin@aspaceforus.app`); the throttled, spam‑prone built‑in Supabase mailer is no longer used. Supabase email templates ("Magic link or OTP", "Confirm signup") emit the code via `{{ .Token }}`.
 - **Sign out:** Profile → sign out (clears session, returns to login).
 - **Edge:** a missing `profiles` row is self‑healing — the `handle_new_user` trigger and the couple RPCs upsert it so onboarding can't get stuck.
+- **Known gap:** same‑email identity linking (a person using Google on one device and the email code on another with the same address being treated as **one** account) is not yet confirmed in Supabase settings — to verify before public launch.
 
 ### 8.2 Onboarding & couple pairing
 A staged, animated flow (`/onboarding`), shown when a signed‑in user has no `couple_id`:
@@ -242,8 +247,9 @@ Two distinct systems over the same Web Push channel (see §13):
 
 - **Framework:** Next.js 16 (App Router, Turbopack), React, TypeScript.
 - **Styling:** Tailwind v4 + custom token layer; shadcn/base‑ui primitives.
-- **Backend:** Supabase — Postgres (+ Row‑Level Security), Auth (Google OAuth), Storage (private buckets), Realtime (postgres_changes + broadcast).
+- **Backend:** Supabase — Postgres (+ Row‑Level Security), Auth (Google OAuth + email one‑time‑code), Storage (private buckets), Realtime (postgres_changes + broadcast).
 - **Hosting:** Vercel (Hobby), Git‑integration deploys from `main` + CLI deploys; production aliased to www.aspaceforus.app.
+- **Email:** transactional/auth email via **Resend** (custom SMTP set in Supabase Auth; domain `aspaceforus.app` verified with SPF/DKIM on the `send` subdomain). Inbound mail to the domain (`team@`/`admin@aspaceforus.app`) is forwarded to the owner's inbox via **ImprovMX** (MX + SPF on the root) — the two record sets live on different names so they don't collide. All DNS is managed in Vercel.
 - **Push:** `web-push` (VAPID) from server actions + a cron API route.
 - **Scheduling:** GitHub Actions cron (Vercel Hobby cron is once/day‑limited) → authenticated `/api/cron/engagement`.
 - **Observability (v0.1.1):** PostHog (product analytics, scoped to the authenticated app) + Sentry (errors/traces, server/client/edge). Both no‑op safely if unconfigured.
@@ -292,7 +298,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 - **Join rate‑limiting.** Max 10 failed code guesses / 15 min / user (`join_attempts`). Invite code is 8 hex chars (~4B space).
 - **Notification throttle.** ≤1 push per recipient per 10 min.
 - **HTTP headers + CSP.** `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS, and a Content‑Security‑Policy (scoped to self + Supabase; `'unsafe-inline'` retained for Next hydration/Tailwind).
-- **Auth.** Google OAuth (PKCE), server‑side code exchange. Service‑role key is server‑only (cron route).
+- **Auth.** Google OAuth (PKCE, server‑side code exchange) + passwordless email one‑time‑code (`verifyOtp`, client‑side). Auth email sent via Resend custom SMTP over a domain with verified SPF/DKIM; OTP sends are rate‑limited (Supabase per‑user minimum interval + hourly cap). Service‑role key is server‑only (cron route).
 - **Realtime.** `postgres_changes` are RLS‑scoped. Broadcast channels (mood/activity) are keyed on the couple's UUID and currently public‑by‑topic — low practical risk (UUID never exposed to non‑members); noted for a future private‑channel pass.
 
 **Residual / known security items:** storage *writes* still broad‑authenticated (scoping SQL ready, pending an upload‑test); broadcast channels not yet RLS‑private; no audit logging.
@@ -331,6 +337,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 - **Environments:** Vercel Production (`main` → www.aspaceforus.app), Preview, Development.
 - **Env vars (Production):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (cron only), `VAPID_SUBJECT`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `CRON_SECRET`. **Observability (v0.1.1):** `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, optional `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN`; dev‑only `NEXT_PUBLIC_FORCE_WEBVIEW`. (Full table in `README.md`.)
+- **Email infrastructure (v0.1.2):** **Resend** for transactional/auth send — SMTP host/key live in **Supabase → Auth → SMTP** (not a Vercel env var); sender `admin@aspaceforus.app`. **ImprovMX** forwards inbound `aspaceforus.app` mail to the owner's Gmail. DNS for all of it (Resend SPF/DKIM/MX on `send`, ImprovMX MX/SPF on root) is in **Vercel DNS**. Supabase email templates are customised to emit the OTP via `{{ .Token }}`.
 - **Secrets (GitHub Actions):** `CRON_SECRET`.
 - **DB migrations:** hand‑run SQL files in `supabase/` (no automated migration runner). Notable: `run_all.sql` (hardening), `notification_throttle.sql`, `join_rate_limit.sql`, `perf_session_currency.sql`, `storage_*` , `fix_*`.
 - **Deploy:** push to `main` (Git integration) or `npx vercel --prod` (CLI bypasses the Hobby single‑slot queue). Service worker `CACHE` version is bumped per release to force client refresh.
@@ -341,7 +348,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 ## 18. Known limitations & tech debt
 
 - ~~No analytics/error reporting~~ → added in v0.1.1 (PostHog + Sentry).
-- Auth is Google‑only (no email/magic‑link fallback) → excludes non‑Google users + WebView users.
+- ~~Auth is Google‑only (no email/magic‑link fallback)~~ → v0.1.2 adds email one‑time‑code sign‑in (every browser, incl. in‑app), covering non‑Google + WebView users; classic password login still absent, and same‑email identity linking (Google + email → one account) not yet confirmed.
 - Screens are large single files (vault ~1.1k lines); repeated form/sheet blocks are extraction candidates.
 - Storage writes broad‑authenticated (scoping **v2** prepared but deferred — see §13); broadcast channels not RLS‑private (both low‑risk).
 - Calendar: a day with an event/countdown can't also toggle availability.
@@ -355,7 +362,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 **v0.1 (now):** five surfaces, pairing, realtime, push (activity + engagement), dark mode, hardened security, PWA.
 
-**Near‑term (pre‑public):** ~~analytics + error reporting~~ (done, v0.1.1); email/magic‑link auth fallback; apply storage write‑scoping **v2** (preview‑test first); broadcast‑channel RLS; first‑class feedback channel; finish optimistic‑failure coverage.
+**Near‑term (pre‑public):** ~~analytics + error reporting~~ (done, v0.1.1); ~~email/magic‑link auth fallback~~ (done, v0.1.2 — email one‑time‑code); confirm same‑email identity linking; apply storage write‑scoping **v2** (preview‑test first); broadcast‑channel RLS; first‑class feedback channel; finish optimistic‑failure coverage.
 
 **Roadmap themes (owner‑selected):**
 1. **Messaging / love notes** — in‑app exchange between partners (beyond the single shared note).
@@ -373,7 +380,10 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 |---|---|
 | Space capped at **2** | Core privacy model; "just the two of you." Adjustable later. |
 | Avatars, banners, vault photos **private** | Privacy is the product. |
-| **Google‑only** auth (for now) | Fastest trustworthy path for beta; fallback deferred. |
+| Google OAuth as a sign‑in method | Fastest trustworthy path; one tap in real browsers. |
+| Add **email one‑time‑code** (v0.1.2) | Google OAuth is blocked in social‑media in‑app browsers; a typed code signs in without leaving the app, and keeps email accounts reachable on any device. |
+| Email **code** over magic‑link | A typed code completes in one window (in‑app‑browser safe); a clickable magic‑link breaks PKCE when opened in a different browser. |
+| Email via **Resend SMTP** + **ImprovMX** forwarding | Built‑in Supabase mailer is throttled/spam‑prone; Resend gives deliverable send, ImprovMX gives a free inbound address for the brand. |
 | **Removed** image proxy + OG scraper | SSRF risk > value. |
 | Home‑screen name **"aspaceforus"**, icon **"us."** | Keep the wordplay duality (a‑space‑for‑us → us.). |
 | Tagline **"just the two of you"** | Single, warm, on‑brand line. |
@@ -387,13 +397,37 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 1. **Analytics/error stack** — which (PostHog? Plausible? Sentry?) and when (pre‑public)?
 2. **Monetization shape** if/when — freemium tiering (storage? premium themes? advanced features?).
-3. **Email/magic‑link auth** — add before wider launch?
+3. ~~**Email/magic‑link auth** — add before wider launch?~~ → done in v0.1.2 (email one‑time‑code). **Open:** confirm same‑email identity linking (Google + email → one account) before public launch.
 4. **"Both free" presence beyond calendar** — surface live presence ("she's in the app now")?
 5. **Group spaces** — ever relax the 2‑cap (families, etc.), or stay strictly couples?
 
 ---
 
 ## Version history
+
+### v0.1.2 (2026‑06‑03)
+Auth + email‑infrastructure increment.
+- **Email one‑time‑code sign‑in** added alongside Google. The login page now
+  offers Google (real browsers only) and a passwordless email code (every
+  browser). Inside in‑app browsers — Instagram, TikTok, WhatsApp, etc., where
+  Google OAuth is blocked — Google is hidden and the email‑code form is shown,
+  plus a hint/copy‑link to open the page in a full browser for Google. Closes the
+  long‑standing "Google‑only excludes WebView/non‑Google users" gap and makes an
+  email account reachable on any device.
+- **Verify robustness:** `verifyOtp` tries `type: "email"` then `type: "signup"`
+  so returning and brand‑new users confirm with one code; the field accepts up to
+  an 8‑digit code; client‑side verify then full‑navigates to `/home` so the
+  session cookies reach the server.
+- **A magic‑link (`token_hash`) + `/auth/confirm` prototype was built and
+  removed** in favour of the same‑window code (no cross‑browser PKCE breakage).
+- **Email delivery hardened:** transactional/auth email moved off Supabase's
+  throttled built‑in mailer to **Resend** via custom SMTP (sender
+  `admin@aspaceforus.app`; domain verified with SPF/DKIM). Supabase email
+  templates emit the code via `{{ .Token }}`.
+- **Inbound email:** `aspaceforus.app` mail (e.g. `team@`, `admin@`) forwards to
+  the owner's inbox via **ImprovMX** (root‑domain MX/SPF; coexists with Resend's
+  `send`‑subdomain records). All DNS managed in Vercel.
+- No schema changes; no new Vercel env vars (SMTP credentials live in Supabase).
 
 ### v0.1.1 (2026‑06‑03)
 A hardening / instrumentation increment on top of v0.1 — no new user-facing surfaces.
