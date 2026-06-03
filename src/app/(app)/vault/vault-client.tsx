@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
+import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity, ownerCardStyle, ownerTint, panelTint, panelOmbre } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
@@ -660,7 +661,7 @@ export default function VaultClient() {
           <p className="text-sm text-muted-foreground mt-0.5">your shared space</p>
         </div>
 
-        {foldersLoading ? null : (
+        {foldersLoading ? <SkeletonRows count={4} /> : (
           <div className="space-y-2.5">
             {folders.map((folder) => (
               <button
@@ -829,7 +830,7 @@ export default function VaultClient() {
 
       {/* List */}
       <div className="px-4 pb-24">
-        {itemsLoading ? null : filteredItems.length === 0 ? (
+        {itemsLoading ? <SkeletonRows count={4} /> : filteredItems.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center mx-auto mb-3 text-2xl opacity-60">{activeFolder?.emoji}</div>
             <p className="text-muted-foreground text-sm">nothing here yet</p>

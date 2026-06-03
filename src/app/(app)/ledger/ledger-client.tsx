@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
+import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -696,7 +697,7 @@ export default function LedgerClient() {
         ))}
       </div>
 
-      {loading ? null : tab === "entries" ? (
+      {loading ? <SkeletonRows count={4} /> : tab === "entries" ? (
         <>
           {/* History toggle */}
           <div className="flex items-center justify-between mb-3">
