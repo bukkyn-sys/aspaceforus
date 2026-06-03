@@ -235,41 +235,6 @@ export default function CalendarClient() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
 
-  // ── Event "lane" layout ─────────────────────────────────────────────────
-  // Each event/countdown gets a horizontal lane; overlapping items stack into
-  // separate lanes so they render as distinct thin bars (never one merged block).
-  const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
-  const monthFirst = `${monthStr}-01`;
-  const monthLast = `${monthStr}-${String(daysInMonth).padStart(2, "0")}`;
-  function clampSpan(startStr: string, endStr: string): { startDay: number; endDay: number } | null {
-    if (endStr < monthFirst || startStr > monthLast) return null;
-    return {
-      startDay: startStr >= monthFirst ? parseInt(startStr.slice(8, 10), 10) : 1,
-      endDay: endStr <= monthLast ? parseInt(endStr.slice(8, 10), 10) : daysInMonth,
-    };
-  }
-  type LaneItem = { id: string; startDay: number; endDay: number; color: string; lane: number };
-  const laneItems: LaneItem[] = [];
-  for (const e of events) {
-    const span = clampSpan(e.start_at.slice(0, 10), (e.end_at ?? e.start_at).slice(0, 10));
-    if (!span) continue;
-    const o = resolveOwner(e.created_by);
-    laneItems.push({ id: e.id, ...span, color: o.shared ? "var(--muted-foreground)" : o.people[0].hex, lane: -1 });
-  }
-  for (const c of countdowns) {
-    const span = clampSpan(c.target_date, c.end_date ?? c.target_date);
-    if (!span) continue;
-    laneItems.push({ id: c.id, ...span, color: "var(--muted-foreground)", lane: -1 });
-  }
-  laneItems.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay);
-  const laneEnds: number[] = []; // laneEnds[L] = last occupied day in lane L
-  for (const it of laneItems) {
-    let lane = 0;
-    while (lane < laneEnds.length && laneEnds[lane] >= it.startDay) lane++;
-    it.lane = lane;
-    laneEnds[lane] = it.endDay;
-  }
-  const visibleLanes = Math.min(laneEnds.length, 3);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -343,21 +308,11 @@ export default function CalendarClient() {
             const dayCds = getCountdownsForDate(ds);
             const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
 
-            const colIndex = i % 7;
-            const isWeekStart = colIndex === 0;
-            const isWeekEnd = colIndex === 6;
-
-            // Items spanning this day, placed in their lanes (for the thin bars).
-            const byLane: (LaneItem | undefined)[] = [];
-            if (isEventDay) {
-              for (const it of laneItems) {
-                if (it.startDay <= day && day <= it.endDay) byLane[it.lane] = it;
-              }
-            }
-
-            const eventCount = dayEvents.length + dayCds.length;
+            // Each event day shows its event/countdown emoji(s) in the indicator
+            // slot (no spanning bars — the range lives in the cards below).
+            const dayEmojis = isEventDay ? [...dayEvents.map(e => e.emoji), ...dayCds.map(c => c.emoji)] : [];
             const availLabel = isEventDay
-              ? `, ${eventCount > 1 ? `${eventCount} events` : "event"}`
+              ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}`
               : `${mine === "free" ? ", you free" : ""}${theirs === "free" ? ", partner free" : ""}`;
 
             return (
@@ -368,60 +323,52 @@ export default function CalendarClient() {
                 aria-label={`${day} ${monthLabel}${availLabel}`}
                 aria-pressed={!isEventDay && mine === "free"}
                 className={cn(
-                  "aspect-square w-full rounded-lg relative transition-all select-none",
+                  "aspect-square w-full flex flex-col items-center justify-center gap-1 rounded-2xl relative transition-all select-none",
                   !isEventDay && overlap && "bg-[var(--free-cell)]",
-                  isEventDay && "cursor-default",
-                  isPast && "opacity-30 cursor-default",
+                  (isEventDay || isPast) && "cursor-default",
+                  isPast && "opacity-30",
                 )}
               >
                 {/* Day number — today gets a filled circle */}
-                <div className="absolute top-[6px] left-0 right-0 flex justify-center">
-                  {isToday ? (
-                    <div className="w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
-                      <span className="text-[11px] font-bold text-background leading-none">{day}</span>
-                    </div>
-                  ) : (
-                    <span className={cn(
-                      "text-xs font-semibold leading-none",
-                      overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
-                    )}>
-                      {day}
-                    </span>
-                  )}
-                </div>
-
-                {/* Event days: thin lane bars (each event its own lane, overlaps stack) */}
-                {isEventDay ? (
-                  <div className="absolute bottom-[5px] left-0 right-0 flex flex-col-reverse gap-[2px]">
-                    {Array.from({ length: visibleLanes }).map((_, lane) => {
-                      const it = byLane[lane];
-                      if (!it) return <div key={lane} className="h-[3px]" />;
-                      const rl = day === it.startDay || isWeekStart;
-                      const rr = day === it.endDay || isWeekEnd;
-                      return (
-                        <div
-                          key={lane}
-                          className={cn("h-[3px]", rl && "rounded-l-full", rr && "rounded-r-full")}
-                          style={{ backgroundColor: it.color, opacity: 0.9 }}
-                        />
-                      );
-                    })}
+                {isToday ? (
+                  <div className="w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
+                    <span className="text-[11px] font-bold text-background leading-none">{day}</span>
                   </div>
                 ) : (
-                  /* Availability dots — free = accent dot · unset = faint dot */
-                  <div className="absolute bottom-[7px] left-0 right-0 flex gap-0.5 items-center justify-center">
-                    <div
-                      className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
-                      style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                    />
-                    {partner && (
-                      <div
-                        className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
-                        style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
-                      />
-                    )}
-                  </div>
+                  <span className={cn(
+                    "text-xs font-semibold leading-none",
+                    overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
+                  )}>
+                    {day}
+                  </span>
                 )}
+
+                {/* Indicator — event emoji(s), or availability dots */}
+                <div className="h-3 flex items-center justify-center gap-0.5">
+                  {isEventDay ? (
+                    <>
+                      {dayEmojis.slice(0, 2).map((em, k) => (
+                        <span key={k} className="text-[11px] leading-none">{em}</span>
+                      ))}
+                      {dayEmojis.length > 2 && (
+                        <span className="text-[8px] font-semibold text-muted-foreground/70 leading-none">+{dayEmojis.length - 2}</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div
+                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
+                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
+                      />
+                      {partner && (
+                        <div
+                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
+                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -447,7 +394,7 @@ export default function CalendarClient() {
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-[3px] rounded-full bg-muted-foreground/80" />
+          <span className="text-[11px] leading-none">📅</span>
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
