@@ -15,6 +15,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
+import { track } from "@/lib/analytics";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -201,6 +202,7 @@ export default function CalendarClient() {
       const optimistic: CalEvent = { id: crypto.randomUUID(), title, start_at: startAt, end_at: endAt, emoji: eventEmoji, created_by: me.id };
       setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
       markActivity("calendar");
+      track("event_created", { multi_day: !!endAt });
       startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji }); });
     }
     setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");

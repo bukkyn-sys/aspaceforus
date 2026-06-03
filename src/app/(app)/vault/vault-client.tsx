@@ -21,6 +21,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
+import { track } from "@/lib/analytics";
 import { useOwnerIdentity, ownerCardStyle, panelOmbre } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
@@ -528,7 +529,8 @@ export default function VaultClient() {
   async function uploadVaultImage(file: File): Promise<{ url: string | null; error: string | null }> {
     const supabase = createClient();
     const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-    const path = `${coupleId}/${crypto.randomUUID()}.${ext}`;
+    // Scoped to vault/{couple_id}/{user_id}/ — see storage_scope_writes.sql.
+    const path = `${coupleId}/${me.id}/${crypto.randomUUID()}.${ext}`;
     const { error } = await supabase.storage
       .from("vault")
       .upload(path, file, { contentType: file.type || "image/jpeg", upsert: false });
@@ -570,6 +572,7 @@ export default function VaultClient() {
     };
     setItems((prev) => [optimistic, ...prev]);
     markActivity("vault");
+    track("vault_item_created", { type: activeFolder.kind });
     startTransition(() =>
       addVaultItem({
         coupleId, userId: me.id,

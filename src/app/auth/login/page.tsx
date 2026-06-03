@@ -18,12 +18,16 @@ function GoogleIcon() {
 }
 
 // Returns true when running inside a WebView / in-app browser (Instagram,
-// WhatsApp, Facebook, TikTok, etc.) where Google OAuth is blocked.
+// WhatsApp, Facebook, TikTok, Line, Snapchat, etc.) where Google OAuth is blocked.
+// `Line` is anchored on the trailing slash (its UA is "… Line/12.x") so it
+// doesn't false-match substrings like "online".
 function isWebView(): boolean {
+  // Dev simulation: force the WebView banner without a real in-app browser.
+  if (process.env.NEXT_PUBLIC_FORCE_WEBVIEW === "true") return true;
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
   return (
-    /Instagram|FBAN|FBAV|FB_IAB|Twitter|TikTok|Snapchat|WhatsApp|LinkedInApp|MicroMessenger/i.test(ua) ||
+    /Instagram|FBAN|FBAV|FB_IAB|Twitter|TikTok|Snapchat|WhatsApp|Line\/|LinkedInApp|MicroMessenger/i.test(ua) ||
     // Android WebView
     (/Android/.test(ua) && /wv\)/.test(ua)) ||
     // iOS in-app browser: has WebKit but not Safari in UA

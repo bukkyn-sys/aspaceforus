@@ -721,7 +721,7 @@ export default function ProfileClient({
       <Dialog open={showLeave} onClose={() => { if (!leaving) setShowLeave(false); }}>
         <p className="font-semibold text-foreground text-center">leave this couple?</p>
         <p className="text-sm text-muted-foreground text-center mt-2 mb-5 leading-relaxed">
-          you&apos;ll be able to create or join another space. your partner keeps the current space and everything in it.
+          you&apos;ll be able to create or join another space. your partner keeps the current space, and your items will remain in the space.
         </p>
         <div className="space-y-2">
           <Button

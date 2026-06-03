@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
+import { track } from "@/lib/analytics";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
@@ -52,6 +53,22 @@ interface DashboardData {
   freeDays: string[];
   balance: number;   // + means partner owes you, − means you owe partner
   pots: PotMini[];
+}
+
+// Shape returned by the get_home_data RPC (single-call Home load).
+interface HomeData {
+  me: { id: string; current_mood: number | null; mood_updated_at: string | null } | null;
+  partner: { id: string; current_mood: number | null; mood_updated_at: string | null } | null;
+  couple: {
+    shared_note: string | null; started_at: string | null; invite_code: string | null;
+    banner_url: string | null; banner_focus: number | null; currency: string | null;
+  } | null;
+  countdowns: Countdown[];
+  events: { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string }[];
+  free_days: string[];
+  balance: number;
+  pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
+  partner_action: { text: string; at: string } | null;
 }
 
 function timeUntil(dateStr: string) {
@@ -169,97 +186,31 @@ export default function DashboardClient() {
     const supabase = createClient();
 
     async function load() {
-      const today = new Date().toISOString().split("T")[0];
-      const in60 = new Date(Date.now() + 60 * 86400000).toISOString().split("T")[0];
+      // Single RPC replaces the previous ~11 parallel queries (see get_home_data.sql).
+      const { data: raw } = await supabase.rpc("get_home_data", { p_user_id: me.id });
+      const h = raw as HomeData | null;
+      if (!h) { setLoading(false); return; }
 
-      const [
-        { data: myProfile }, { data: partnerProfile }, { data: coupleData }, { data: countdowns },
-        { data: pCalEvent }, { data: pVaultItem }, { data: pLedgerEntry }, { data: availData },
-        { data: pAvail }, { data: ledgerRows }, { data: potRows },
-      ] = await Promise.all([
-        supabase.rpc("get_my_profile", { p_user_id: me.id }),
-        supabase.rpc("get_partner_profile", { p_couple_id: coupleId, p_my_id: me.id }),
-        supabase.from("couples").select("shared_note, started_at, invite_code, banner_url, banner_focus").eq("id", coupleId).single(),
-        supabase.from("countdowns").select("id, title, target_date, end_date, emoji, created_by").eq("couple_id", coupleId)
-          .eq("archived", false).gte("target_date", today).order("target_date"),
-        supabase.from("events").select("title, start_at, created_at").eq("couple_id", coupleId)
-          .neq("created_by", me.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("vault_items").select("title, type, created_at").eq("couple_id", coupleId)
-          .neq("created_by", me.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("ledger_entries").select("title, created_at").eq("couple_id", coupleId)
-          .neq("paid_by", me.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("availability").select("date, user_id, status").eq("couple_id", coupleId)
-          .gte("date", today).lte("date", in60),
-        supabase.from("availability").select("date, status, created_at").eq("couple_id", coupleId)
-          .neq("user_id", me.id).not("status", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-        supabase.from("ledger_entries").select("amount, split_ratio, paid_by").eq("couple_id", coupleId).eq("settled", false),
-        supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, currency").eq("couple_id", coupleId).order("created_at", { ascending: false }),
-      ]);
-
-      const partner = partnerProfile as { id: string; current_mood: number | null; mood_updated_at: string | null } | null;
-      const me_ = myProfile as { current_mood: number | null; mood_updated_at: string | null } | null;
-
-      // Determine most recent partner action
-      const candidates: { text: string; at: string }[] = [];
-      if (pCalEvent && "created_at" in pCalEvent) candidates.push({ text: "added to the calendar", at: (pCalEvent as { created_at: string }).created_at });
-      if (pAvail && "created_at" in pAvail) candidates.push({ text: "updated their calendar", at: (pAvail as { created_at: string }).created_at });
-      if (pVaultItem && "created_at" in pVaultItem) {
-        const v = pVaultItem as { type: string; created_at: string };
-        candidates.push({ text: `added to ${v.type === "wishlist" ? "the wishlist" : "date ideas"}`, at: v.created_at });
-      }
-      if (pLedgerEntry && "created_at" in pLedgerEntry) candidates.push({ text: "logged an expense", at: (pLedgerEntry as { created_at: string }).created_at });
-      if (partner?.mood_updated_at) candidates.push({ text: "updated their mood", at: partner.mood_updated_at });
-      candidates.sort((a, b) => b.at.localeCompare(a.at));
-      const partnerAction = candidates[0] ?? null;
-
-      // Compute next 3 shared free days (both explicitly "free")
-      type AvailRow = { date: string; user_id: string; status: string };
-      const avail = (availData as AvailRow[]) ?? [];
-      const freeDays: string[] = [];
-      if (partner) {
-        const cursor = new Date(today + "T12:00:00");
-        const end = new Date(in60 + "T12:00:00");
-        while (cursor <= end && freeDays.length < 3) {
-          const ds = cursor.toISOString().split("T")[0];
-          const myFree = avail.find((r) => r.user_id === me.id && r.date === ds)?.status === "free";
-          const theirFree = avail.find((r) => r.user_id === partner.id && r.date === ds)?.status === "free";
-          if (myFree && theirFree) freeDays.push(ds);
-          cursor.setDate(cursor.getDate() + 1);
-        }
-      }
-
-      // Net balance from unsettled expenses (+ = partner owes you, − = you owe)
-      type LedgerRow = { amount: string; split_ratio: string | null; paid_by: string };
-      let youOwe = 0, theyOwe = 0;
-      for (const e of (ledgerRows as LedgerRow[]) ?? []) {
-        const amt = parseFloat(e.amount);
-        const ratio = parseFloat(e.split_ratio ?? "0.5");
-        if (e.paid_by !== me.id) youOwe += amt * ratio;
-        else theyOwe += amt * (1 - ratio);
-      }
-      const balance = theyOwe - youOwe;
-
-      type PotRow = { id: string; title: string; goal_amount: string; his_amount: string; hers_amount: string; currency: string };
-      const pots: PotMini[] = ((potRows as PotRow[]) ?? []).map((p) => ({
-        id: p.id, title: p.title,
-        saved: parseFloat(p.his_amount ?? "0") + parseFloat(p.hers_amount ?? "0"),
-        goal: parseFloat(p.goal_amount), currency: p.currency ?? "£",
+      const partner = h.partner;
+      const pa = h.partner_action;
+      const pots: PotMini[] = (h.pots ?? []).map((p) => ({
+        id: p.id, title: p.title, saved: Number(p.saved), goal: Number(p.goal), currency: p.currency ?? "£",
       }));
 
       const newData: DashboardData = {
-        myMood: me_?.current_mood ?? null,
-        myMoodAt: me_?.mood_updated_at ?? null,
+        myMood: h.me?.current_mood ?? null,
+        myMoodAt: h.me?.mood_updated_at ?? null,
         partnerMood: partner?.current_mood ?? null,
         partnerMoodAt: partner?.mood_updated_at ?? null,
-        sharedNote: coupleData?.shared_note ?? "",
-        startedAt: coupleData?.started_at ?? null,
-        bannerUrl: coupleData?.banner_url ?? null,
-        bannerFocus: coupleData?.banner_focus ?? 50,
-        inviteCode: coupleData?.invite_code ?? null,
-        countdowns: (countdowns as Countdown[]) ?? [],
-        partnerAction,
-        freeDays,
-        balance,
+        sharedNote: h.couple?.shared_note ?? "",
+        startedAt: h.couple?.started_at ?? null,
+        bannerUrl: h.couple?.banner_url ?? null,
+        bannerFocus: h.couple?.banner_focus ?? 50,
+        inviteCode: h.couple?.invite_code ?? null,
+        countdowns: h.countdowns ?? [],
+        partnerAction: pa ? { text: pa.text, at: pa.at } : null,
+        freeDays: h.free_days ?? [],
+        balance: Number(h.balance ?? 0),
         pots,
       };
       const hasP = !!partner;
@@ -333,6 +284,7 @@ export default function DashboardClient() {
     const at = new Date().toISOString();
     setData((prev) => ({ ...prev, myMood: mood, myMoodAt: at }));
     channelRef.current?.send({ type: "broadcast", event: "mood", payload: { user_id: me.id, mood, at } });
+    track("mood_set", { mood });
     startTransition(() => { setMood(me.id, mood, coupleId); });
   }
 
@@ -340,6 +292,7 @@ export default function DashboardClient() {
     setData((prev) => ({ ...prev, sharedNote: val }));
     if (noteTimer.current) clearTimeout(noteTimer.current);
     noteTimer.current = setTimeout(() => {
+      track("note_updated");
       startTransition(() => { updateNote(coupleId, me.id, val); });
     }, 600);
   }
@@ -378,6 +331,7 @@ export default function DashboardClient() {
         freeDays: wasFreeDay ? prev.freeDays.filter((d) => d !== cdDate) : prev.freeDays,
       }));
       markActivity("home");
+      track("countdown_created", { multi_day: !!endDate });
       startTransition(() => {
         addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
         if (wasFreeDay) setAvailability(coupleId, me.id, cdDate, null);

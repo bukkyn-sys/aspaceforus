@@ -21,6 +21,7 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -376,6 +377,7 @@ export default function LedgerClient() {
       };
       setEntries((prev) => [optimistic, ...prev]);
       markActivity("ledger");
+      track("expense_added", { recurrence, split_even: ratio === 0.5 });
       startTransition(async () => {
         try { await addLedgerEntry({ coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); }
         catch { toast("couldn't save that expense — check your connection"); setRtick((x) => x + 1); }
@@ -407,6 +409,7 @@ export default function LedgerClient() {
     setEntries((prev) => prev.filter((e) => e.recurrence !== "none"));
     setSettledEntries(null); // invalidate history cache
     setShowSettleConfirm(false);
+    track("settle_up");
     startTransition(async () => {
       try { await settleAll(coupleId); }
       catch { toast("couldn't settle up — check your connection"); setRtick((x) => x + 1); }
@@ -448,6 +451,7 @@ export default function LedgerClient() {
       return iAmCreator ? { ...p, his_amount: next } : { ...p, hers_amount: next };
     }));
     setSelectedPot(null); setContribDelta("");
+    track("pot_contributed", { direction: contribMode });
     startTransition(async () => {
       try { await contributeToPot(selectedPot.id, coupleId, me.id, delta); }
       catch { toast("couldn't update the pot — check your connection"); setRtick((x) => x + 1); }

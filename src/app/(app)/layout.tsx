@@ -9,6 +9,7 @@ import OfflineBanner from "@/components/offline-banner";
 import { CoupleProvider } from "@/contexts/couple-context";
 import { FabProvider } from "@/contexts/fab-context";
 import { NotificationProvider } from "@/contexts/notification-context";
+import { PostHogProvider } from "@/components/posthog-provider";
 import type { CoupleContextValue, UserProfile } from "@/contexts/couple-context";
 
 type ProfileRow = {
@@ -84,6 +85,7 @@ export default async function AppLayout({
   return (
     <FabProvider>
       <CoupleProvider value={coupleValue}>
+        <PostHogProvider>
         <NotificationProvider>
           <div className="min-h-dvh bg-background flex flex-col">
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
@@ -103,6 +105,7 @@ export default async function AppLayout({
             </div>
           </div>
         </NotificationProvider>
+        </PostHogProvider>
       </CoupleProvider>
     </FabProvider>
   );

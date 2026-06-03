@@ -621,6 +621,9 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
         await saveProfile({ userId, name, accentColor, avatarUrl });
         const result = await createCouple(userId);
         if ("error" in result) { setError(result.error ?? "something went wrong"); return; }
+        // Relay to PostHog once the user reaches the (authenticated) app, since
+        // onboarding is outside the analytics provider.
+        try { sessionStorage.setItem("ph_pending_event", "couple_created"); } catch { /* ignore */ }
         setInviteCode(result.inviteCode);
         setCoupleId(result.coupleId);
         setStep("finish");
@@ -638,6 +641,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
       if (result?.error) { setError(result.error); return; }
+      try { sessionStorage.setItem("ph_pending_event", "couple_joined"); } catch { /* ignore */ }
       window.location.replace("/home");
     });
   }
