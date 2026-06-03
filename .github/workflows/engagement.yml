@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: send engagement push
+        # Hit the canonical www host directly — the apex redirects to www, and
+        # curl drops the Authorization header across a host redirect (-> 401).
         run: |
-          curl -fsSL -X POST "https://aspaceforus.app/api/cron/engagement" \
+          curl -fsS -X POST "https://www.aspaceforus.app/api/cron/engagement" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
