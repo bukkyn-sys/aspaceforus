@@ -268,13 +268,15 @@ export default function DashboardClient() {
       setLoading(false);
       setCache(`dash:${coupleId}`, { data: newData, hasPartner: hasP });
 
-      // Auto-delete countdowns whose target_date has passed (yesterday or earlier).
-      // The fetch already filters them out of the list; this cleans up the DB row.
+      // Auto-delete countdowns only once they're fully OVER — i.e. their end date
+      // (or target date, if single-day) is yesterday or earlier. Keying off the
+      // end date is essential: a multi-day trip (Jun 1–7) must not be deleted on
+      // Jun 2 just because its start date has passed.
       const yesterday = localDateStr(-1);
       supabase.from("countdowns")
         .delete()
         .eq("couple_id", coupleId)
-        .lte("target_date", yesterday)
+        .or(`and(end_date.is.null,target_date.lte.${yesterday}),end_date.lte.${yesterday}`)
         .then(() => {});
     }
 

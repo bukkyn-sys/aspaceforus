@@ -11,6 +11,7 @@ import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
 import { validateImage } from "@/lib/validate-image";
 import { SignedImg } from "@/components/signed-img";
+import { DateField } from "@/components/ui/date-field";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -807,7 +808,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       // ── Couple ──────────────────────────────────────────────────────────────
       case "couple":
         return (
-          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtnCls} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 6} className={cn(accentBtnCls, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
+          <SetupShell index={3} total={4} onBack={() => setStep("colour")} title="your shared space" subtitle="start a new space, or join the one your partner already made." footer={tab === "create" ? (<Button onClick={handleCreate} disabled={isPending} className={accentBtnCls} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "create our space"}</Button>) : (<Button onClick={handleJoin} disabled={isPending || joinCode.length < 8} className={cn(accentBtnCls, "gap-2")} style={brandBg}>{isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Heart className="w-4 h-4" /> join</>}</Button>)}>
             <div className="flex bg-secondary rounded-2xl p-1 mb-5">
               {(["create", "join"] as Tab[]).map((t) => (
                 <button key={t} onClick={() => { setTab(t); setError(null); }} className={cn("flex-1 py-2 text-sm font-medium rounded-xl transition-all", tab === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>{t === "create" ? "create" : "join with code"}</button>
@@ -835,9 +836,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               <motion.p variants={rise} className="text-sm text-muted-foreground mt-1.5 mb-8">two last touches — both optional.</motion.p>
               <motion.div variants={rise} className="mb-5">
                 <label className="text-xs text-muted-foreground block mb-1.5">when did you get together?</label>
-                <div className="h-12 rounded-xl border border-border/60 bg-card overflow-hidden flex items-center">
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} max={new Date().toISOString().split("T")[0]} className="w-full min-w-0 box-border bg-transparent px-4 text-sm text-foreground appearance-none focus:outline-none" />
-                </div>
+                <DateField value={startDate} onChange={setStartDate} max={new Date().toISOString().split("T")[0]} placeholder="select a date" className="h-12" />
               </motion.div>
               <motion.div variants={rise} className="bg-card border border-border/60 rounded-2xl p-5 text-center shadow-card">
                 <p className="text-xs text-muted-foreground mb-3">scan or share so your partner can join</p>
