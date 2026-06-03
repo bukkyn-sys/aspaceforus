@@ -90,7 +90,14 @@ function EmailCodeForm() {
     setVerifying(true);
     setError(null);
     const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" });
+    const addr = email.trim();
+    // Existing users get an "email" OTP; brand-new users get a "signup" OTP.
+    // A wrong type reports the code as invalid, so try email first then fall back
+    // to signup — that way both new and returning users verify with one code.
+    let { error } = await supabase.auth.verifyOtp({ email: addr, token, type: "email" });
+    if (error) {
+      ({ error } = await supabase.auth.verifyOtp({ email: addr, token, type: "signup" }));
+    }
     if (error) {
       setVerifying(false);
       setError("that code is wrong or expired — try again or resend.");
