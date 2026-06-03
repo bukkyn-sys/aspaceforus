@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Copy, Check, ExternalLink } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Copy, Check, ArrowLeft } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -22,7 +23,7 @@ function GoogleIcon() {
 // `Line` is anchored on the trailing slash (its UA is "… Line/12.x") so it
 // doesn't false-match substrings like "online".
 function isWebView(): boolean {
-  // Dev simulation: force the banner without a real in-app browser.
+  // Dev simulation: force the in-app-browser path without a real webview.
   if (process.env.NEXT_PUBLIC_FORCE_WEBVIEW === "true") return true;
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
@@ -35,62 +36,157 @@ function isWebView(): boolean {
   );
 }
 
-// Banner shown inside in-app browsers, where Google OAuth is blocked. We can't
-// stay in the webview — the user has to get out into Safari/Chrome. On Android
-// we can hand the URL straight to a real browser via an intent; on iOS there's
-// no programmatic escape, so we guide them to the in-app "open in browser" menu
-// and give a copy-link fallback that works everywhere.
-function OpenInBrowserBanner() {
+const RESEND_SECONDS = 40;
+
+// Email 6-digit-code sign-in. Shown only inside in-app browsers, where Google
+// OAuth is blocked — the whole flow (request code → type code → session) happens
+// in this one window, so there's no browser hop and nothing for Google to block.
+function EmailCodeForm() {
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [isAndroid, setIsAndroid] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    const ua = navigator.userAgent;
-    setIsAndroid(/Android/.test(ua));
-    setIsIOS(/iPhone|iPad|iPod/.test(ua));
-  }, []);
+  useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
-  function copy() {
+  function startCooldown() {
+    setResendIn(RESEND_SECONDS);
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = setInterval(() => {
+      setResendIn((s) => {
+        if (s <= 1 && tickRef.current) { clearInterval(tickRef.current); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+  }
+
+  async function sendCode(addr: string) {
+    setSending(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({ email: addr });
+    setSending(false);
+    if (error) { setError(error.message); return false; }
+    startCooldown();
+    return true;
+  }
+
+  async function handleSend(e: FormEvent) {
+    e.preventDefault();
+    const addr = email.trim();
+    if (!addr) return;
+    const ok = await sendCode(addr);
+    if (ok) { setCode(""); setStep("code"); }
+  }
+
+  async function handleVerify(e: FormEvent) {
+    e.preventDefault();
+    const token = code.trim();
+    if (token.length < 6) return;
+    setVerifying(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" });
+    if (error) {
+      setVerifying(false);
+      setError("that code is wrong or expired — try again or resend.");
+      return;
+    }
+    // Full navigation so the freshly-written session cookies reach the server,
+    // which routes new users on to onboarding. (Same reasoning as /auth/callback.)
+    window.location.href = "/home";
+  }
+
+  function copyLink() {
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
 
-  function openInChrome() {
-    // intent:// hands the https URL to a full Android browser, escaping the webview.
-    const bare = window.location.href.replace(/^https?:\/\//, "");
-    window.location.href = `intent://${bare}#Intent;scheme=https;end`;
+  if (step === "code") {
+    return (
+      <div className="w-full max-w-xs space-y-4">
+        <button
+          onClick={() => { setStep("email"); setError(null); }}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground active:opacity-70"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> back
+        </button>
+
+        <p className="text-xs text-muted-foreground text-center leading-relaxed">
+          we emailed a 6-digit code to{" "}
+          <span className="font-medium text-foreground break-all">{email.trim()}</span>
+        </p>
+
+        {error && <p className="text-sm text-destructive text-center break-words">{error}</p>}
+
+        <form onSubmit={handleVerify} className="space-y-2">
+          <Input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="••••••"
+            className="h-14 rounded-xl bg-card border-border/60 text-center text-2xl tracking-[0.4em] font-semibold"
+          />
+          <Button type="submit" disabled={verifying || code.trim().length < 6} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
+            {verifying && <Loader2 className="w-4 h-4 animate-spin" />}
+            verify & sign in
+          </Button>
+        </form>
+
+        <div className="text-center">
+          <button
+            onClick={() => sendCode(email.trim())}
+            disabled={resendIn > 0 || sending}
+            className="text-xs text-muted-foreground underline underline-offset-2 disabled:no-underline disabled:opacity-60"
+          >
+            {sending ? "sending…" : resendIn > 0 ? `resend code in ${resendIn}s` : "resend code"}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full max-w-xs space-y-4 text-center">
-      <div className="bg-secondary rounded-2xl px-5 py-5 space-y-3">
-        <p className="text-sm font-semibold text-foreground">open in your browser to sign in</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          {isIOS
-            ? "Google sign-in doesn’t work inside in-app browsers. Tap the menu (•••) in the corner, then “Open in Safari”."
-            : "Google sign-in doesn’t work inside in-app browsers. Open this page in Chrome to continue."}
-        </p>
+    <div className="w-full max-w-xs space-y-4">
+      <p className="text-xs text-muted-foreground text-center leading-relaxed">
+        Google sign-in doesn’t work inside in-app browsers, so we’ll email you a code instead.
+      </p>
 
-        {isAndroid && (
-          <Button
-            type="button"
-            onClick={openInChrome}
-            className="w-full h-11 rounded-xl text-sm font-medium gap-2"
-          >
-            <ExternalLink className="w-4 h-4" />
-            open in Chrome
-          </Button>
-        )}
+      {error && <p className="text-sm text-destructive text-center break-words">{error}</p>}
 
+      <form onSubmit={handleSend} className="space-y-2">
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your email"
+          className="h-12 rounded-xl bg-card border-border/60 text-base text-center"
+        />
+        <Button type="submit" disabled={sending || !email.trim()} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
+          {sending && <Loader2 className="w-4 h-4 animate-spin" />}
+          email me a code
+        </Button>
+      </form>
+
+      <div className="text-center">
         <button
-          onClick={copy}
-          className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-foreground text-background text-sm font-medium transition-opacity active:opacity-70"
+          onClick={copyLink}
+          className="inline-flex items-center justify-center gap-1.5 text-xs text-muted-foreground active:opacity-70"
         >
-          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-          {copied ? "link copied — paste it in your browser" : "copy link"}
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? "link copied" : "prefer Google? copy link & open in your browser"}
         </button>
       </div>
     </div>
@@ -120,7 +216,9 @@ function LoginForm() {
     if (error) { setError(error.message); setLoading(false); }
   }
 
-  if (inWebView) return <OpenInBrowserBanner />;
+  // In-app browsers (Instagram/TikTok/etc.) can't do Google OAuth — give them
+  // the email-code flow, which signs in without leaving the app.
+  if (inWebView) return <EmailCodeForm />;
 
   return (
     <div className="w-full max-w-xs space-y-4">
