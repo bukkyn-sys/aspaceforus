@@ -1,0 +1,18 @@
+name: engagement-nudges
+
+# Friendly re-engagement push notifications, a few times a day during UK daytime.
+# (Vercel Hobby cron only fires once/day, so we use GitHub's scheduler instead.)
+# Times are UTC — adjust the hours to taste. Requires the CRON_SECRET repo secret.
+on:
+  schedule:
+    - cron: "0 10,13,16,19 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: send engagement push
+        run: |
+          curl -fsS -X POST "https://www.aspaceforus.app/api/cron/engagement" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
