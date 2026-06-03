@@ -14,5 +14,5 @@ jobs:
     steps:
       - name: send engagement push
         run: |
-          curl -fsS -X POST "https://www.aspaceforus.app/api/cron/engagement" \
+          curl -fsSL -X POST "https://aspaceforus.app/api/cron/engagement" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

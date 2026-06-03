@@ -33,7 +33,9 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isAuthRoute = pathname.startsWith("/auth");
   // "/join" must run even when signed out so the invite cookie gets set.
-  const isPublicRoute = pathname === "/" || pathname.startsWith("/join");
+  // "/api/*" routes do their own auth (e.g. the cron route checks CRON_SECRET) —
+  // never bounce them to the login page or the cron can't reach them.
+  const isPublicRoute = pathname === "/" || pathname.startsWith("/join") || pathname.startsWith("/api");
 
   if (!user && !isAuthRoute && !isPublicRoute) {
     const url = request.nextUrl.clone();
