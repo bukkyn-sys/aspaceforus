@@ -13,6 +13,7 @@ import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
+import { DateField } from "@/components/ui/date-field";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
@@ -670,13 +671,7 @@ export default function DashboardClient() {
           </Button>
         }
       >
-        <Input
-          type="date"
-          value={dateDraft}
-          max={today}
-          onChange={(e) => setDateDraft(e.target.value)}
-          className="h-11 w-full block box-border rounded-xl bg-card border-border/60"
-        />
+        <DateField value={dateDraft} onChange={setDateDraft} max={today} placeholder="select a date" />
       </BottomSheet>
 
       {/* Add / edit countdown sheet */}

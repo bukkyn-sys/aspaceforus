@@ -15,6 +15,7 @@ import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
+import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
@@ -596,9 +597,9 @@ export default function LedgerClient() {
             </div>
           </div>
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
-          <div className="min-w-0">
+          <div>
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
-            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 w-full block box-border rounded-xl bg-card border-border/60" />
+            <DateField value={potTarget} onChange={setPotTarget} placeholder="select a date" />
           </div>
         </BottomSheet>
 
