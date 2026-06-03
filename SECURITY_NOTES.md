@@ -3,7 +3,25 @@
 ## Pending deployment
 
 ### Storage write-scoping — `supabase/storage_scope_writes.sql`
-**Status: written & code-aligned, NOT yet applied to the database.**
+**Status: deferred to post-beta. Production runs the permissive write policy.**
+
+**v1 failed in testing.** The first cut used an inline sub-query
+`(select couple_id from profiles where id = auth.uid())` inside the storage
+policy — a non-`SECURITY DEFINER` read of `profiles` that trips RLS evaluation in
+the storage context and **broke banner uploads** (confirmed). It was reverted to
+the permissive policy (`bucket_id in (...)`), which is what beta runs on.
+
+**v2 (current file)** replaces that sub-query with the existing proven
+`is_couple_member(uuid)` SECURITY DEFINER helper (bypasses profiles RLS), which
+avoids the failure. It is **not yet applied** — apply it only after testing all
+three upload types (avatar/banner/vault) on a **Vercel preview** first; the
+REVERT block restores the permissive policy.
+
+**Decision:** for a trusted beta the permissive write policy is acceptable — the
+abuse vector (an authenticated tester crafting raw storage calls to a known UUID
+path) is very low risk, and reads are already private via signed URLs. Treat the
+v2 scoping as a post-beta hardening item.
+
 
 Tightens the storage `INSERT`/`UPDATE`/`DELETE` policies from "any authenticated
 user can write any path" to per-owner folders:
