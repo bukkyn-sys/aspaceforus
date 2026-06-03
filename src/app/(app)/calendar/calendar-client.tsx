@@ -234,6 +234,14 @@ export default function CalendarClient() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
+
+  // Whether a given day-of-month has any event/countdown — used to merge the
+  // shaded band across adjacent/overlapping ranges (round only at the run's edges).
+  function dayHasEvent(dayNum: number): boolean {
+    if (dayNum < 1 || dayNum > daysInMonth) return false;
+    const ds2 = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+    return getEvents(ds2).length > 0 || getCountdownsForDate(ds2).length > 0;
+  }
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -314,12 +322,11 @@ export default function CalendarClient() {
               dayEvents.some(e => e.start_at.slice(0, 10) === ds) ||
               dayCds.some(c => c.target_date === ds)
             );
-            const isRangeEnd = isEventDay && (
-              dayEvents.some(e => (e.end_at ? e.end_at.slice(0, 10) : e.start_at.slice(0, 10)) === ds) ||
-              dayCds.some(c => (c.end_date ?? c.target_date) === ds)
-            );
-            const roundLeft = !isEventDay || isRangeStart || isWeekStart;
-            const roundRight = !isEventDay || isRangeEnd || isWeekEnd;
+            // Round only at the true edges of a continuous run of event days (or
+            // at week edges), so adjacent/overlapping ranges merge into one band
+            // instead of showing a rounded gap where a second range begins.
+            const roundLeft = isWeekStart || !dayHasEvent(day - 1);
+            const roundRight = isWeekEnd || !dayHasEvent(day + 1);
             const eventRounding =
               roundLeft && roundRight ? "rounded-lg" :
               roundLeft ? "rounded-l-lg rounded-r-none" :
