@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "us.",
-  description: "your shared space",
+  description: "just the two of you",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

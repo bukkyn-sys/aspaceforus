@@ -110,7 +110,7 @@ export default function LoginPage() {
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 py-12">
       <div className="mb-12 text-center">
         <h1 className="font-heading text-5xl text-foreground tracking-tight mb-2">us.</h1>
-        <p className="text-muted-foreground text-sm">your shared space</p>
+        <p className="text-muted-foreground text-sm">just the two of you</p>
       </div>
 
       <Suspense fallback={<div className="w-full max-w-xs h-12" />}>
@@ -118,7 +118,7 @@ export default function LoginPage() {
       </Suspense>
 
       <p className="absolute bottom-8 text-xs text-muted-foreground">
-        private — just the two of you.
+        completely private.
       </p>
     </div>
   );
