@@ -130,11 +130,11 @@ function EmailCodeForm() {
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
+            maxLength={8}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            placeholder="••••••"
-            className="h-14 rounded-xl bg-card border-border/60 text-center text-2xl tracking-[0.4em] font-semibold"
+            placeholder="••••••••"
+            className="h-14 rounded-xl bg-card border-border/60 text-center text-2xl tracking-[0.3em] font-semibold"
           />
           <Button type="submit" disabled={verifying || code.trim().length < 6} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
             {verifying && <Loader2 className="w-4 h-4 animate-spin" />}
