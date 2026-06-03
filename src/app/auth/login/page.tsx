@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Copy, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Copy, Check, Mail } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -35,32 +36,28 @@ function isWebView(): boolean {
   );
 }
 
-function WebViewBanner() {
+// Shown inside in-app browsers, where Google OAuth is blocked. The email link
+// above works here, so this is just a gentle hint + a way to escape to a real browser.
+function BrowserHint() {
   const [copied, setCopied] = useState(false);
-
   function copy() {
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
-
   return (
-    <div className="w-full max-w-xs space-y-4 text-center">
-      <div className="bg-secondary rounded-2xl px-5 py-5 space-y-3">
-        <p className="text-sm font-semibold text-foreground">open in your browser</p>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Google sign-in doesn&apos;t work inside in-app browsers.
-          Copy the link and paste it into Safari or Chrome.
-        </p>
-        <button
-          onClick={copy}
-          className="flex items-center justify-center gap-2 w-full h-10 rounded-xl bg-foreground text-background text-sm font-medium transition-opacity active:opacity-70"
-        >
-          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-          {copied ? "copied!" : "copy link"}
-        </button>
-      </div>
+    <div className="rounded-2xl bg-secondary px-4 py-3 text-center space-y-2">
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Google needs a full browser — use the email link above, or open this page in Safari/Chrome.
+      </p>
+      <button
+        onClick={copy}
+        className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-foreground active:opacity-70"
+      >
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? "copied!" : "copy link"}
+      </button>
     </div>
   );
 }
@@ -69,6 +66,9 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inWebView, setInWebView] = useState(false);
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -88,23 +88,87 @@ function LoginForm() {
     if (error) { setError(error.message); setLoading(false); }
   }
 
-  if (inWebView) return <WebViewBanner />;
+  async function handleMagicLink(e: FormEvent) {
+    e.preventDefault();
+    const addr = email.trim();
+    if (!addr) return;
+    setSending(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email: addr,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    });
+    setSending(false);
+    if (error) setError(error.message);
+    else setSentTo(addr);
+  }
+
+  if (sentTo) {
+    return (
+      <div className="w-full max-w-xs text-center space-y-3">
+        <div className="bg-secondary rounded-2xl px-5 py-6 space-y-2">
+          <Mail className="w-6 h-6 mx-auto text-foreground" />
+          <p className="text-sm font-semibold text-foreground">check your email</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            we sent a sign-in link to <span className="font-medium text-foreground break-all">{sentTo}</span>.
+            tap it to continue — it opens in your main browser.
+          </p>
+        </div>
+        <button
+          onClick={() => { setSentTo(null); setEmail(""); }}
+          className="text-xs text-muted-foreground underline underline-offset-2"
+        >
+          use a different email
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-xs space-y-4">
       {error && (
-        <p className="text-sm text-destructive text-center break-all">{error}</p>
+        <p className="text-sm text-destructive text-center break-words">{error}</p>
       )}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleGoogle}
-        disabled={loading}
-        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
-      >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
-        continue with Google
-      </Button>
+
+      {/* Email magic link — works in every browser, including in-app ones */}
+      <form onSubmit={handleMagicLink} className="space-y-2">
+        <Input
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your email"
+          className="h-12 rounded-xl bg-card border-border/60 text-base text-center"
+        />
+        <Button type="submit" disabled={sending || !email.trim()} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
+          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+          email me a sign-in link
+        </Button>
+      </form>
+
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-border/60" />
+        <span className="text-xs text-muted-foreground/60">or</span>
+        <div className="h-px flex-1 bg-border/60" />
+      </div>
+
+      {/* Google — or, inside an in-app browser, a hint (Google won't work there) */}
+      {inWebView ? (
+        <BrowserHint />
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleGoogle}
+          disabled={loading}
+          className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
+          continue with Google
+        </Button>
+      )}
     </div>
   );
 }
