@@ -83,12 +83,13 @@ const STAGE_COLOR: Record<Stage, string> = {
   completed: "bg-sage-light text-sage",
 };
 
-// Custom palette for folder emoji panels — avoids Tailwind purge issues with dynamic classes
-const GENERAL_PANEL_COLORS = ["#EDE9F5", "#F5EDD3", "#E3EEF8", "#FDEDF5"];
+// Saturated hues for the folder gradient. Pale pastels washed out to nothing once
+// mixed over the card; saturated colours mix cleanly (and stay legible in dark mode).
+const GENERAL_PANEL_COLORS = ["#8B7BB8", "#5B9BD5", "#D4A427", "#C4704F"]; // lavender, sky, amber, terracotta
 
 function folderPanelColor(folder: VaultFolder): string {
-  if (folder.kind === "date_idea") return "#F5E8E2";
-  if (folder.kind === "wishlist")  return "#E8F0EA";
+  if (folder.kind === "date_idea") return "#C46E7A"; // rose
+  if (folder.kind === "wishlist")  return "#7C9E87"; // sage
   return GENERAL_PANEL_COLORS[folder.sort_order % GENERAL_PANEL_COLORS.length];
 }
 

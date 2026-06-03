@@ -1,4 +1,4 @@
-const CACHE = "us-v11";
+﻿const CACHE = "us-v12";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {
@@ -11,7 +11,7 @@ self.addEventListener("activate", (e) => {
 });
 
 // Cache ONLY static, public build assets (immutable, no user data). Authenticated
-// HTML page documents and RSC payloads are never cached — they could leak a
+// HTML page documents and RSC payloads are never cached â€” they could leak a
 // signed-in user's content to the next person on a shared browser, and go stale
 // across deploys. Everything that isn't a static asset is left to the network.
 self.addEventListener("fetch", (e) => {
@@ -25,7 +25,7 @@ self.addEventListener("fetch", (e) => {
       url.pathname.startsWith("/icons/") ||
       /\.(?:css|js|woff2?|ttf|otf|png|jpg|jpeg|gif|svg|webp|ico)$/.test(url.pathname));
 
-  if (!isStaticAsset) return; // navigations, RSC, API → straight to network (no caching)
+  if (!isStaticAsset) return; // navigations, RSC, API â†’ straight to network (no caching)
 
   // Cache-first for build assets (hashed/immutable), refreshed in the background.
   e.respondWith(

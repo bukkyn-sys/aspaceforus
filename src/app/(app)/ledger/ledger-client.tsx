@@ -18,7 +18,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { getAccent } from "@/lib/accent-colors";
@@ -184,7 +184,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
       style={ownerCardStyle(o)}
     >
       {cat && (
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base flex-shrink-0" style={{ background: ownerTint(o.people[0].hex) }}>{cat.emoji}</div>
+        <span className="text-xl flex-shrink-0 leading-none">{cat.emoji}</span>
       )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
