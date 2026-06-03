@@ -1,11 +1,10 @@
 "use client";
 
-import { Suspense, useState, useEffect, type FormEvent } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, Copy, Check, Mail } from "lucide-react";
+import { Loader2, Copy, Check, ExternalLink } from "lucide-react";
 
 function GoogleIcon() {
   return (
@@ -23,7 +22,7 @@ function GoogleIcon() {
 // `Line` is anchored on the trailing slash (its UA is "… Line/12.x") so it
 // doesn't false-match substrings like "online".
 function isWebView(): boolean {
-  // Dev simulation: force the WebView banner without a real in-app browser.
+  // Dev simulation: force the banner without a real in-app browser.
   if (process.env.NEXT_PUBLIC_FORCE_WEBVIEW === "true") return true;
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
@@ -36,28 +35,64 @@ function isWebView(): boolean {
   );
 }
 
-// Shown inside in-app browsers, where Google OAuth is blocked. The email link
-// above works here, so this is just a gentle hint + a way to escape to a real browser.
-function BrowserHint() {
+// Banner shown inside in-app browsers, where Google OAuth is blocked. We can't
+// stay in the webview — the user has to get out into Safari/Chrome. On Android
+// we can hand the URL straight to a real browser via an intent; on iOS there's
+// no programmatic escape, so we guide them to the in-app "open in browser" menu
+// and give a copy-link fallback that works everywhere.
+function OpenInBrowserBanner() {
   const [copied, setCopied] = useState(false);
+  const [isAndroid, setIsAndroid] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setIsAndroid(/Android/.test(ua));
+    setIsIOS(/iPhone|iPad|iPod/.test(ua));
+  }, []);
+
   function copy() {
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
+
+  function openInChrome() {
+    // intent:// hands the https URL to a full Android browser, escaping the webview.
+    const bare = window.location.href.replace(/^https?:\/\//, "");
+    window.location.href = `intent://${bare}#Intent;scheme=https;end`;
+  }
+
   return (
-    <div className="rounded-2xl bg-secondary px-4 py-3 text-center space-y-2">
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        Google needs a full browser — use the email link above, or open this page in Safari/Chrome.
-      </p>
-      <button
-        onClick={copy}
-        className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-foreground active:opacity-70"
-      >
-        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-        {copied ? "copied!" : "copy link"}
-      </button>
+    <div className="w-full max-w-xs space-y-4 text-center">
+      <div className="bg-secondary rounded-2xl px-5 py-5 space-y-3">
+        <p className="text-sm font-semibold text-foreground">open in your browser to sign in</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {isIOS
+            ? "Google sign-in doesn’t work inside in-app browsers. Tap the menu (•••) in the corner, then “Open in Safari”."
+            : "Google sign-in doesn’t work inside in-app browsers. Open this page in Chrome to continue."}
+        </p>
+
+        {isAndroid && (
+          <Button
+            type="button"
+            onClick={openInChrome}
+            className="w-full h-11 rounded-xl text-sm font-medium gap-2"
+          >
+            <ExternalLink className="w-4 h-4" />
+            open in Chrome
+          </Button>
+        )}
+
+        <button
+          onClick={copy}
+          className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-foreground text-background text-sm font-medium transition-opacity active:opacity-70"
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+          {copied ? "link copied — paste it in your browser" : "copy link"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -66,9 +101,6 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inWebView, setInWebView] = useState(false);
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sentTo, setSentTo] = useState<string | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -88,87 +120,23 @@ function LoginForm() {
     if (error) { setError(error.message); setLoading(false); }
   }
 
-  async function handleMagicLink(e: FormEvent) {
-    e.preventDefault();
-    const addr = email.trim();
-    if (!addr) return;
-    setSending(true);
-    setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: addr,
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
-    });
-    setSending(false);
-    if (error) setError(error.message);
-    else setSentTo(addr);
-  }
-
-  if (sentTo) {
-    return (
-      <div className="w-full max-w-xs text-center space-y-3">
-        <div className="bg-secondary rounded-2xl px-5 py-6 space-y-2">
-          <Mail className="w-6 h-6 mx-auto text-foreground" />
-          <p className="text-sm font-semibold text-foreground">check your email</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            we sent a sign-in link to <span className="font-medium text-foreground break-all">{sentTo}</span>.
-            tap it to continue — it opens in your main browser.
-          </p>
-        </div>
-        <button
-          onClick={() => { setSentTo(null); setEmail(""); }}
-          className="text-xs text-muted-foreground underline underline-offset-2"
-        >
-          use a different email
-        </button>
-      </div>
-    );
-  }
+  if (inWebView) return <OpenInBrowserBanner />;
 
   return (
     <div className="w-full max-w-xs space-y-4">
       {error && (
         <p className="text-sm text-destructive text-center break-words">{error}</p>
       )}
-
-      {/* Email magic link — works in every browser, including in-app ones */}
-      <form onSubmit={handleMagicLink} className="space-y-2">
-        <Input
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="your email"
-          className="h-12 rounded-xl bg-card border-border/60 text-base text-center"
-        />
-        <Button type="submit" disabled={sending || !email.trim()} className="w-full h-12 rounded-xl text-sm font-medium gap-2">
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-          email me a sign-in link
-        </Button>
-      </form>
-
-      <div className="flex items-center gap-3">
-        <div className="h-px flex-1 bg-border/60" />
-        <span className="text-xs text-muted-foreground/60">or</span>
-        <div className="h-px flex-1 bg-border/60" />
-      </div>
-
-      {/* Google — or, inside an in-app browser, a hint (Google won't work there) */}
-      {inWebView ? (
-        <BrowserHint />
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleGoogle}
-          disabled={loading}
-          className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
-          continue with Google
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleGoogle}
+        disabled={loading}
+        className="w-full h-12 rounded-xl text-sm font-medium border-border/60 bg-card gap-3"
+      >
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GoogleIcon />}
+        continue with Google
+      </Button>
     </div>
   );
 }
