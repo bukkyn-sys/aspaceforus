@@ -112,6 +112,33 @@ export async function addSavingsPot(data: {
   return row?.id as string | undefined;
 }
 
+export async function updateSavingsPot(data: {
+  id: string;
+  coupleId: string;
+  userId: string;
+  title: string;
+  goalAmount: number;
+  targetDate?: string | null;
+  currency?: string;
+  emoji?: string | null;
+}) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  // Pots are couple-shared: either partner may edit (couple-scoped, like delete).
+  await supabase
+    .from("savings_pots")
+    .update({
+      title: data.title,
+      goal_amount: data.goalAmount,
+      target_date: data.targetDate || null,
+      currency: data.currency || "£",
+      emoji: data.emoji || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", data.id)
+    .eq("couple_id", data.coupleId);
+}
+
 export async function contributeToPot(potId: string, coupleId: string, userId: string, delta: number) {
   const { supabase, uid } = await getUid();
   if (!uid) return;

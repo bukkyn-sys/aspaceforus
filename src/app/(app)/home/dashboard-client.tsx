@@ -324,17 +324,21 @@ export default function DashboardClient() {
       startTransition(() => { updateCountdown({ id, coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
     } else {
       const cd: Countdown = { id: crypto.randomUUID(), title, target_date: cdDate, end_date: endDate, emoji: cdEmoji, created_by: me.id };
-      const wasFreeDay = data.freeDays.includes(cdDate);
+      // Every free-together day the countdown now spans is blocked, not free —
+      // clear them all from availability + the free-days list (dates are ISO,
+      // so string comparison is chronological).
+      const rangeEnd = endDate ?? cdDate;
+      const blockedDays = data.freeDays.filter((d) => d >= cdDate && d <= rangeEnd);
       setData((prev) => ({
         ...prev,
         countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
-        freeDays: wasFreeDay ? prev.freeDays.filter((d) => d !== cdDate) : prev.freeDays,
+        freeDays: prev.freeDays.filter((d) => !(d >= cdDate && d <= rangeEnd)),
       }));
       markActivity("home");
       track("countdown_created", { multi_day: !!endDate });
       startTransition(() => {
         addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
-        if (wasFreeDay) setAvailability(coupleId, me.id, cdDate, null);
+        for (const d of blockedDays) setAvailability(coupleId, me.id, d, null);
       });
     }
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");

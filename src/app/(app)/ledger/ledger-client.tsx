@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
-  addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, contributeToPot,
+  addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, updateSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder,
 } from "./actions";
 import { Check, Trash2, Pencil, Repeat } from "lucide-react";
@@ -253,13 +253,14 @@ export default function LedgerClient() {
   const [category, setCategory] = useState<string | null>(null);
   const [recurrence, setRecurrence] = useState<Recurrence>("none");
 
-  // Add pot form
+  // Add / edit pot form (editingPotId set when editing an existing pot)
   const [potTitle, setPotTitle] = useState("");
   const [potGoal, setPotGoal] = useState("");
   const [potFolderId, setPotFolderId] = useState<string | null>(null);
   const [potTarget, setPotTarget] = useState("");
   const [potCurrency, setPotCurrency] = useState<string>(currency);
   const [potEmoji, setPotEmoji] = useState<string | null>(null);
+  const [editingPotId, setEditingPotId] = useState<string | null>(null);
 
   // Contribute sheet
   const [contribDelta, setContribDelta] = useState("");
@@ -292,6 +293,7 @@ export default function LedgerClient() {
   useEffect(() => {
     setAction(() => {
       if (tab === "entries") { resetEntryForm(); setEditingEntryId(null); setShowAdd(true); return; }
+      resetPotForm(); setEditingPotId(null);
       setPotFolderId(defaultFolderId);
       setShowPot(true);
     });
@@ -439,6 +441,34 @@ export default function LedgerClient() {
     }
   }
 
+  function resetPotForm() {
+    setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency(currency); setPotEmoji(null);
+  }
+
+  function openEditPot(pot: Pot) {
+    setEditingPotId(pot.id);
+    setPotTitle(pot.title);
+    setPotGoal(parseFloat(pot.goal_amount).toString());
+    setPotTarget(pot.target_date ?? "");
+    setPotCurrency(pot.currency ?? currency);
+    setPotEmoji(pot.emoji ?? null);
+    setSelectedPot(null);
+    setShowPot(true);
+  }
+
+  function handleUpdatePot() {
+    if (!editingPotId || !potTitle.trim() || !potGoal) return;
+    const id = editingPotId;
+    const goal = parseFloat(potGoal);
+    const title = potTitle.trim();
+    const target = potTarget || null;
+    setPots((prev) => prev.map((p) => p.id === id
+      ? { ...p, title, goal_amount: goal.toString(), target_date: target, currency: potCurrency, emoji: potEmoji }
+      : p));
+    resetPotForm(); setEditingPotId(null); setShowPot(false);
+    startTransition(() => { updateSavingsPot({ id, coupleId, userId: me.id, title, goalAmount: goal, targetDate: target, currency: potCurrency, emoji: potEmoji }); });
+  }
+
   function handleContribute() {
     if (!selectedPot || !contribDelta) return;
     const magnitude = Math.abs(parseFloat(contribDelta));
@@ -541,10 +571,16 @@ export default function LedgerClient() {
                   <Button onClick={handleContribute} disabled={!magnitude} className="w-full h-11 rounded-xl">
                     {contribMode === "add" ? "add to pot" : "withdraw"}
                   </Button>
-                  <button onClick={() => handleDeletePot(selectedPot)}
-                    className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
-                    <Trash2 className="w-3.5 h-3.5" /> delete pot
-                  </button>
+                  <div className="flex items-center justify-center gap-5">
+                    <button onClick={() => openEditPot(selectedPot)}
+                      className="flex items-center gap-1.5 text-sm text-muted-foreground/70 hover:text-foreground transition-colors py-1">
+                      <Pencil className="w-3.5 h-3.5" /> edit
+                    </button>
+                    <button onClick={() => handleDeletePot(selectedPot)}
+                      className="flex items-center gap-1.5 text-sm text-muted-foreground/60 hover:text-terracotta transition-colors py-1">
+                      <Trash2 className="w-3.5 h-3.5" /> delete pot
+                    </button>
+                  </div>
                 </div>
               }>
               <div>
@@ -579,9 +615,9 @@ export default function LedgerClient() {
           );
         })()}
 
-        {/* Add pot */}
-        <BottomSheet open={showPot} onClose={() => setShowPot(false)} title="new savings pot"
-          footer={<Button onClick={handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">create pot</Button>}>
+        {/* Add / edit pot */}
+        <BottomSheet open={showPot} onClose={() => { setShowPot(false); setEditingPotId(null); }} title={editingPotId ? "edit pot" : "new savings pot"}
+          footer={<Button onClick={editingPotId ? handleUpdatePot : handleAddPot} disabled={!potTitle.trim() || !potGoal} className="w-full h-11 rounded-xl">{editingPotId ? "save changes" : "create pot"}</Button>}>
           <div className="flex items-center gap-2">
             <button
               type="button"

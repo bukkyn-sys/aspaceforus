@@ -14,7 +14,7 @@ import {
   updateVaultItem,
   deleteVaultItem,
 } from "./actions";
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2 } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -650,9 +650,9 @@ export default function VaultClient() {
   // Tap a card: the creator gets the edit/remove prompt; anyone else can only
   // open the link (they can't edit a partner's entry).
   function handleCardTap(item: VaultItem) {
-    if (item.created_by === me.id) { setActionItem(item); return; }
-    const safe = safeExternalUrl(item.url);
-    if (safe) window.open(safe, "_blank", "noopener,noreferrer");
+    // Open the action sheet for any item; it shows edit/remove for yours and
+    // open/copy-link for your partner's.
+    setActionItem(item);
   }
 
   // ── FOLDERS VIEW ─────────────────────────────────────────────────────────────
@@ -903,12 +903,10 @@ export default function VaultClient() {
                     <SignedImg src={item.og_image ?? ""} className="w-12 h-12 rounded-xl object-cover flex-shrink-0 mr-2.5" />
                   )}
 
-                  {isMine ? (
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
-                  ) : item.url ? (
+                  {!isMine && item.url ? (
                     <Link2 className="w-4 h-4 text-muted-foreground/30 flex-shrink-0 mr-3.5" />
                   ) : (
-                    <div className="mr-3.5" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/25 flex-shrink-0 mr-3.5" />
                   )}
                 </div>
               );
@@ -1043,7 +1041,7 @@ export default function VaultClient() {
 
       {/* Action prompt — creator only (edit / remove) */}
       <Dialog open={actionItem !== null} onClose={() => setActionItem(null)}>
-        {actionItem && (
+        {actionItem && (actionItem.created_by === me.id ? (
           <>
             <p className="font-semibold text-foreground text-center truncate">{actionItem.title}</p>
             <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
@@ -1061,7 +1059,38 @@ export default function VaultClient() {
               <button onClick={() => setActionItem(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
             </div>
           </>
-        )}
+        ) : (() => {
+          const link = safeExternalUrl(actionItem.url);
+          return (
+            <>
+              <p className="font-semibold text-foreground text-center truncate">
+                {actionItem.item_emoji ? `${actionItem.item_emoji} ` : ""}{actionItem.title}
+              </p>
+              {(actionItem.notes || actionItem.price_range) && (
+                <p className="text-sm text-muted-foreground text-center mt-1">
+                  {actionItem.price_range && <span className="font-medium text-foreground/70">{actionItem.price_range}</span>}
+                  {actionItem.price_range && actionItem.notes ? " · " : ""}
+                  {actionItem.notes}
+                </p>
+              )}
+              <div className="space-y-2 mt-5">
+                {link ? (
+                  <>
+                    <Button onClick={() => { window.open(link, "_blank", "noopener,noreferrer"); setActionItem(null); }} className="w-full h-11 rounded-xl">
+                      <Link2 className="w-4 h-4 mr-1.5" /> open link
+                    </Button>
+                    <Button variant="outline" onClick={() => { navigator.clipboard.writeText(link); setActionItem(null); }} className="w-full h-11 rounded-xl">
+                      <Copy className="w-4 h-4 mr-1.5" /> copy link
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-1">no link on this one.</p>
+                )}
+                <button onClick={() => setActionItem(null)} className="w-full h-10 text-sm text-muted-foreground">close</button>
+              </div>
+            </>
+          );
+        })())}
       </Dialog>
     </div>
   );
