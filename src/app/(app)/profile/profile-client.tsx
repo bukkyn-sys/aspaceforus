@@ -51,8 +51,6 @@ function CropModal({
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const [objectUrl] = useState(() => URL.createObjectURL(file));
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
   const [baseScale, setBaseScale] = useState(1);
@@ -174,7 +172,8 @@ function CropModal({
       el.removeEventListener("touchmove", onTouchMove);
       el.removeEventListener("touchend", onTouchEnd);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerRef.current]);
 
   // Mouse drag (desktop)
   function onMouseDown(e: React.MouseEvent) {
@@ -206,7 +205,6 @@ function CropModal({
     canvas.toBlob((b) => { if (b) onConfirm(b); }, "image/jpeg", 0.92);
   }
 
-  if (!mounted) return null;
   // Portal to <body> so the modal escapes the page-transition stacking context
   // (otherwise it renders *under* the fixed bottom nav and its buttons can't be tapped).
   return createPortal(
