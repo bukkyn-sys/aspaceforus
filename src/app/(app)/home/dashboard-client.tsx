@@ -111,6 +111,7 @@ export default function DashboardClient() {
   const [editingCountdownId, setEditingCountdownId] = useState<string | null>(null);
   const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
   const [, startTransition] = useTransition();
 
   // Countdown form
@@ -316,7 +317,13 @@ export default function DashboardClient() {
     }, 600);
   }
 
+  function openStartedPicker() {
+    setDateDraft(data.startedAt ?? "");
+    setShowDatePicker(true);
+  }
+
   function handleSetStarted(date: string) {
+    if (!date) return;
     setData((prev) => ({ ...prev, startedAt: date }));
     setShowDatePicker(false);
     startTransition(() => { setStartedAt(coupleId, me.id, date); });
@@ -396,12 +403,12 @@ export default function DashboardClient() {
             </p>
           ) : null}
           {data.startedAt ? (
-            <button onClick={() => setShowDatePicker(true)} className="flex items-center gap-1 text-xs text-muted-foreground/40 mt-1 hover:text-muted-foreground/60 transition-colors">
+            <button onClick={openStartedPicker} className="flex items-center gap-1 text-xs text-muted-foreground/40 mt-1 hover:text-muted-foreground/60 transition-colors">
               <Heart className="w-2.5 h-2.5 text-terracotta/60" fill="currentColor" />
               {duration(data.startedAt)}
             </button>
           ) : !loading && (
-            <button onClick={() => setShowDatePicker(true)} className="text-xs text-muted-foreground/40 underline underline-offset-2 mt-0.5">
+            <button onClick={openStartedPicker} className="text-xs text-muted-foreground/40 underline underline-offset-2 mt-0.5">
               add start date
             </button>
           )}
@@ -652,14 +659,23 @@ export default function DashboardClient() {
         </div>
       )}
 
-      {/* Date picker sheet (started_at) */}
-      <BottomSheet open={showDatePicker} onClose={() => setShowDatePicker(false)} title="when did you get together?">
+      {/* Date picker sheet (started_at) — requires explicit save (no auto-commit). */}
+      <BottomSheet
+        open={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        title="when did you get together?"
+        footer={
+          <Button onClick={() => handleSetStarted(dateDraft)} disabled={!dateDraft} className="w-full h-11 rounded-xl">
+            save
+          </Button>
+        }
+      >
         <Input
           type="date"
-          defaultValue={data.startedAt ?? ""}
+          value={dateDraft}
           max={today}
-          onChange={(e) => e.target.value && handleSetStarted(e.target.value)}
-          className="h-11 rounded-xl bg-card border-border/60"
+          onChange={(e) => setDateDraft(e.target.value)}
+          className="h-11 w-full block box-border rounded-xl bg-card border-border/60"
         />
       </BottomSheet>
 

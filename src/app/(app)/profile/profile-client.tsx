@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
@@ -50,6 +51,8 @@ function CropModal({
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [objectUrl] = useState(() => URL.createObjectURL(file));
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
   const [baseScale, setBaseScale] = useState(1);
@@ -203,9 +206,15 @@ function CropModal({
     canvas.toBlob((b) => { if (b) onConfirm(b); }, "image/jpeg", 0.92);
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center">
-      <div className="bg-background rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-6 space-y-5">
+  if (!mounted) return null;
+  // Portal to <body> so the modal escapes the page-transition stacking context
+  // (otherwise it renders *under* the fixed bottom nav and its buttons can't be tapped).
+  return createPortal(
+    <div className="fixed inset-0 z-[80] bg-black/60 flex items-end sm:items-center justify-center">
+      <div
+        className="bg-background rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-6 space-y-5"
+        style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+      >
         <div>
           <p className="font-semibold text-foreground">position photo</p>
           <p className="text-xs text-muted-foreground mt-0.5">drag to reposition · pinch to zoom</p>
@@ -249,7 +258,8 @@ function CropModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

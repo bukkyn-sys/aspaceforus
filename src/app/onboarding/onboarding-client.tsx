@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { createClient } from "@/lib/supabase/client";
 import { validateImage } from "@/lib/validate-image";
+import { SignedImg } from "@/components/signed-img";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -766,8 +767,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               <button type="button" onClick={() => fileRef.current?.click()} className="relative w-28 h-28 rounded-full focus:outline-none group">
                 {avatarPreview ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
+                    <SignedImg src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
                     <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera className="w-5 h-5 text-white" />
                       <span className="text-[10px] text-white font-medium">change</span>
@@ -792,8 +792,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
             <div className="flex justify-center mb-8">
               <div className="w-20 h-20 rounded-full overflow-hidden bg-secondary flex items-center justify-center transition-all duration-300" style={{ boxShadow: `0 0 0 3px ${brandHex}` }}>
                 {avatarPreview
-                  // eslint-disable-next-line @next/next/no-img-element
-                  ? <img src={avatarPreview} alt="" className="w-full h-full object-cover" />
+                  ? <SignedImg src={avatarPreview} alt="" className="w-full h-full object-cover" />
                   : <span className="text-2xl font-semibold text-muted-foreground">{(name[0] ?? "?").toUpperCase()}</span>}
               </div>
             </div>

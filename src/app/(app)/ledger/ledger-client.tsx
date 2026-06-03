@@ -596,9 +596,9 @@ export default function LedgerClient() {
             </div>
           </div>
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
-          <div className="overflow-hidden">
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
-            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 w-full rounded-xl bg-card border-border/60" />
+            <Input value={potTarget} onChange={(e) => setPotTarget(e.target.value)} type="date" className="h-11 w-full block box-border rounded-xl bg-card border-border/60" />
           </div>
         </BottomSheet>
 
