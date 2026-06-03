@@ -61,6 +61,21 @@ function timeUntil(dateStr: string) {
   return { days: Math.floor(totalHours / 24), hours: totalHours % 24 };
 }
 
+function localDateStr(offset = 0) {
+  const d = new Date(Date.now() + offset * 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Countdown badge — "today", "tmrw", or {n} days. */
+function countdownLabel(targetDate: string): { top: string; bottom: string | null } {
+  const today = localDateStr(0);
+  const tomorrow = localDateStr(1);
+  if (targetDate === today)     return { top: "today", bottom: null };
+  if (targetDate === tomorrow)  return { top: "tmrw",  bottom: null };
+  const { days } = timeUntil(targetDate);
+  return { top: String(days), bottom: "days" };
+}
+
 function duration(startedAt: string): string {
   // Anchor date-only values at local noon so the year/month maths can't slip a
   // day (UTC-midnight parsing shifts to the previous day in negative timezones).
@@ -252,6 +267,15 @@ export default function DashboardClient() {
       setData(newData);
       setLoading(false);
       setCache(`dash:${coupleId}`, { data: newData, hasPartner: hasP });
+
+      // Auto-delete countdowns whose target_date has passed (yesterday or earlier).
+      // The fetch already filters them out of the list; this cleans up the DB row.
+      const yesterday = localDateStr(-1);
+      supabase.from("countdowns")
+        .delete()
+        .eq("couple_id", coupleId)
+        .lte("target_date", yesterday)
+        .then(() => {});
     }
 
     load();
@@ -552,7 +576,7 @@ export default function DashboardClient() {
           <div className="card overflow-hidden">
             <p className="text-xs font-medium text-muted-foreground tracking-wide px-5 pt-4 pb-2">coming up</p>
             {data.countdowns.map((cd, i) => {
-              const { days } = timeUntil(cd.target_date);
+              const { top, bottom } = countdownLabel(cd.target_date);
               return (
                 <div key={cd.id}
                   {...clickable(() => setActionCountdown(cd))}
@@ -566,9 +590,9 @@ export default function DashboardClient() {
                       {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`}
                     </p>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-lg font-semibold tabular-nums leading-none">{days}</p>
-                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">days</p>
+                  <div className="text-right flex-shrink-0 min-w-[2.5rem]">
+                    <p className="text-sm font-semibold leading-none">{top}</p>
+                    {bottom && <p className="text-[10px] text-muted-foreground/50 mt-0.5">{bottom}</p>}
                   </div>
                 </div>
               );

@@ -147,6 +147,19 @@ export default function CalendarClient() {
     return Math.max(0, Math.floor((new Date(dateStr + "T00:00:00").getTime() - Date.now()) / 86400000));
   }
 
+  function localDateStr(offset = 0) {
+    const d = new Date(Date.now() + offset * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function countdownLabel(targetDate: string): { top: string; bottom: string | null } {
+    const today = localDateStr(0);
+    const tomorrow = localDateStr(1);
+    if (targetDate === today)    return { top: "today", bottom: null };
+    if (targetDate === tomorrow) return { top: "tmrw",  bottom: null };
+    return { top: String(daysUntil(targetDate)), bottom: "days" };
+  }
+
   function handleDay(dateStr: string) {
     const cur = getStatus(me.id, dateStr);
     const next: Status = cur === "free" ? null : "free";
@@ -470,7 +483,7 @@ export default function CalendarClient() {
                     );
                   } else {
                     const cd = item.data;
-                    const days = daysUntil(cd.target_date);
+                    const { top, bottom } = countdownLabel(cd.target_date);
                     const d = new Date(cd.target_date + "T12:00:00");
                     const o = resolveOwner(null); // countdowns are shared
                     return (
@@ -489,9 +502,9 @@ export default function CalendarClient() {
                             {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
                           </p>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-semibold text-foreground">{days}</p>
-                          <p className="text-[10px] text-muted-foreground">days</p>
+                        <div className="text-right flex-shrink-0 min-w-[2.5rem]">
+                          <p className="text-sm font-semibold text-foreground">{top}</p>
+                          {bottom && <p className="text-[10px] text-muted-foreground">{bottom}</p>}
                         </div>
                       </div>
                     );
