@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Product** | aspaceforus (in‑app wordmark: **"us."**) |
-| **Version** | **0.1** (first private beta) |
+| **Version** | **0.1.1** (first private beta) |
 | **Status** | Beta‑ready; invite‑only |
 | **Document owner** | Bukky (bukkyn@gmail.com) |
 | **Last updated** | 2026‑06‑03 |
@@ -90,7 +90,7 @@ Business model for v0.1 is **free; monetization deferred** — so success is mea
 | **Mood check‑in frequency** | Lightweight daily ritual | ≥ 3×/week among active users |
 | **Crash/error rate** | Trust | < 0.5% of sessions |
 
-> *Note:* no analytics SDK is currently installed (see §16). Instrumenting these is a near‑term prerequisite to actually measuring the above.
+> *Note:* as of **v0.1.1**, PostHog instruments the named product events and Sentry captures errors (see §16), so these metrics are now measurable — the PostHog dashboards/funnels still need building.
 
 ---
 
@@ -197,7 +197,7 @@ Money, kept light and fair.
 - **Invite code + QR** (to add a partner if unpaired / re‑share).
 - **Appearance** — light / dark / system theme toggle (no‑flash, applied before first paint).
 - **Notifications** — explicit enable (never auto‑prompts); shows granted/blocked/unsupported states with guidance.
-- **Leave couple** — unlinks you (partner keeps the space + data); confirm‑gated.
+- **Leave couple** — unlinks you (partner keeps the space + data); confirm‑gated. On leave (v0.1.1), your **vault items and events are reassigned to your partner** so nothing is orphaned; ledger entries keep their creator (the partner can still settle them).
 - **Sign out.**
 
 ### 8.8 Notifications
@@ -246,9 +246,10 @@ Two distinct systems over the same Web Push channel (see §13):
 - **Hosting:** Vercel (Hobby), Git‑integration deploys from `main` + CLI deploys; production aliased to www.aspaceforus.app.
 - **Push:** `web-push` (VAPID) from server actions + a cron API route.
 - **Scheduling:** GitHub Actions cron (Vercel Hobby cron is once/day‑limited) → authenticated `/api/cron/engagement`.
+- **Observability (v0.1.1):** PostHog (product analytics, scoped to the authenticated app) + Sentry (errors/traces, server/client/edge). Both no‑op safely if unconfigured.
 
 ### Rendering & data flow
-- **Server components** validate the session and load couple context once per app load via `get_session_data` (one RPC returns me + partner + currency).
+- **Server components** validate the session and load couple context once per app load via `get_session_data` (one RPC returns me + partner + currency). The **Home** screen loads all its data in a single `get_home_data` RPC (v0.1.1 — replaced ~11 parallel queries).
 - **Client screens** load their own data with the Supabase browser client inside effects, render **cached‑first** (two‑tier cache: in‑memory + `sessionStorage`, 10‑min TTL), and reconcile via **optimistic updates** + **realtime**.
 - **Realtime:** per‑screen channels subscribe to the couple's rows (`postgres_changes`, RLS‑scoped) + broadcast (mood/activity). Handlers skip the actor's own INSERT echoes to avoid redundant refetches and debounce reloads.
 - **Middleware** (`proxy.ts`) refreshes the Supabase session on each request and gates routes; `/api/*`, `/auth/*`, `/`, and `/join` bypass the login redirect.
@@ -284,7 +285,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 - **Tenancy isolation (RLS).** Every couple table is `using (is_couple_member(couple_id))`; a user can never read/write another couple's rows. Profiles visible only within a couple.
 - **IDOR closure.** All SECURITY DEFINER RPCs reject `p_user_id <> auth.uid()` and pin `search_path`. Legacy unguarded RPCs dropped.
 - **Server‑side authorship.** Writes stamp `created_by` from the session (`auth.uid()`), not client input.
-- **Storage privacy.** `avatars` / `banners` / `vault` buckets are **private**; images render via **signed URLs**. Reads are broad‑authenticated (paths are unguessable UUIDs that only appear behind table‑RLS); a write‑scoping migration to the caller's own folder is prepared (`storage_scope_writes.sql`).
+- **Storage privacy.** `avatars` / `banners` / `vault` buckets are **private**; images render via **signed URLs**. New vault photos are stored at `vault/<couple_id>/<user_id>/…`. Reads are broad‑authenticated (paths are unguessable UUIDs that only appear behind table‑RLS); a write‑scoping migration (`storage_scope_writes.sql`, **v2**, using the `is_couple_member()` SECURITY DEFINER helper) is prepared but **deferred** — v1's inline `profiles` sub‑query broke banner uploads, so beta runs the permissive write policy (see `SECURITY_NOTES.md`).
 - **SSRF removed.** The image proxy + OG scraper (server‑side fetch of user URLs) were deleted.
 - **Stored‑XSS blocked.** Vault URLs sanitized to http/https before `window.open`/`<a href>`.
 - **Couple‑size cap.** Enforced in `join_couple_for_user` (returns `full`).
@@ -302,7 +303,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 - **Transport:** Web Push (VAPID). Subscriptions stored per device in `push_subscriptions`; the service worker renders the notification and routes clicks to a deep link.
 - **Partner activity:** server actions call `notifyPartner` → `get_partner_push_subscription` (now **throttled**: returns null if the recipient was notified < 10 min ago, else stamps `last_notified_at` and returns the subscription).
-- **Engagement cron:** `/api/cron/engagement` (Node runtime) — Bearer‑auth via `CRON_SECRET`, reads subscriptions via the **service‑role key**, sends a random prompt to anyone not notified in 3 h, stamps `last_notified_at`, deletes revoked subs (404/410). Triggered by **GitHub Actions** 4×/day (10:00/13:00/16:00/19:00 UTC) at the **www** host (apex redirect drops the auth header).
+- **Engagement cron:** `/api/cron/engagement` (Node runtime) — Bearer‑auth via `CRON_SECRET`, reads subscriptions via the **service‑role key**, sends a random prompt, stamps `last_notified_at`, deletes revoked subs (404/410). Triggered by **GitHub Actions** 4×/day (10:00/13:00/16:00/19:00 UTC) at the **www** host (apex redirect drops the auth header). **Adaptive delivery (v0.1.1):** layered on the 3 h minimum, using `profiles.activity_at` recency — active <2 h → skip; <24 h → max 1/day; <7 d → max 2/day; inactive 7 d+ → max 1/day (per‑day counter on `push_subscriptions`).
 - **Prompts:** 18 varied, friendly, lowercase, deep‑linked messages (mood, free days, date ideas, notes, expenses, pots, countdowns, photos, etc.).
 
 ---
@@ -314,7 +315,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 - **Optimistic updates** everywhere; realtime reconciles; **own‑insert echoes skipped** to avoid redundant section refetches; home reloads are debounced.
 - **Signed‑URL caching** (module‑level) so an avatar isn't re‑signed across components.
 - **Service worker** caches immutable build assets (cache‑first).
-- **Heaviest screen:** Home (~11 parallelized queries) — a known optimization target (collapse the partner‑activity probes into one RPC).
+- **Home is one round‑trip:** the Home screen loads via a single `get_home_data` RPC (v0.1.1 — was ~11 parallel queries).
 
 ---
 
@@ -322,14 +323,14 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 - **A11y done:** keyboard/screen‑reader‑operable card rows (role=button + Enter/Space), raised contrast floor in both themes, ARIA labels on icon buttons, reduced‑motion respected for movement.
 - **A11y open:** whole‑app pinch‑zoom is disabled (product decision); the custom date display value isn't announced (the input is labelled); large single‑file screens.
-- **Observability gap (important):** **no analytics or error reporting SDK is installed.** The success metrics in §5 can't be measured until something (e.g. PostHog/Plausible + Sentry) is added. This is the top "missing for a real launch" item.
+- **Observability (added in v0.1.1):** **PostHog** (named product events + `identify`, no PII; scoped to the authenticated app, not /auth or /onboarding) and **Sentry** (server/client/edge; errors + 10% traces in prod, 100% in dev). Both are **safe no‑ops if their keys are unset**. PostHog dashboards/funnels still need building to read the §5 metrics.
 
 ---
 
 ## 17. Operations & deployment
 
 - **Environments:** Vercel Production (`main` → www.aspaceforus.app), Preview, Development.
-- **Env vars (Production):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (cron only), `VAPID_SUBJECT`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `CRON_SECRET`.
+- **Env vars (Production):** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (cron only), `VAPID_SUBJECT`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `CRON_SECRET`. **Observability (v0.1.1):** `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`, `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, optional `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN`; dev‑only `NEXT_PUBLIC_FORCE_WEBVIEW`. (Full table in `README.md`.)
 - **Secrets (GitHub Actions):** `CRON_SECRET`.
 - **DB migrations:** hand‑run SQL files in `supabase/` (no automated migration runner). Notable: `run_all.sql` (hardening), `notification_throttle.sql`, `join_rate_limit.sql`, `perf_session_currency.sql`, `storage_*` , `fix_*`.
 - **Deploy:** push to `main` (Git integration) or `npx vercel --prod` (CLI bypasses the Hobby single‑slot queue). Service worker `CACHE` version is bumped per release to force client refresh.
@@ -339,12 +340,12 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 ## 18. Known limitations & tech debt
 
-- No analytics/error reporting (see §16).
+- ~~No analytics/error reporting~~ → added in v0.1.1 (PostHog + Sentry).
 - Auth is Google‑only (no email/magic‑link fallback) → excludes non‑Google users + WebView users.
 - Screens are large single files (vault ~1.1k lines); repeated form/sheet blocks are extraction candidates.
-- Storage writes broad‑authenticated; broadcast channels not RLS‑private (both low‑risk, prepared/noted).
+- Storage writes broad‑authenticated (scoping **v2** prepared but deferred — see §13); broadcast channels not RLS‑private (both low‑risk).
 - Calendar: a day with an event/countdown can't also toggle availability.
-- Home: ~11 queries/load.
+- ~~Home ~11 queries/load~~ → collapsed to one `get_home_data` RPC in v0.1.1.
 - `sounding_board` dead table; legacy migration files retained for history.
 - Optimistic‑failure handling is on money writes only (others rely on the offline banner).
 
@@ -354,7 +355,7 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 
 **v0.1 (now):** five surfaces, pairing, realtime, push (activity + engagement), dark mode, hardened security, PWA.
 
-**Near‑term (pre‑public):** analytics + error reporting; email/magic‑link auth fallback; storage write‑scoping; broadcast‑channel RLS; first‑class feedback channel; finish optimistic‑failure coverage.
+**Near‑term (pre‑public):** ~~analytics + error reporting~~ (done, v0.1.1); email/magic‑link auth fallback; apply storage write‑scoping **v2** (preview‑test first); broadcast‑channel RLS; first‑class feedback channel; finish optimistic‑failure coverage.
 
 **Roadmap themes (owner‑selected):**
 1. **Messaging / love notes** — in‑app exchange between partners (beyond the single shared note).
@@ -391,6 +392,34 @@ Privacy *is* the product, so this got a dedicated hardening pass.
 5. **Group spaces** — ever relax the 2‑cap (families, etc.), or stay strictly couples?
 
 ---
+
+## Version history
+
+### v0.1.1 (2026‑06‑03)
+A hardening / instrumentation increment on top of v0.1 — no new user-facing surfaces.
+- **Observability:** PostHog (named product events — `mood_set`, `note_updated`,
+  `event_created`, `countdown_created`, `vault_item_created`, `expense_added`,
+  `pot_contributed`, `settle_up`, `couple_created`, `couple_joined` — plus
+  `identify` with `couple_id`/`accent_color`, no PII) and Sentry (server/client/
+  edge). Both no‑op safely when unconfigured. Closes the v0.1 observability gap.
+- **Performance:** Home collapsed from ~11 parallel queries to a single
+  `get_home_data` RPC (cache + realtime unchanged).
+- **Engagement nudges → adaptive:** per‑user daily caps by `activity_at` recency,
+  layered on the existing 3 h minimum.
+- **WebView fallback:** detection now covers Line; `NEXT_PUBLIC_FORCE_WEBVIEW`
+  dev simulation; `/join` coverage confirmed.
+- **Storage write‑scoping:** vault uploads moved to `vault/<couple_id>/<user_id>/`;
+  scoping migration rewritten to **v2** (`is_couple_member()` helper) — still
+  deferred, beta runs the permissive policy (`SECURITY_NOTES.md`).
+- **Leave couple:** the leaving partner's vault items + events are reassigned to
+  the remaining partner (no orphans); ledger entries keep their creator.
+- New env vars documented in `README.md`.
+
+### v0.1 (2026‑06‑03)
+First private beta. Five surfaces (Home, Calendar, Vault, Ledger, Profile),
+Google auth + couple pairing, realtime sync, web‑push (partner activity +
+scheduled engagement), dark mode, page transitions, PWA, and the C1–C5 / H1–H5 /
+CSP security pass.
 
 ## Appendix A — Route map
 `/` · `/auth/login` · `/auth/callback` · `/join` · `/onboarding` · `/home` · `/calendar` · `/vault` · `/ledger` · `/profile` · `/api/cron/engagement` · `/icon` · `/apple-icon` · `/manifest.json`
