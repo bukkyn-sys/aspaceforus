@@ -235,13 +235,41 @@ export default function CalendarClient() {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
 
-  // Whether a given day-of-month has any event/countdown — used to merge the
-  // shaded band across adjacent/overlapping ranges (round only at the run's edges).
-  function dayHasEvent(dayNum: number): boolean {
-    if (dayNum < 1 || dayNum > daysInMonth) return false;
-    const ds2 = `${year}-${String(month + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
-    return getEvents(ds2).length > 0 || getCountdownsForDate(ds2).length > 0;
+  // ── Event "lane" layout ─────────────────────────────────────────────────
+  // Each event/countdown gets a horizontal lane; overlapping items stack into
+  // separate lanes so they render as distinct thin bars (never one merged block).
+  const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const monthFirst = `${monthStr}-01`;
+  const monthLast = `${monthStr}-${String(daysInMonth).padStart(2, "0")}`;
+  function clampSpan(startStr: string, endStr: string): { startDay: number; endDay: number } | null {
+    if (endStr < monthFirst || startStr > monthLast) return null;
+    return {
+      startDay: startStr >= monthFirst ? parseInt(startStr.slice(8, 10), 10) : 1,
+      endDay: endStr <= monthLast ? parseInt(endStr.slice(8, 10), 10) : daysInMonth,
+    };
   }
+  type LaneItem = { id: string; startDay: number; endDay: number; color: string; lane: number };
+  const laneItems: LaneItem[] = [];
+  for (const e of events) {
+    const span = clampSpan(e.start_at.slice(0, 10), (e.end_at ?? e.start_at).slice(0, 10));
+    if (!span) continue;
+    const o = resolveOwner(e.created_by);
+    laneItems.push({ id: e.id, ...span, color: o.shared ? "var(--muted-foreground)" : o.people[0].hex, lane: -1 });
+  }
+  for (const c of countdowns) {
+    const span = clampSpan(c.target_date, c.end_date ?? c.target_date);
+    if (!span) continue;
+    laneItems.push({ id: c.id, ...span, color: "var(--muted-foreground)", lane: -1 });
+  }
+  laneItems.sort((a, b) => a.startDay - b.startDay || a.endDay - b.endDay);
+  const laneEnds: number[] = []; // laneEnds[L] = last occupied day in lane L
+  for (const it of laneItems) {
+    let lane = 0;
+    while (lane < laneEnds.length && laneEnds[lane] >= it.startDay) lane++;
+    it.lane = lane;
+    laneEnds[lane] = it.endDay;
+  }
+  const visibleLanes = Math.min(laneEnds.length, 3);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -318,32 +346,18 @@ export default function CalendarClient() {
             const colIndex = i % 7;
             const isWeekStart = colIndex === 0;
             const isWeekEnd = colIndex === 6;
-            const isRangeStart = isEventDay && (
-              dayEvents.some(e => e.start_at.slice(0, 10) === ds) ||
-              dayCds.some(c => c.target_date === ds)
-            );
-            // Round only at the true edges of a continuous run of event days (or
-            // at week edges), so adjacent/overlapping ranges merge into one band
-            // instead of showing a rounded gap where a second range begins.
-            const roundLeft = isWeekStart || !dayHasEvent(day - 1);
-            const roundRight = isWeekEnd || !dayHasEvent(day + 1);
-            const eventRounding =
-              roundLeft && roundRight ? "rounded-lg" :
-              roundLeft ? "rounded-l-lg rounded-r-none" :
-              roundRight ? "rounded-l-none rounded-r-lg" :
-              "rounded-none";
 
-            // Count how many distinct items start on this exact day (for collision badge)
-            const startsHere = [
-              ...dayEvents.filter(e => e.start_at.slice(0, 10) === ds),
-              ...dayCds.filter(c => c.target_date === ds),
-            ];
-            const collisionCount = startsHere.length;
-            const showBandEmoji = isEventDay && isRangeStart;
-            const bandEmoji = dayEvents[0]?.emoji ?? dayCds[0]?.emoji;
+            // Items spanning this day, placed in their lanes (for the thin bars).
+            const byLane: (LaneItem | undefined)[] = [];
+            if (isEventDay) {
+              for (const it of laneItems) {
+                if (it.startDay <= day && day <= it.endDay) byLane[it.lane] = it;
+              }
+            }
 
+            const eventCount = dayEvents.length + dayCds.length;
             const availLabel = isEventDay
-              ? `, ${collisionCount > 1 ? `${collisionCount} events` : "event"}`
+              ? `, ${eventCount > 1 ? `${eventCount} events` : "event"}`
               : `${mine === "free" ? ", you free" : ""}${theirs === "free" ? ", partner free" : ""}`;
 
             return (
@@ -354,39 +368,48 @@ export default function CalendarClient() {
                 aria-label={`${day} ${monthLabel}${availLabel}`}
                 aria-pressed={!isEventDay && mine === "free"}
                 className={cn(
-                  "aspect-square w-full flex flex-col items-center justify-center relative transition-all select-none",
-                  isEventDay
-                    ? cn(eventRounding, "cursor-default")
-                    : cn("rounded-lg", overlap && "bg-[var(--free-cell)]"),
+                  "aspect-square w-full rounded-lg relative transition-all select-none",
+                  !isEventDay && overlap && "bg-[var(--free-cell)]",
+                  isEventDay && "cursor-default",
                   isPast && "opacity-30 cursor-default",
                 )}
-                style={isEventDay ? { backgroundColor: "var(--event-band)" } : undefined}
               >
-                {/* Collision badge — shows when 2+ items start on this day */}
-                {collisionCount > 1 && (
-                  <div className="absolute top-0.5 right-0.5 w-[14px] h-[14px] rounded-full bg-foreground/70 flex items-center justify-center">
-                    <span className="text-[8px] font-bold text-background leading-none">{collisionCount}</span>
-                  </div>
-                )}
-
                 {/* Day number — today gets a filled circle */}
-                {isToday ? (
-                  <div className="w-7 h-7 rounded-full bg-foreground flex items-center justify-center mb-1">
-                    <span className="text-[11px] font-bold text-background leading-none">{day}</span>
+                <div className="absolute top-[6px] left-0 right-0 flex justify-center">
+                  {isToday ? (
+                    <div className="w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
+                      <span className="text-[11px] font-bold text-background leading-none">{day}</span>
+                    </div>
+                  ) : (
+                    <span className={cn(
+                      "text-xs font-semibold leading-none",
+                      overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
+                    )}>
+                      {day}
+                    </span>
+                  )}
+                </div>
+
+                {/* Event days: thin lane bars (each event its own lane, overlaps stack) */}
+                {isEventDay ? (
+                  <div className="absolute bottom-[5px] left-0 right-0 flex flex-col-reverse gap-[2px]">
+                    {Array.from({ length: visibleLanes }).map((_, lane) => {
+                      const it = byLane[lane];
+                      if (!it) return <div key={lane} className="h-[3px]" />;
+                      const rl = day === it.startDay || isWeekStart;
+                      const rr = day === it.endDay || isWeekEnd;
+                      return (
+                        <div
+                          key={lane}
+                          className={cn("h-[3px]", rl && "rounded-l-full", rr && "rounded-r-full")}
+                          style={{ backgroundColor: it.color, opacity: 0.9 }}
+                        />
+                      );
+                    })}
                   </div>
                 ) : (
-                  <span className={cn(
-                    "text-xs font-semibold leading-none",
-                    overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
-                    isEventDay ? "text-foreground/55 mb-0" : "mb-1.5",
-                  )}>
-                    {day}
-                  </span>
-                )}
-
-                {/* Status dots — not shown on event days. free = accent dot · unset = faint dot */}
-                {!isEventDay && (
-                  <div className="flex gap-0.5 items-center h-1.5">
+                  /* Availability dots — free = accent dot · unset = faint dot */
+                  <div className="absolute bottom-[7px] left-0 right-0 flex gap-0.5 items-center justify-center">
                     <div
                       className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
                       style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
@@ -398,11 +421,6 @@ export default function CalendarClient() {
                       />
                     )}
                   </div>
-                )}
-
-                {/* Event band: emoji label on first cell of each row segment */}
-                {showBandEmoji && bandEmoji && (
-                  <span className="text-xs leading-none mt-0.5">{bandEmoji}</span>
                 )}
               </button>
             );
@@ -429,7 +447,7 @@ export default function CalendarClient() {
           </div>
         )}
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded" style={{ backgroundColor: "var(--event-band)" }} />
+          <div className="w-3 h-[3px] rounded-full bg-muted-foreground/80" />
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
