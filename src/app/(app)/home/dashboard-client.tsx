@@ -20,6 +20,7 @@ import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
 import { SignedImg } from "@/components/signed-img";
+import DailyCard, { type DailyData } from "./daily-card";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -53,6 +54,7 @@ interface DashboardData {
   freeDays: string[];
   balance: number;   // + means partner owes you, − means you owe partner
   pots: PotMini[];
+  daily: DailyData;
 }
 
 // Shape returned by the get_home_data RPC (single-call Home load).
@@ -69,6 +71,7 @@ interface HomeData {
   balance: number;
   pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
   partner_action: { text: string; at: string } | null;
+  daily?: DailyData;
 }
 
 function timeUntil(dateStr: string) {
@@ -134,7 +137,7 @@ export default function DashboardClient() {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeDays: [], balance: 0, pots: [],
+      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeDays: [], balance: 0, pots: [], daily: { paired: false },
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -179,6 +182,7 @@ export default function DashboardClient() {
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const noteFocusedRef = useRef(false);
   const loadRef = useRef<(() => void) | null>(null);
+  const dailyRefetch = useRef<(() => void) | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -212,6 +216,7 @@ export default function DashboardClient() {
         freeDays: h.free_days ?? [],
         balance: Number(h.balance ?? 0),
         pots,
+        daily: h.daily ?? { paired: false },
       };
       const hasP = !!partner;
       setHasPartner(hasP);
@@ -261,6 +266,12 @@ export default function DashboardClient() {
         ({ payload }: { payload: { user_id: string; mood: number; at: string } }) => {
           if (payload.user_id === me.id) setData((prev) => ({ ...prev, myMood: payload.mood, myMoodAt: payload.at }));
           else setData((prev) => ({ ...prev, partnerMood: payload.mood, partnerMoodAt: payload.at }));
+        })
+      // the daily — content-free "partner answered" signal; refetch through the
+      // gated rpc (no answer text ever travels over the channel).
+      .on("broadcast", { event: "daily_answered" },
+        ({ payload }: { payload: { by: string } }) => {
+          if (payload.by !== me.id) dailyRefetch.current?.();
         })
       // Partner first joins → reflect immediately + pull their data
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" },
@@ -499,6 +510,15 @@ export default function DashboardClient() {
           )}
         </div>
       </div>
+
+      {/* The daily — one shared question a day */}
+      {!loading && (
+        <DailyCard
+          initial={data.daily}
+          onBroadcast={() => channelRef.current?.send({ type: "broadcast", event: "daily_answered", payload: { by: me.id } })}
+          registerRefetch={(fn) => { dailyRefetch.current = fn; }}
+        />
+      )}
 
       {/* Shared note — post-it */}
       <div

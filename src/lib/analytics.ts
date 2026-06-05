@@ -11,7 +11,10 @@ export type AnalyticsEvent =
   | "pot_contributed"
   | "couple_created"
   | "couple_joined"
-  | "settle_up";
+  | "settle_up"
+  | "daily_answered"
+  | "daily_revealed"
+  | "daily_history_opened";
 
 type EventProps = Record<string, string | number | boolean | null | undefined>;
 
