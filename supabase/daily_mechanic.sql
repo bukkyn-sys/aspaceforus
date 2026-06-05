@@ -154,7 +154,7 @@ begin
     and not (v_no_deep_today and p.intimacy = 3)
     and (v_block_kind is null or p.kind <> v_block_kind)
   order by power((abs(hashtext(p_couple_id::text || p_day_key::text || p.id::text)) % 100000 + 1)::float8 / 100001.0,
-                 1.0 / greatest(p.weight * (case when v_is_weekend and 'weekend' = any(p.tags) then 2 else 1), 1)) desc
+                 1.0 / greatest(p.weight * (case when v_is_weekend and 'weekend' = any(p.tags) then 2 else 1 end), 1)) desc
   limit 1;
   if v_prompt is not null then return v_prompt; end if;
 
@@ -165,7 +165,7 @@ begin
                       and dm.prompt_id = p.id and dm.moment_date >= p_day_key - v_cooldown and dm.moment_date < p_day_key)
     and not (v_no_deep_today and p.intimacy = 3)
   order by power((abs(hashtext(p_couple_id::text || p_day_key::text || p.id::text)) % 100000 + 1)::float8 / 100001.0,
-                 1.0 / greatest(p.weight * (case when v_is_weekend and 'weekend' = any(p.tags) then 2 else 1), 1)) desc
+                 1.0 / greatest(p.weight * (case when v_is_weekend and 'weekend' = any(p.tags) then 2 else 1 end), 1)) desc
   limit 1;
   if v_prompt is not null then return v_prompt; end if;
 
