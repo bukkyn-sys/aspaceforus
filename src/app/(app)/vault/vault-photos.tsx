@@ -125,17 +125,24 @@ export default function VaultPhotos() {
     for (const file of list) {
       const err = validateImage(file);
       if (err) { toast(err); setUploadCount((c) => c - 1); continue; }
-      let processed: { blob: Blob; width: number; height: number };
-      try { processed = await processImage(file); }
-      catch { processed = { blob: file, width: 0, height: 0 }; } // undecodable (e.g. HEIC on Chrome) — upload as-is
-      const { blob, width, height } = processed;
+      let blob: Blob, width: number, height: number, ext = "jpg", contentType = "image/jpeg";
+      try {
+        const p = await processImage(file);
+        blob = p.blob; width = p.width; height = p.height;
+      } catch {
+        // Undecodable here (e.g. HEIC/ProRAW on a browser that can't decode it) —
+        // upload the original as-is so it isn't lost; keep its real type/extension.
+        blob = file; width = 0; height = 0;
+        ext = (file.name.includes(".") ? file.name.split(".").pop() : "") || (file.type.split("/")[1]) || "jpg";
+        contentType = file.type || "application/octet-stream";
+      }
 
       const tempId = crypto.randomUUID();
       const local = URL.createObjectURL(blob);
-      const path = `${coupleId}/${crypto.randomUUID()}.jpg`;
+      const path = `${coupleId}/${crypto.randomUUID()}.${ext.toLowerCase()}`;
       setPhotos((prev) => [{ id: tempId, path, width, height, caption: null, created_by: me.id, created_at: new Date().toISOString(), album_id: activeAlbum, local }, ...prev]);
 
-      const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+      const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType, upsert: false });
       setUploadCount((c) => c - 1);
       if (error) { toast("a photo failed to upload"); setPhotos((prev) => prev.filter((p) => p.id !== tempId)); continue; }
       track("photo_added");

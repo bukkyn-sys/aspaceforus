@@ -1,4 +1,4 @@
-const MAX_BYTES = 15 * 1024 * 1024; // 15 MB — generous (phone photos / HEIC)
+const MAX_BYTES = 60 * 1024 * 1024; // 60 MB — roomy for HEIC / ProRAW / large originals
 
 /** Returns an error string, or null if the file is acceptable. */
 export function validateImage(file: File): string | null {
@@ -9,7 +9,7 @@ export function validateImage(file: File): string | null {
     return "please choose an image file";
   }
   if (file.size > MAX_BYTES) {
-    return "photo must be under 15 MB";
+    return "photo must be under 60 MB";
   }
   return null;
 }

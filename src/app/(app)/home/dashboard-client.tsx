@@ -718,7 +718,7 @@ export default function DashboardClient() {
                   <div key={w.date} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground leading-snug">
-                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.parts.join(", ")}</span>
+                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.parts.length === 4 ? "all day" : w.parts.join(", ")}</span>
                       </p>
                       <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>
                     </div>
@@ -969,7 +969,7 @@ function LayoutTile({ m, onToggleSize }: { m: DashModule; onToggleSize: () => vo
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
       className={cn(

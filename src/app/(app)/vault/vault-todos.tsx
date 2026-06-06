@@ -494,7 +494,11 @@ export default function VaultTodos() {
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">due date <span className="font-normal opacity-50">(optional)</span></p>
           <DateField value={itemDue} onChange={setItemDue} placeholder="no due date" />
-          {itemDue && <button onClick={() => setItemDue("")} className="text-xs text-muted-foreground/50 mt-1.5">clear date</button>}
+          {itemDue && (
+            <button onClick={() => { setItemDue(""); setItemRemind(false); }} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/70 hover:text-foreground mt-1.5 transition-colors">
+              <X className="w-3 h-3" /> remove due date
+            </button>
+          )}
           {itemDue && (
             <button type="button" onClick={() => setItemRemind((v) => !v)}
               className={cn("flex items-center justify-between w-full rounded-xl px-3.5 h-10 mt-2 transition-colors", itemRemind ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>
