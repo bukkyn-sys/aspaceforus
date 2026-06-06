@@ -516,24 +516,40 @@ export default function DashboardClient() {
         />
       )}
 
-      {/* Shared note — post-it */}
-      <div
-        className="rounded-sm px-4 pt-4 pb-4 relative"
-        style={{
-          backgroundColor: "#FBF7E4",
-          boxShadow: "3px 5px 16px rgba(0,0,0,0.07), inset 0 -1px 0 rgba(180,140,60,0.10)",
-        }}
-      >
-        <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE2B8" }} />
-        <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2">shared note</p>
-        <textarea
-          value={data.sharedNote}
-          onChange={(e) => handleNote(e.target.value)}
-          onFocus={() => { noteFocusedRef.current = true; }}
-          onBlur={() => { noteFocusedRef.current = false; }}
-          placeholder="jot something for both of you to see…"
-          className="w-full text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent resize-none outline-none leading-relaxed min-h-[80px]"
-          rows={3}
+      {/* Shared note — post-it with a folded bottom-right corner */}
+      <div className="relative">
+        <div
+          className="rounded-sm px-4 pt-4 pb-5 relative"
+          style={{
+            backgroundColor: "#FAF1C6",
+            boxShadow: "3px 5px 16px rgba(0,0,0,0.08), inset 0 -1px 0 rgba(180,140,60,0.10)",
+            // Clip the bottom-right corner away so the fold reads as a real peel.
+            clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%)",
+          }}
+        >
+          <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE0A0" }} />
+          <p className="text-xs text-amber-700/60 font-medium tracking-wide mb-2">shared note</p>
+          <textarea
+            value={data.sharedNote}
+            onChange={(e) => handleNote(e.target.value)}
+            onFocus={() => { noteFocusedRef.current = true; }}
+            onBlur={() => { noteFocusedRef.current = false; }}
+            placeholder="jot something for both of you to see…"
+            className="w-full text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent resize-none outline-none leading-relaxed min-h-[80px]"
+            rows={3}
+          />
+        </div>
+        {/* Folded corner flap — the lifted underside of the peel. Drawn outside the
+            clipped note (a sibling, not a child) so it isn't clipped away, and casts
+            a soft fold shadow back onto the note. */}
+        <div
+          aria-hidden
+          className="absolute bottom-0 right-0 w-[30px] h-[30px] pointer-events-none"
+          style={{
+            background: "linear-gradient(135deg, #F3E7AC 0%, #E2D079 100%)",
+            clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
+            filter: "drop-shadow(-1px -1px 1px rgba(120,90,20,0.22))",
+          }}
         />
       </div>
 
