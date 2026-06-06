@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { setAvailability, setAvailabilityDay, clearCoupleAvailabilityPart, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
-import { deleteCountdown } from "@/app/(app)/home/actions";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -30,11 +29,9 @@ const PART_META: Record<DayPart, { label: string; time: string }> = {
   evening:   { label: "evening",   time: "17–22" },
   night:     { label: "night",     time: "22–5" },
 };
-interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
-
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
 
-type CalCache = { rows: Row[]; events: CalEvent[]; countdowns: Countdown[] };
+type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -66,7 +63,6 @@ export default function CalendarClient() {
   const [current, setCurrent] = useState(() => new Date());
   const [rows, setRows] = useState<Row[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
-  const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [rtick, setRtick] = useState(0);
   const [dayView, setDayView] = useState<string | null>(null);
@@ -75,7 +71,6 @@ export default function CalendarClient() {
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
-  const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
@@ -123,7 +118,6 @@ export default function CalendarClient() {
     if (cached) {
       setRows(cached.rows);
       setEvents(cached.events);
-      setCountdowns(cached.countdowns);
       setLoading(false);
     } else {
       setLoading(true);
@@ -147,23 +141,13 @@ export default function CalendarClient() {
         .gte("start_at", start + "T00:00:00")
         .lte("start_at", end + "T23:59:59")
         .order("start_at"),
-      supabase
-        .from("countdowns")
-        .select("id, title, target_date, end_date, emoji, created_by")
-        .eq("couple_id", coupleId)
-        .eq("archived", false)
-        .gte("target_date", start)
-        .lte("target_date", end)
-        .order("target_date"),
-    ]).then(([{ data: avail }, { data: evts }, { data: cds }]) => {
+    ]).then(([{ data: avail }, { data: evts }]) => {
       const rows = avail ?? [];
       const events = (evts as CalEvent[]) ?? [];
-      const countdowns = (cds as Countdown[]) ?? [];
       setRows(rows);
       setEvents(events);
-      setCountdowns(countdowns);
       setLoading(false);
-      setCache(key, { rows, events, countdowns });
+      setCache(key, { rows, events });
     });
   }, [coupleId, year, month, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -180,7 +164,6 @@ export default function CalendarClient() {
     const channel = supabase.channel(`cal-${coupleId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "availability", filter: `couple_id=eq.${coupleId}` }, onChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "events",       filter: `couple_id=eq.${coupleId}` }, onChange)
-      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",   filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
@@ -205,13 +188,6 @@ export default function CalendarClient() {
       const start = localDateOf(e.start_at);
       const end = e.end_at ? localDateOf(e.end_at) : start;
       return dateStr >= start && dateStr <= end;
-    });
-  }
-
-  function getCountdownsForDate(dateStr: string): Countdown[] {
-    return countdowns.filter((c) => {
-      const end = c.end_date ?? c.target_date;
-      return dateStr >= c.target_date && dateStr <= end;
     });
   }
 
@@ -339,12 +315,6 @@ export default function CalendarClient() {
     startTransition(() => { deleteEvent(id, coupleId, me.id); });
   }
 
-  function handleDeleteCountdownCal(id: string) {
-    setCountdowns((prev) => prev.filter((c) => c.id !== id));
-    setActionCountdown(null);
-    startTransition(() => { deleteCountdown(id, coupleId, me.id); });
-  }
-
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (firstDay + 6) % 7;
@@ -417,9 +387,8 @@ export default function CalendarClient() {
             const isToday = ds === todayStr;
             const overlap = dayHasOverlap(ds);
             const dayEvents = getEvents(ds);
-            const dayCds = getCountdownsForDate(ds);
-            const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
-            const dayEmojis = isEventDay ? [...dayEvents.map(e => e.emoji), ...dayCds.map(c => c.emoji)] : [];
+            const isEventDay = dayEvents.length > 0;
+            const dayEmojis = isEventDay ? dayEvents.map(e => e.emoji) : [];
             const myFree = freeParts(me.id, ds);
             const theirFree = partner ? freeParts(partner.id, ds) : [];
             const hasAvail = myFree.length > 0 || theirFree.length > 0;
@@ -519,7 +488,7 @@ export default function CalendarClient() {
 
       {/* ── Events this month ──────────────────────────────── */}
       <div className="px-5 mt-8">
-        {!loading && events.length === 0 && countdowns.length === 0 && (
+        {!loading && events.length === 0 && (
           <div className="flex flex-col items-center py-6 gap-2">
             <p className="text-sm text-muted-foreground">no events this month</p>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
@@ -532,81 +501,47 @@ export default function CalendarClient() {
           </div>
         )}
 
-        {!loading && (events.length > 0 || countdowns.length > 0) && (() => {
-          type Item =
-            | { kind: "event"; data: CalEvent }
-            | { kind: "countdown"; data: Countdown };
-          const items: Item[] = [
-            ...events.map((e) => ({ kind: "event" as const, data: e })),
-            ...countdowns.map((c) => ({ kind: "countdown" as const, data: c })),
-          ].sort((a, b) => {
-            const da = a.kind === "event" ? a.data.start_at.slice(0, 10) : a.data.target_date;
-            const db = b.kind === "event" ? b.data.start_at.slice(0, 10) : b.data.target_date;
-            return da.localeCompare(db);
-          });
-
-          return (
-            <div>
-              <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
-              <div className="space-y-2">
-                {items.map((item) => {
-                  if (item.kind === "event") {
-                    const evt = item.data;
-                    const d = new Date(evt.start_at);
-                    const o = resolveOwner(evt.created_by);
-                    return (
-                      <div
-                        key={evt.id}
-                        {...clickable(() => setActionEvent(evt))}
-                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
-                        style={ownerCardStyle(o)}
-                      >
-                        <span className="text-xl flex-shrink-0">{evt.emoji}</span>
-                        <OwnerAvatars people={o.people} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                            {evt.all_day
-                              ? (evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`)
-                              : ` · ${fmtTime(evt.start_at)}${evt.end_at ? `–${fmtTime(evt.end_at)}` : ""}`}
-                          </p>
-                        </div>
+        {!loading && events.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
+            <div className="space-y-2">
+              {events.map((evt) => {
+                const d = new Date(evt.start_at);
+                const o = resolveOwner(evt.created_by);
+                const startDate = localDateOf(evt.start_at);
+                // Every event counts down — show the days-until badge for any event
+                // that hasn't started yet (today / tmrw / N days).
+                const badge = startDate >= todayStr ? countdownLabel(startDate) : null;
+                return (
+                  <div
+                    key={evt.id}
+                    {...clickable(() => setActionEvent(evt))}
+                    className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
+                    style={ownerCardStyle(o)}
+                  >
+                    <span className="text-xl flex-shrink-0">{evt.emoji}</span>
+                    <OwnerAvatars people={o.people} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                        {evt.all_day
+                          ? (evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`)
+                          : ` · ${fmtTime(evt.start_at)}${evt.end_at ? `–${fmtTime(evt.end_at)}` : ""}`}
+                      </p>
+                    </div>
+                    {badge && (
+                      <div className="text-right flex-shrink-0 min-w-[2.5rem]">
+                        <p className="text-sm font-semibold text-foreground">{badge.top}</p>
+                        {badge.bottom && <p className="text-[10px] text-muted-foreground">{badge.bottom}</p>}
                       </div>
-                    );
-                  } else {
-                    const cd = item.data;
-                    const { top, bottom } = countdownLabel(cd.target_date);
-                    const d = new Date(cd.target_date + "T12:00:00");
-                    const o = resolveOwner(null); // countdowns are shared
-                    return (
-                      <div
-                        key={cd.id}
-                        {...clickable(() => setActionCountdown(cd))}
-                        className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
-                        style={ownerCardStyle(o)}
-                      >
-                        <span className="text-xl flex-shrink-0">{cd.emoji}</span>
-                        <OwnerAvatars people={o.people} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{cd.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                            {cd.end_date && ` – ${new Date(cd.end_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0 min-w-[2.5rem]">
-                          <p className="text-sm font-semibold text-foreground">{top}</p>
-                          {bottom && <p className="text-[10px] text-muted-foreground">{bottom}</p>}
-                        </div>
-                      </div>
-                    );
-                  }
-                })}
-              </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })()}
+          </div>
+        )}
       </div>
 
       {/* Day view — set your free parts + see the day's events */}
@@ -849,26 +784,6 @@ export default function CalendarClient() {
                 <Trash2 className="w-4 h-4 mr-1.5" /> remove
               </Button>
               <button onClick={() => setActionEvent(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
-            </div>
-          </>
-        )}
-      </Dialog>
-
-      {/* Countdown action prompt — creator only (edit lives on the home page) */}
-      <Dialog open={actionCountdown !== null} onClose={() => setActionCountdown(null)}>
-        {actionCountdown && (
-          <>
-            <p className="font-semibold text-foreground text-center truncate">{actionCountdown.emoji} {actionCountdown.title}</p>
-            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">remove this countdown? edit it from the home page.</p>
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                onClick={() => handleDeleteCountdownCal(actionCountdown.id)}
-                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
-              >
-                <Trash2 className="w-4 h-4 mr-1.5" /> remove
-              </Button>
-              <button onClick={() => setActionCountdown(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
             </div>
           </>
         )}

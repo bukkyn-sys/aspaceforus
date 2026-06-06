@@ -65,7 +65,9 @@ const DEFAULT_LAYOUT: DashModule[] = [
 ];
 const MODULE_ORDER = DEFAULT_LAYOUT.map((m) => m.id);
 const MODULE_LABEL: Record<string, string> = {
-  mood: "mood", daily: "the daily", note: "shared note", countdowns: "countdowns",
+  // The "countdowns" module id is kept for backward-compat with saved layouts,
+  // but everything is an event now — so it shows as "events".
+  mood: "mood", daily: "the daily", note: "shared note", countdowns: "events",
   free: "free times", accounts: "accounts", todo: "to-dos",
 };
 // Modules that read acceptably at half width. mood + the daily need full width.
@@ -272,17 +274,8 @@ export default function DashboardClient() {
       setData(newData);
       setLoading(false);
       setCache(`dash:${coupleId}`, { data: newData, hasPartner: hasP });
-
-      // Auto-delete countdowns only once they're fully OVER — i.e. their end date
-      // (or target date, if single-day) is yesterday or earlier. Keying off the
-      // end date is essential: a multi-day trip (Jun 1–7) must not be deleted on
-      // Jun 2 just because its start date has passed.
-      const yesterday = localDateStr(-1);
-      supabase.from("countdowns")
-        .delete()
-        .eq("couple_id", coupleId)
-        .or(`and(end_date.is.null,target_date.lte.${yesterday}),end_date.lte.${yesterday}`)
-        .then(() => {});
+      // (Events are never auto-deleted — they're the shared calendar history.
+      // get_home_data already returns only upcoming/ongoing ones for this module.)
     }
 
     load();
@@ -331,7 +324,6 @@ export default function DashboardClient() {
       // Keep the home cards live for partner changes made elsewhere in the app.
       .on("postgres_changes", { event: "*", schema: "public", table: "availability",  filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "events",         filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
-      .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_todos",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
@@ -667,7 +659,7 @@ export default function DashboardClient() {
           >
             <Plane className="w-5 h-5 mx-auto mb-2 text-muted-foreground/30" strokeWidth={1.5} />
             <p className="text-sm text-muted-foreground">nothing to look forward to yet</p>
-            <p className="text-xs text-muted-foreground/40 mt-0.5">tap + to add a countdown</p>
+            <p className="text-xs text-muted-foreground/40 mt-0.5">tap + to add an event</p>
           </button>
         ) : (
           <div className="card overflow-hidden">
@@ -850,10 +842,10 @@ export default function DashboardClient() {
       <BottomSheet
         open={showCountdownSheet}
         onClose={() => { setShowCountdownSheet(false); setEditingCountdownId(null); }}
-        title={editingCountdownId ? "edit countdown" : "new countdown"}
+        title={editingCountdownId ? "edit event" : "new event"}
         footer={
           <Button onClick={handleSaveCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
-            {editingCountdownId ? "save" : "add countdown"}
+            {editingCountdownId ? "save" : "add event"}
           </Button>
         }
       >
@@ -920,7 +912,7 @@ export default function DashboardClient() {
         {actionCountdown && (
           <>
             <p className="font-semibold text-foreground text-center truncate">{actionCountdown.emoji} {actionCountdown.title}</p>
-            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">this event — what would you like to do?</p>
             <div className="space-y-2">
               <Button onClick={() => openEditCountdown(actionCountdown)} className="w-full h-11 rounded-xl">
                 <Pencil className="w-4 h-4 mr-1.5" /> edit

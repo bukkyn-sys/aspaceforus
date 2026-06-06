@@ -37,6 +37,9 @@ export async function setStartedAt(coupleId: string, userId: string, date: strin
   await supabase.rpc("update_couple_started_at", { p_couple_id: coupleId, p_user_id: uid, p_date: date });
 }
 
+// Countdowns and events are one concept now: an "event". The home quick-add
+// creates an all-day event (date + optional end date). Anchored at local noon so
+// it lands on the right calendar day in every timezone, matching the calendar.
 export async function addCountdown(data: {
   coupleId: string;
   userId: string;
@@ -47,13 +50,14 @@ export async function addCountdown(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.from("countdowns").insert({
+  await supabase.from("events").insert({
     couple_id: data.coupleId,
     created_by: uid,
     title: data.title,
-    target_date: data.targetDate,
-    end_date: data.endDate ?? null,
+    start_at: data.targetDate + "T12:00:00",
+    end_at: data.endDate ? data.endDate + "T12:00:00" : null,
     emoji: data.emoji,
+    all_day: true,
   });
 }
 
@@ -68,14 +72,15 @@ export async function updateCountdown(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  // Shared countdowns: either partner may edit any countdown in their couple.
+  // Shared calendar: either partner may edit any event in their couple.
   await supabase
-    .from("countdowns")
+    .from("events")
     .update({
       title: data.title,
-      target_date: data.targetDate,
-      end_date: data.endDate ?? null,
+      start_at: data.targetDate + "T12:00:00",
+      end_at: data.endDate ? data.endDate + "T12:00:00" : null,
       emoji: data.emoji,
+      all_day: true,
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId);
@@ -84,9 +89,9 @@ export async function updateCountdown(data: {
 export async function deleteCountdown(id: string, coupleId: string, userId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  // Shared countdowns: either partner may delete any countdown in their couple.
+  // Shared calendar: either partner may delete any event in their couple.
   await supabase
-    .from("countdowns")
+    .from("events")
     .delete()
     .eq("id", id)
     .eq("couple_id", coupleId);
