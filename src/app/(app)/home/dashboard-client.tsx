@@ -7,7 +7,7 @@ import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
-import { setAvailability } from "@/app/(app)/calendar/actions";
+import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
 import Link from "next/link";
 import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ interface DashboardData {
   countdowns: Countdown[];
   inviteCode: string | null;
   partnerAction: { text: string; at: string } | null;
-  freeDays: string[];
+  freeWindows: { date: string; part: string }[];
   balance: number;   // + means partner owes you, − means you owe partner
   pots: PotMini[];
   daily: DailyData;
@@ -67,7 +67,7 @@ interface HomeData {
   } | null;
   countdowns: Countdown[];
   events: { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string }[];
-  free_days: string[];
+  free_days: { date: string; part: string }[];
   balance: number;
   pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
   partner_action: { text: string; at: string } | null;
@@ -137,7 +137,7 @@ export default function DashboardClient() {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeDays: [], balance: 0, pots: [], daily: { paired: false },
+      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false },
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -213,7 +213,7 @@ export default function DashboardClient() {
         inviteCode: h.couple?.invite_code ?? null,
         countdowns: h.countdowns ?? [],
         partnerAction: pa ? { text: pa.text, at: pa.at } : null,
-        freeDays: h.free_days ?? [],
+        freeWindows: h.free_days ?? [],
         balance: Number(h.balance ?? 0),
         pots,
         daily: h.daily ?? { paired: false },
@@ -339,17 +339,19 @@ export default function DashboardClient() {
       // clear them all from availability + the free-days list (dates are ISO,
       // so string comparison is chronological).
       const rangeEnd = endDate ?? cdDate;
-      const blockedDays = data.freeDays.filter((d) => d >= cdDate && d <= rangeEnd);
+      const blockedDates = Array.from(new Set(
+        data.freeWindows.filter((w) => w.date >= cdDate && w.date <= rangeEnd).map((w) => w.date)
+      ));
       setData((prev) => ({
         ...prev,
         countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
-        freeDays: prev.freeDays.filter((d) => !(d >= cdDate && d <= rangeEnd)),
+        freeWindows: prev.freeWindows.filter((w) => !(w.date >= cdDate && w.date <= rangeEnd)),
       }));
       markActivity("home");
       track("countdown_created", { multi_day: !!endDate });
       startTransition(() => {
         addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
-        for (const d of blockedDays) setAvailability(coupleId, me.id, d, null);
+        for (const d of blockedDates) setAvailabilityDay(coupleId, me.id, d, false);
       });
     }
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
@@ -584,27 +586,27 @@ export default function DashboardClient() {
       {/* Next free days */}
       {!loading && hasPartner && (
         <div className="card p-4">
-          <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">next free days</p>
-          {data.freeDays.length === 0 ? (
+          <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">next free times</p>
+          {data.freeWindows.length === 0 ? (
             <div>
-              <p className="text-sm text-muted-foreground">no overlapping free days in the next 60 days</p>
-              <p className="text-xs text-muted-foreground/40 mt-1">mark days on the calendar to find overlaps</p>
+              <p className="text-sm text-muted-foreground">no overlapping free time in the next 60 days</p>
+              <p className="text-xs text-muted-foreground/40 mt-1">mark your free times on the calendar to find overlaps</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {data.freeDays.map((ds) => {
-                const d = new Date(ds + "T12:00:00");
+              {data.freeWindows.map((w) => {
+                const d = new Date(w.date + "T12:00:00");
                 const diff = Math.round((d.getTime() - Date.now()) / 86400000);
                 return (
-                  <div key={ds} className="flex items-center justify-between">
+                  <div key={`${w.date}-${w.part}`} className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.part}</span>
                       </p>
                       <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>
                     </div>
                     <button
-                      onClick={() => planFreeDay(ds)}
+                      onClick={() => planFreeDay(w.date)}
                       className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-foreground active:scale-95 transition-transform flex-shrink-0"
                     >
                       <Plus className="w-3 h-3" strokeWidth={2.5} /> plan

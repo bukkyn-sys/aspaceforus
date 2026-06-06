@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
-import { setAvailability, addEvent, updateEvent, deleteEvent } from "./actions";
+import { setAvailability, setAvailabilityDay, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
 import { deleteCountdown } from "@/app/(app)/home/actions";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
@@ -13,15 +13,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { track } from "@/lib/analytics";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
-type Status = "free" | null;
-interface Row { user_id: string; date: string; status: Status; }
+interface Row { user_id: string; date: string; part: DayPart; }
 interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; all_day: boolean; }
+
+const PARTS: DayPart[] = ["morning", "afternoon", "evening", "night"];
+const PART_META: Record<DayPart, { label: string; time: string }> = {
+  morning:   { label: "morning",   time: "5–12" },
+  afternoon: { label: "afternoon", time: "12–17" },
+  evening:   { label: "evening",   time: "17–22" },
+  night:     { label: "night",     time: "22–5" },
+};
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
@@ -60,6 +67,7 @@ export default function CalendarClient() {
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
   const [loading, setLoading] = useState(true);
   const [rtick, setRtick] = useState(0);
+  const [dayView, setDayView] = useState<string | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
@@ -99,7 +107,7 @@ export default function CalendarClient() {
     Promise.all([
       supabase
         .from("availability")
-        .select("user_id, date, status")
+        .select("user_id, date, part")
         .eq("couple_id", coupleId)
         .gte("date", start)
         .lte("date", end),
@@ -150,8 +158,17 @@ export default function CalendarClient() {
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
   }, [coupleId, me.id]);
 
-  function getStatus(userId: string, dateStr: string): Status {
-    return rows.find((r) => r.user_id === userId && r.date === dateStr)?.status ?? null;
+  function isFree(userId: string, dateStr: string, part: DayPart): boolean {
+    return rows.some((r) => r.user_id === userId && r.date === dateStr && r.part === part);
+  }
+  function freeParts(userId: string, dateStr: string): DayPart[] {
+    return PARTS.filter((p) => isFree(userId, dateStr, p));
+  }
+  function bothFree(dateStr: string, part: DayPart): boolean {
+    return isFree(me.id, dateStr, part) && !!partner && isFree(partner.id, dateStr, part);
+  }
+  function dayHasOverlap(dateStr: string): boolean {
+    return PARTS.some((p) => bothFree(dateStr, p));
   }
 
   function getEvents(dateStr: string): CalEvent[] {
@@ -186,20 +203,35 @@ export default function CalendarClient() {
     return { top: String(daysUntil(targetDate)), bottom: "days" };
   }
 
-  function handleDay(dateStr: string) {
-    const cur = getStatus(me.id, dateStr);
-    const next: Status = cur === "free" ? null : "free";
+  function writeRowsCache(newRows: Row[]) {
+    const key = `cal:${coupleId}:${year}:${month}`;
+    const existing = getCache<CalCache>(key);
+    if (existing) setCache(key, { ...existing, rows: newRows });
+  }
+
+  // Toggle a single part free/not for me on a given day (optimistic + persist).
+  function handlePart(dateStr: string, part: DayPart) {
+    const free = !isFree(me.id, dateStr, part);
     setRows((prev) => {
-      const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
-      const newRows = next ? [...filtered, { user_id: me.id, date: dateStr, status: next }] : filtered;
-      // Write through to cache so navigation away and back restores current state
-      const key = `cal:${coupleId}:${year}:${month}`;
-      const existing = getCache<CalCache>(key);
-      if (existing) setCache(key, { ...existing, rows: newRows });
+      const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr && r.part === part));
+      const newRows = free ? [...filtered, { user_id: me.id, date: dateStr, part }] : filtered;
+      writeRowsCache(newRows);
       return newRows;
     });
     markActivity("calendar");
-    startTransition(() => { setAvailability(coupleId, me.id, dateStr, next); });
+    startTransition(() => { setAvailability(coupleId, me.id, dateStr, part, free); });
+  }
+
+  // Free or clear a whole day (all four parts) for me.
+  function handleAllDay(dateStr: string, free: boolean) {
+    setRows((prev) => {
+      const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
+      const newRows = free ? [...filtered, ...PARTS.map((p) => ({ user_id: me.id, date: dateStr, part: p }))] : filtered;
+      writeRowsCache(newRows);
+      return newRows;
+    });
+    markActivity("calendar");
+    startTransition(() => { setAvailabilityDay(coupleId, me.id, dateStr, free); });
   }
 
   useRegisterFab(() => {
@@ -294,7 +326,7 @@ export default function CalendarClient() {
 
   const overlaps = Array.from({ length: daysInMonth }, (_, i) => {
     const d = `${year}-${String(month + 1).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
-    return getStatus(me.id, d) === "free" && partner && getStatus(partner.id, d) === "free";
+    return dayHasOverlap(d);
   }).filter(Boolean).length;
 
   return (
@@ -342,33 +374,27 @@ export default function CalendarClient() {
           {cells.map((day, i) => {
             if (!day) return <div key={i} />;
             const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            const mine = getStatus(me.id, ds);
-            const theirs = partner ? getStatus(partner.id, ds) : null;
-            const overlap = mine === "free" && theirs === "free";
             const isPast = ds < todayStr;
             const isToday = ds === todayStr;
+            const overlap = dayHasOverlap(ds);
             const dayEvents = getEvents(ds);
             const dayCds = getCountdownsForDate(ds);
             const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
-
-            // Each event day shows its event/countdown emoji(s) in the indicator
-            // slot (no spanning bars — the range lives in the cards below).
             const dayEmojis = isEventDay ? [...dayEvents.map(e => e.emoji), ...dayCds.map(c => c.emoji)] : [];
-            const availLabel = isEventDay
-              ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}`
-              : `${mine === "free" ? ", you free" : ""}${theirs === "free" ? ", partner free" : ""}`;
+            const myFree = freeParts(me.id, ds);
+            const availLabel = [
+              isEventDay ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}` : "",
+              myFree.length ? `, you free ${myFree.join(", ")}` : "",
+            ].join("");
 
             return (
               <button
                 key={i}
-                onClick={() => !isPast && !isEventDay && handleDay(ds)}
-                disabled={isPast}
+                onClick={() => setDayView(ds)}
                 aria-label={`${day} ${monthLabel}${availLabel}`}
-                aria-pressed={!isEventDay && mine === "free"}
                 className={cn(
                   "aspect-square w-full flex flex-col items-center justify-center gap-1 rounded-2xl relative transition-all select-none",
-                  !isEventDay && overlap && "bg-[var(--free-cell)]",
-                  (isEventDay || isPast) && "cursor-default",
+                  overlap && "bg-[var(--free-cell)]",
                   isPast && "opacity-30",
                 )}
               >
@@ -380,37 +406,39 @@ export default function CalendarClient() {
                 ) : (
                   <span className={cn(
                     "text-xs font-semibold leading-none",
-                    overlap && !isEventDay ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
+                    overlap ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
                   )}>
                     {day}
                   </span>
                 )}
 
-                {/* Indicator — event emoji(s), or availability dots */}
-                <div className="h-3 flex items-center justify-center gap-0.5">
-                  {isEventDay ? (
-                    <>
-                      {dayEmojis.slice(0, 2).map((em, k) => (
-                        <span key={k} className="text-[11px] leading-none">{em}</span>
-                      ))}
-                      {dayEmojis.length > 2 && (
-                        <span className="text-[8px] font-semibold text-muted-foreground/70 leading-none">+{dayEmojis.length - 2}</span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div
-                        className={cn("w-1.5 h-1.5 rounded-full", mine === null ? "bg-foreground/[0.08]" : "")}
-                        style={mine === "free" ? { backgroundColor: myAccent.hex } : undefined}
-                      />
-                      {partner && (
-                        <div
-                          className={cn("w-1.5 h-1.5 rounded-full", theirs === null ? "bg-foreground/[0.08]" : "")}
-                          style={theirs === "free" ? { backgroundColor: partnerAccent.hex, opacity: 0.65 } : undefined}
-                        />
-                      )}
-                    </>
-                  )}
+                {/* Event emoji(s) */}
+                {isEventDay && (
+                  <div className="flex items-center justify-center gap-0.5 leading-none">
+                    {dayEmojis.slice(0, 2).map((em, k) => (
+                      <span key={k} className="text-[10px] leading-none">{em}</span>
+                    ))}
+                    {dayEmojis.length > 2 && (
+                      <span className="text-[8px] font-semibold text-muted-foreground/70 leading-none">+{dayEmojis.length - 2}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* 4-part availability bar (morning · afternoon · evening · night) */}
+                <div className="flex items-center gap-[2px] h-1.5">
+                  {PARTS.map((p) => {
+                    const both = bothFree(ds, p);
+                    const mineP = isFree(me.id, ds, p);
+                    const theirsP = partner ? isFree(partner.id, ds, p) : false;
+                    const segStyle = both
+                      ? { backgroundColor: "var(--free-ink)" }
+                      : mineP
+                      ? { backgroundColor: myAccent.hex }
+                      : theirsP
+                      ? { backgroundColor: partnerAccent.hex, opacity: 0.6 }
+                      : { backgroundColor: "rgba(127,127,127,0.16)" };
+                    return <span key={p} className="w-1.5 h-1.5 rounded-[2px]" style={segStyle} />;
+                  })}
                 </div>
               </button>
             );
@@ -441,7 +469,7 @@ export default function CalendarClient() {
           <span className="text-xs text-muted-foreground/60">event</span>
         </div>
       </div>
-      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to mark yourself free</p>
+      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to set your free times</p>
 
       {/* ── Events this month ──────────────────────────────── */}
       <div className="px-5 mt-8">
@@ -534,6 +562,96 @@ export default function CalendarClient() {
           );
         })()}
       </div>
+
+      {/* Day view — set your free parts + see the day's events */}
+      <BottomSheet
+        open={dayView !== null}
+        onClose={() => setDayView(null)}
+        title={dayView ? new Date(dayView + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : ""}
+      >
+        {dayView && (() => {
+          const ds = dayView;
+          const past = ds < todayStr;
+          const myAll = PARTS.every((p) => isFree(me.id, ds, p));
+          const dayEvts = getEvents(ds);
+          return (
+            <div className="space-y-5">
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className="text-xs font-medium text-muted-foreground tracking-wide">your free times</p>
+                  {!past && (
+                    <button
+                      onClick={() => handleAllDay(ds, !myAll)}
+                      className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {myAll ? "clear day" : "free all day"}
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {PARTS.map((p) => {
+                    const mineP = isFree(me.id, ds, p);
+                    const theirsP = partner ? isFree(partner.id, ds, p) : false;
+                    const both = mineP && theirsP;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => !past && handlePart(ds, p)}
+                        disabled={past}
+                        aria-pressed={mineP}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-2xl px-4 py-3 transition-colors text-left",
+                          both ? "bg-[var(--free-cell)]" : !mineP ? "bg-secondary" : "",
+                          past && "opacity-50 cursor-default",
+                        )}
+                        style={mineP && !both ? { backgroundColor: ownerTint(myAccent.hex) } : undefined}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-sm font-medium text-foreground capitalize">{PART_META[p].label}</span>
+                          <span className="text-[11px] text-muted-foreground/50 tabular-nums">{PART_META[p].time}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {both ? (
+                            <span className="text-[11px] font-medium text-[var(--free-ink)]">both free</span>
+                          ) : (
+                            <>
+                              {mineP && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: myAccent.hex }} />}
+                              {theirsP && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />}
+                              {!mineP && !theirsP && <span className="text-[11px] text-muted-foreground/40">tap if free</span>}
+                            </>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {partner && (
+                  <p className="text-[11px] text-muted-foreground/45 mt-2">
+                    a coloured dot shows when {partnerName}&apos;s free; highlighted rows are free for both of you.
+                  </p>
+                )}
+              </div>
+
+              {dayEvts.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">events</p>
+                  <div className="space-y-1.5">
+                    {dayEvts.map((evt) => (
+                      <div key={evt.id} className="flex items-center gap-2.5 rounded-xl bg-secondary/60 px-3 py-2">
+                        <span className="text-base flex-shrink-0">{evt.emoji}</span>
+                        <span className="text-sm text-foreground flex-1 truncate">{evt.title}</span>
+                        <span className="text-[11px] text-muted-foreground tabular-nums flex-shrink-0">
+                          {evt.all_day ? "all day" : fmtTime(evt.start_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </BottomSheet>
 
       {/* Add / edit event sheet */}
       <BottomSheet

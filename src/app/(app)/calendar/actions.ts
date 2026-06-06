@@ -8,11 +8,15 @@ async function getUid() {
   return { supabase, uid: user?.id ?? null };
 }
 
+export type DayPart = "morning" | "afternoon" | "evening" | "night";
+
+// Toggle a single part (morning/afternoon/evening/night) free or not.
 export async function setAvailability(
   coupleId: string,
   userId: string,
   date: string,
-  status: "free" | null
+  part: DayPart,
+  free: boolean
 ) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -20,7 +24,25 @@ export async function setAvailability(
     p_couple_id: coupleId,
     p_user_id: uid,
     p_date: date,
-    p_status: status,
+    p_part: part,
+    p_free: free,
+  });
+}
+
+// Toggle a whole day (all four parts) free or clear.
+export async function setAvailabilityDay(
+  coupleId: string,
+  userId: string,
+  date: string,
+  free: boolean
+) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("set_availability_day", {
+    p_couple_id: coupleId,
+    p_user_id: uid,
+    p_date: date,
+    p_free: free,
   });
 }
 
