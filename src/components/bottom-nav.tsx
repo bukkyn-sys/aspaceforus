@@ -6,6 +6,7 @@ import { Home, CalendarDays, Bookmark, Receipt, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
+import { useNavActive } from "@/contexts/nav-active";
 
 const navItems = [
   { href: "/home",     icon: Home,         label: "home",     section: "home" },
@@ -18,6 +19,10 @@ export default function BottomNav() {
   const pathname = usePathname();
   const { action } = useFab();
   const { badges } = useNotifications();
+  const navActive = useNavActive();
+  // Live highlight from the swipe (switches at the half-way point); falls back to
+  // the pathname on non-tab routes.
+  const isActive = (href: string, i: number) => (navActive != null ? navActive === i : pathname === href);
 
   return (
     <nav
@@ -28,8 +33,8 @@ export default function BottomNav() {
       )}
     >
       <div className="flex items-center justify-around px-2 h-20 max-w-lg mx-auto relative">
-        {navItems.slice(0, 2).map(({ href, icon: Icon, label, section }) => (
-          <NavLink key={href} href={href} icon={Icon} label={label} active={pathname === href} badge={badges[section]} />
+        {navItems.slice(0, 2).map(({ href, icon: Icon, label, section }, i) => (
+          <NavLink key={href} href={href} icon={Icon} label={label} active={isActive(href, i)} badge={badges[section]} />
         ))}
 
         {/* FAB — centre */}
@@ -51,8 +56,8 @@ export default function BottomNav() {
           </button>
         </div>
 
-        {navItems.slice(2).map(({ href, icon: Icon, label, section }) => (
-          <NavLink key={href} href={href} icon={Icon} label={label} active={pathname === href} badge={badges[section]} />
+        {navItems.slice(2).map(({ href, icon: Icon, label, section }, i) => (
+          <NavLink key={href} href={href} icon={Icon} label={label} active={isActive(href, i + 2)} badge={badges[section]} />
         ))}
       </div>
     </nav>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type TouchEvent as RTouchEvent } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -450,11 +450,56 @@ function Lightbox({
   // Private bucket — sign the URL (blob: object URLs pass through unchanged).
   const signed = useSignedUrl(src);
 
-  useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); }, [photo.id, photo.caption]);
+  // ── Gestures: 1-finger swipe → prev/next; 2-finger pinch → zoom (springs back) ──
+  const imgRef = useRef<HTMLImageElement>(null);
+  const g = useRef({ mode: "none" as "none" | "swipe" | "pinch", x0: 0, d0: 1, dx: 0, moved: false });
+
+  function setImgT(transform: string, animate: boolean) {
+    const el = imgRef.current; if (!el) return;
+    el.style.transition = animate ? "transform .25s ease" : "none";
+    el.style.transform = transform;
+  }
+  function touchDist(t: RTouchEvent<HTMLDivElement>["touches"]) {
+    return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+  }
+  function onTouchStart(e: RTouchEvent<HTMLDivElement>) {
+    g.current.moved = false;
+    if (e.touches.length >= 2) { g.current.mode = "pinch"; g.current.d0 = touchDist(e.touches); }
+    else { g.current.mode = "swipe"; g.current.x0 = e.touches[0].clientX; g.current.dx = 0; }
+  }
+  function onTouchMove(e: RTouchEvent<HTMLDivElement>) {
+    if (g.current.mode === "pinch" && e.touches.length >= 2) {
+      const s = Math.max(1, Math.min(4, touchDist(e.touches) / g.current.d0));
+      g.current.moved = true;
+      setImgT(`scale(${s})`, false);
+    } else if (g.current.mode === "swipe" && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - g.current.x0;
+      g.current.dx = dx;
+      if (Math.abs(dx) > 6) g.current.moved = true;
+      setImgT(`translateX(${dx}px)`, false);
+    }
+  }
+  function onTouchEnd(e: RTouchEvent<HTMLDivElement>) {
+    if (e.touches.length > 0) return; // wait until all fingers are up
+    if (g.current.mode === "pinch") {
+      setImgT("scale(1)", true); // spring back to normal size
+    } else if (g.current.mode === "swipe") {
+      const w = imgRef.current?.clientWidth ?? window.innerWidth;
+      const threshold = Math.min(90, w * 0.28);
+      const dx = g.current.dx;
+      if (dx <= -threshold && hasNext) { setImgT("translateX(0px)", false); onNext(); }
+      else if (dx >= threshold && hasPrev) { setImgT("translateX(0px)", false); onPrev(); }
+      else { setImgT("translateX(0px)", true); }
+    }
+    g.current.mode = "none";
+  }
+
+  useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); setImgT("translateX(0px)", false); }, [photo.id, photo.caption]);
 
   // Double-tap the photo to favourite it (Instagram-style) — only ever loves,
   // never un-loves, and always shows the heart burst.
   function onImageTap() {
+    if (g.current.moved) { g.current.moved = false; return; } // ignore the tap that ends a swipe/pinch
     const now = Date.now();
     if (now - lastTap.current < 300) {
       lastTap.current = 0;
@@ -494,10 +539,16 @@ function Lightbox({
       </div>
 
       {/* Image */}
-      <div className="flex-1 min-h-0 relative flex items-center justify-center px-2">
+      <div
+        className="flex-1 min-h-0 relative flex items-center justify-center px-2"
+        style={{ touchAction: "none" }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         {signed
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={signed} alt={photo.caption ?? ""} onClick={onImageTap} className="max-w-full max-h-full object-contain rounded-lg cursor-pointer select-none" draggable={false} />
+          ? <img ref={imgRef} src={signed} alt={photo.caption ?? ""} onClick={onImageTap} className="max-w-full max-h-full object-contain rounded-lg cursor-pointer select-none" draggable={false} />
           : <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" aria-label="loading" />}
         <AnimatePresence>
           {burst && (

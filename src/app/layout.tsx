@@ -63,6 +63,11 @@ export default function RootLayout({
       <body className="h-full antialiased">
         <PwaRegister />
         {children}
+        {/* Portrait-only: phones in landscape see this instead of the app. */}
+        <div className="landscape-lock" aria-hidden>
+          <span className="text-2xl">↻</span>
+          <p className="text-sm font-medium">please rotate to portrait</p>
+        </div>
       </body>
     </html>
   );

@@ -125,6 +125,7 @@ export function SwipePager({
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
               scrollSnapAlign: "start",
+              scrollSnapStop: "always", // a fling can only advance one pane, never skip
             }}
           >
             {mounted ? renderPane(i, i === index) : null}

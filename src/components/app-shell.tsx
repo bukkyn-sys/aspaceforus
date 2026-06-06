@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useRef, useCallback, useImperativeHandle, forwardRef, type ReactNode } from "react";
-import { useEffect } from "react";
+import { Suspense, useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SwipePager } from "@/components/swipe-pager";
 import { FabGate } from "@/contexts/fab-context";
+import { useSetNavActive } from "@/contexts/nav-active";
 import PageTransition from "@/components/page-transition";
 import DashboardClient from "@/app/(app)/home/dashboard-client";
 import CalendarClient from "@/app/(app)/calendar/calendar-client";
@@ -54,38 +54,60 @@ export default function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Pager index 0..5 → bottom-nav section 0..3 (vault's 3 panes all map to "vault").
+function navSectionOf(p: number) { return p < 0.5 ? 0 : p < 1.5 ? 1 : p < 4.5 ? 2 : 3; }
+
 function AppShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const tabParam = useSearchParams().get("tab") as VaultTab | null;
+  const setNav = useSetNavActive();
 
-  let idx = -1;
-  if (pathname === "/home") idx = 0;
-  else if (pathname === "/calendar") idx = 1;
-  else if (pathname === "/ledger") idx = 5;
+  // The index implied by the URL (-1 when the route isn't a swipe tab).
+  let pathIdx = -1;
+  if (pathname === "/home") pathIdx = 0;
+  else if (pathname === "/calendar") pathIdx = 1;
+  else if (pathname === "/ledger") pathIdx = 5;
   else if (pathname === "/vault") {
     const t = tabParam && VAULT_TABS.some((x) => x.id === tabParam) ? tabParam : storedVaultTab();
-    idx = VAULT_BASE + VAULT_TABS.findIndex((x) => x.id === t);
+    pathIdx = VAULT_BASE + VAULT_TABS.findIndex((x) => x.id === t);
   }
-  const isTab = idx >= 0;
-  const last = useRef(0);
-  if (isTab) last.current = idx;
-  const activeIndex = isTab ? idx : last.current;
+  const isTab = pathIdx >= 0;
+
+  // The pager index is its own state, updated INSTANTLY on settle (so the visual
+  // and nav don't wait on a router round-trip). External nav syncs it via the URL.
+  const [index, setIndex] = useState(() => (pathIdx >= 0 ? pathIdx : 0));
+  useEffect(() => {
+    if (pathIdx >= 0 && pathIdx !== index) setIndex(pathIdx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathIdx]);
 
   const vaultBar = useRef<VaultBarHandle>(null);
+  const lastNav = useRef<number | null>(null);
+  const pushNav = useCallback((sec: number | null) => {
+    if (sec !== lastNav.current) { lastNav.current = sec; setNav(sec); }
+  }, [setNav]);
 
   const go = useCallback((i: number) => {
+    setIndex(i);
     if (i >= VAULT_BASE && i <= 4 && typeof window !== "undefined") {
       localStorage.setItem("us_vault_tab", VAULT_TABS[i - VAULT_BASE].id);
     }
     router.replace(routeFor(i), { scroll: false });
   }, [router]);
 
-  // Keep the vault header's pill in sync when the index changes without a swipe
-  // (tab tap / deep link), and hide it entirely off the tab pager.
+  // The vault pill + bottom-nav highlight follow the live swipe (imperative, no
+  // re-renders); the nav switches the moment you cross a tab's half-way point.
+  const onProgress = useCallback((p: number) => {
+    vaultBar.current?.setProgress(p);
+    pushNav(navSectionOf(p));
+  }, [pushNav]);
+
+  // Settled / external index changes: sync the pill + nav highlight.
   useEffect(() => {
-    vaultBar.current?.setProgress(isTab ? activeIndex : -99);
-  }, [isTab, activeIndex]);
+    if (isTab) { vaultBar.current?.setProgress(index); pushNav(navSectionOf(index)); }
+    else { vaultBar.current?.setProgress(-99); pushNav(null); }
+  }, [isTab, index, pushNav]);
 
   return (
     <>
@@ -93,11 +115,11 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
       <div style={{ display: isTab ? undefined : "none" }} aria-hidden={!isTab}>
         <SwipePager
-          index={activeIndex}
+          index={index}
           count={COUNT}
           className="h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]"
-          onIndexChange={(i) => { if (i !== idx) go(i); }}
-          onProgress={(p) => vaultBar.current?.setProgress(p)}
+          onIndexChange={(i) => { if (i !== index) go(i); }}
+          onProgress={onProgress}
           renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i)}</FabGate>}
         />
       </div>
