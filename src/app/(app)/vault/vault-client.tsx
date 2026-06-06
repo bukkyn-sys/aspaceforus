@@ -18,6 +18,7 @@ import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, P
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
+import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
@@ -102,8 +103,9 @@ function priceValue(p: string | null): number {
   return isNaN(n) ? Number.POSITIVE_INFINITY : n;
 }
 
-const EMOJI_OPTIONS = ["📁", "🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎪", "💫", "📌"];
-const ITEM_EMOJIS   = ["🌹", "🎁", "⭐", "🎯", "✈️", "🍽️", "🎨", "🏡", "🎭", "🎬", "🛍️", "📚", "🎵", "🍷", "💎", "🎮", "🌿", "🧁"];
+// Trimmed to the genuinely-likely, with one general option last (📁 / ⭐).
+const EMOJI_OPTIONS = ["🌹", "🎁", "✈️", "🍽️", "🎬", "🏖️", "🎉", "📁"];
+const ITEM_EMOJIS   = ["🍽️", "🍷", "🎬", "✈️", "🎁", "🛍️", "🎨", "🏖️", "☕", "⭐"];
 
 // ── Module-level sub-components (must NOT be inside VaultClient — inline
 //    definitions get a new reference every render, causing unmount/remount) ──
@@ -212,24 +214,23 @@ function VisualPicker({
       </div>
 
       {/* Emoji — shown on the card tile */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-2">emoji</p>
-        <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
+      <Field label="emoji">
+        <ChipRow>
           {ITEM_EMOJIS.map((e) => (
             <button
               key={e}
               type="button"
               onClick={() => onEmojiChange(emoji === e ? null : e)}
               className={cn(
-                "w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
+                "w-11 h-11 rounded-xl text-xl flex items-center justify-center transition-all",
                 emoji === e
                   ? "bg-foreground/10 ring-2 ring-foreground/40"
                   : "bg-secondary hover:bg-secondary/70"
               )}
             >{e}</button>
           ))}
-        </div>
-      </div>
+        </ChipRow>
+      </Field>
     </div>
   );
 }
@@ -712,23 +713,22 @@ export function VaultLists() {
             </Button>
           }
         >
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
+          <Field label="emoji">
+            <ChipRow>
               {EMOJI_OPTIONS.map((e) => (
                 <button
                   key={e}
                   onClick={() => setFolderEmoji(e)}
                   className={cn(
-                    "w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
+                    "w-11 h-11 rounded-xl text-xl flex items-center justify-center transition-all",
                     folderEmoji === e
                       ? "bg-foreground/10 ring-2 ring-foreground/40"
                       : "bg-secondary hover:bg-secondary/70"
                   )}
                 >{e}</button>
               ))}
-            </div>
-          </div>
+            </ChipRow>
+          </Field>
           <Input
             value={folderName}
             onChange={(e) => setFolderName(e.target.value)}
@@ -937,11 +937,11 @@ export function VaultLists() {
           className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-card border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-2">budget?</p>
+          <FieldLabel>budget?</FieldLabel>
           <PriceInput value={priceRange} onChange={setPriceRange} />
         </div>
         <div>
-          <p className="text-xs text-muted-foreground mb-2">for?</p>
+          <FieldLabel>for?</FieldLabel>
           <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
         </div>
       </BottomSheet>
@@ -998,16 +998,16 @@ export function VaultLists() {
           className="w-full h-20 px-3 py-2.5 text-sm rounded-xl bg-card border border-border/60 resize-none outline-none placeholder:text-muted-foreground/50"
         />
         <div>
-          <p className="text-xs text-muted-foreground mb-2">budget?</p>
+          <FieldLabel>budget?</FieldLabel>
           <PriceInput value={editPriceRange} onChange={setEditPriceRange} />
         </div>
         <div>
-          <p className="text-xs text-muted-foreground mb-2">for?</p>
+          <FieldLabel>for?</FieldLabel>
           <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
         </div>
         {activeFolder?.kind === "date_idea" && (
           <div>
-            <p className="text-xs text-muted-foreground mb-2">stage</p>
+            <FieldLabel>stage</FieldLabel>
             <div className="flex gap-2">
               {(["ideas", "planned", "completed"] as Stage[]).map((s) => (
                 <button key={s} onClick={() => setEditStage(s)}

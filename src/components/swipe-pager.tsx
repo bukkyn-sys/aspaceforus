@@ -10,10 +10,11 @@ import { useRef, useEffect, useState, useCallback, type ReactNode } from "react"
  * - Always renders `count` full-width columns (so scroll geometry maps cleanly to
  *   the index), but only mounts content within `index ± mountWindow` plus any pane
  *   already visited — neighbours are live for the peek; far/unseen panes stay empty.
- * - Container height follows the ACTIVE pane (panes have different heights), so a
- *   short pane doesn't leave a tall gap and the page scrolls vertically as normal.
- * - `onIndexChange` fires once the swipe settles on a new column; tapping an
- *   indicator (parent changes `index`) smooth-scrolls to it.
+ * - Each pane scrolls VERTICALLY on its own (fixed-height viewport), and any pane
+ *   you swipe to is reset to the top — so you always land at the top of the next
+ *   screen, never mid-scroll.
+ * - `onIndexChange` fires once the swipe settles; tapping an indicator (parent
+ *   changes `index`) smooth-scrolls to it.
  */
 export function SwipePager({
   index,
@@ -31,8 +32,7 @@ export function SwipePager({
   renderPane: (i: number, active: boolean) => ReactNode;
   mountWindow?: number;
   className?: string;
-  // When false, edge overscroll chains to a parent pager (so e.g. swiping past
-  // the first/last vault sub-tab moves to the neighbouring app tab).
+  // When false, edge overscroll chains to a parent pager.
   containEdges?: boolean;
   // Live fractional scroll position (0..count-1) — for indicators that track the
   // finger. Fires on every scroll frame (use imperatively to avoid re-renders).
@@ -45,10 +45,9 @@ export function SwipePager({
   const idxRef = useRef(index);
   idxRef.current = index;
 
-  const [height, setHeight] = useState<number | undefined>(undefined);
   const [seen, setSeen] = useState<Set<number>>(() => new Set([index]));
 
-  // Keep visited panes (∪ current window) mounted to preserve their state/scroll.
+  // Keep visited panes (∪ current window) mounted to preserve their state.
   useEffect(() => {
     setSeen((prev) => {
       const next = new Set(prev);
@@ -59,15 +58,17 @@ export function SwipePager({
     });
   }, [index, count, mountWindow]);
 
-  // Place the scroll at the active index without animation on first paint.
+  // Place the horizontal scroll at the active index without animation on mount.
   useEffect(() => {
     const el = ref.current;
     if (el) el.scrollLeft = index * el.clientWidth;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Smooth-scroll when the index is changed externally (e.g. tapping a tab).
+  // Smooth-scroll when the index is changed externally (e.g. tapping a tab),
+  // and reset every other pane to the top so you arrive at the top of it.
   useEffect(() => {
+    paneRefs.current.forEach((el, i) => { if (i !== index) el.scrollTop = 0; });
     const el = ref.current;
     if (!el) return;
     const w = el.clientWidth;
@@ -95,16 +96,6 @@ export function SwipePager({
     }, 80);
   }, [onIndexChange, onProgress, count]);
 
-  // Match the container height to the active pane (and track its changes).
-  useEffect(() => {
-    const pane = paneRefs.current.get(index);
-    if (!pane) return;
-    const ro = new ResizeObserver(() => setHeight(pane.offsetHeight));
-    ro.observe(pane);
-    setHeight(pane.offsetHeight);
-    return () => ro.disconnect();
-  }, [index, seen]);
-
   return (
     <div
       ref={ref}
@@ -119,8 +110,6 @@ export function SwipePager({
         overscrollBehaviorX: containEdges ? "contain" : "auto",
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
-        height: height ? `${height}px` : undefined,
-        transition: "height .25s ease",
       }}
     >
       {Array.from({ length: count }, (_, i) => {
@@ -129,7 +118,14 @@ export function SwipePager({
           <div
             key={i}
             ref={(el) => { if (el) paneRefs.current.set(i, el); else paneRefs.current.delete(i); }}
-            style={{ flex: "0 0 100%", minWidth: "100%", minHeight: "75vh", scrollSnapAlign: "start", alignSelf: "flex-start" }}
+            style={{
+              flex: "0 0 100%",
+              minWidth: "100%",
+              height: "100%",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              scrollSnapAlign: "start",
+            }}
           >
             {mounted ? renderPane(i, i === index) : null}
           </div>

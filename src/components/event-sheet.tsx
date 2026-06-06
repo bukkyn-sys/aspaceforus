@@ -5,6 +5,7 @@ import { useCouple } from "@/contexts/couple-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet } from "@/components/ui/sheet";
+import { Field, ChipRow } from "@/components/ui/form";
 import { SignedImg } from "@/components/signed-img";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
@@ -20,7 +21,8 @@ export interface EventDraft {
   attendee: string | null; // a profile id, or null = both of you
 }
 
-const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
+// Likely couple events first, one general (📅) to fall back on.
+const EVENT_EMOJIS = ["🍽️", "🍸", "🎬", "✈️", "🎂", "❤️", "🎉", "📅"];
 
 // One event form, shared by the calendar and Home so they're identical.
 export function EventSheet({
@@ -100,30 +102,28 @@ export function EventSheet({
         className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
       />
 
-      <div>
-        <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
-        <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+      <Field label="emoji">
+        <ChipRow>
           {EVENT_EMOJIS.map((e) => (
             <button
               key={e}
               type="button"
               onClick={() => setEmoji(e)}
               className={cn(
-                "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
+                "w-11 h-11 rounded-2xl text-xl flex items-center justify-center transition-all",
                 emoji === e ? "bg-foreground" : "bg-secondary"
               )}
             >
               {e}
             </button>
           ))}
-        </div>
-      </div>
+        </ChipRow>
+      </Field>
 
       {/* Who's going — only meaningful once there's a partner */}
       {partner && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">who&apos;s going</p>
-          <div className="flex gap-1.5 flex-wrap">
+        <Field label="who's going">
+          <ChipRow>
             {attendeeOpts.map((a) => {
               const on = attendee === a.id;
               return (
@@ -149,14 +149,13 @@ export function EventSheet({
                 </button>
               );
             })}
-          </div>
-        </div>
+          </ChipRow>
+        </Field>
       )}
 
       {/* Day-parts — the only time unit. In plan mode, limited to the free parts. */}
-      <div>
-        <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">{planContext ? "block out" : "when"}</p>
-        <div className="flex gap-1.5 flex-wrap">
+      <Field label={planContext ? "block out" : "when"}>
+        <ChipRow>
           {(planContext ? planContext.freeParts : PARTS).map((p) => {
             const single = !!planContext && planContext.freeParts.length === 1;
             const on = parts.includes(p);
@@ -181,20 +180,19 @@ export function EventSheet({
               all day
             </button>
           )}
-        </div>
+        </ChipRow>
         {planContext && (
-          <p className="text-[11px] text-sage mt-1.5">
+          <p className="text-[11px] text-sage mt-2 text-center">
             {planContext.freeParts.length === 1
               ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
               : "tap the parts you're booking — they'll no longer show as free"}
           </p>
         )}
-      </div>
+      </Field>
 
       {/* Date — single day, or a span via "until" (hidden when planning) */}
       {!planContext && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">date</p>
+        <Field label="date">
           <div className="grid grid-cols-2 gap-3">
             <div className="relative rounded-2xl overflow-hidden">
               <div className="bg-secondary px-3.5 pt-2.5 pb-3">
@@ -216,21 +214,20 @@ export function EventSheet({
             </div>
           </div>
           {multiDay && (
-            <p className="text-[11px] text-muted-foreground/50 mt-1.5">a multi-day event books every part of each day</p>
+            <p className="text-[11px] text-muted-foreground/50 mt-1.5 text-center">a multi-day event books every part of each day</p>
           )}
-        </div>
+        </Field>
       )}
 
       {/* Optional exact time — a label only; the day-part is what books the slot */}
-      <div>
-        <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time <span className="normal-case font-normal opacity-50">(optional)</span></p>
-        <div className="relative rounded-2xl overflow-hidden w-1/2">
-          <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+      <Field label={<>time <span className="normal-case font-normal opacity-50">(optional)</span></>}>
+        <div className="relative rounded-2xl overflow-hidden w-1/2 mx-auto">
+          <div className="bg-secondary px-3.5 pt-2.5 pb-3 text-center">
             <p className={cn("text-sm font-medium", time ? "text-foreground" : "text-muted-foreground/40")}>{time ? fmtTimeLabel(time) : "select"}</p>
           </div>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
         </div>
-      </div>
+      </Field>
     </BottomSheet>
   );
 }

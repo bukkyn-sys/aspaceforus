@@ -19,6 +19,7 @@ import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity } from "@/lib/owner-identity";
+import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics";
@@ -504,19 +505,17 @@ export default function LedgerClient() {
           footer={<Button onClick={handleSaveEntry} disabled={!title.trim() || !amount} className="w-full h-11 rounded-xl">{editingEntryId ? "save" : "add"}</Button>}>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-card border-border/60" />
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-card border-border/60" />
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">category</p>
-            <div className="flex gap-1.5 overflow-x-auto py-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+          <Field label="category">
+            <ChipRow className="gap-1.5">
               {CATEGORIES.map((c) => (
                 <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
-                  className={cn("flex-shrink-0 px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
+                  className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
                     category === c.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}><span>{c.emoji}</span>{c.label}</button>
               ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">who paid?</p>
+            </ChipRow>
+          </Field>
+          <Field label="who paid?">
             <div className="flex gap-2">
               {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => {
                 const selected = paidBy === v;
@@ -531,13 +530,11 @@ export default function LedgerClient() {
                 );
               })}
             </div>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">your share: {split}%</p>
+          </Field>
+          <Field label={`your share: ${split}%`}>
             <input type="range" min="0" max="100" value={split} onChange={(e) => setSplit(e.target.value)} className="w-full accent-foreground" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">repeats?</p>
+          </Field>
+          <Field label="repeats?">
             <div className="flex gap-2">
               {RECURRENCES.map((r) => (
                 <button key={r.id} onClick={() => setRecurrence(r.id)} aria-pressed={recurrence === r.id}
@@ -546,8 +543,8 @@ export default function LedgerClient() {
                   )}>{r.label}</button>
               ))}
             </div>
-            {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5">recurring expenses stay on the ledger after you settle up</p>}
-          </div>
+            {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5 text-center">recurring expenses stay on the ledger after you settle up</p>}
+          </Field>
         </BottomSheet>
 
         {/* Contribute / manage pot */}
@@ -593,7 +590,7 @@ export default function LedgerClient() {
                 {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-2">you&apos;ve put in {cur}{myCurrent.toFixed(0)}</p>
+                <FieldLabel>you&apos;ve put in {cur}{myCurrent.toFixed(0)}</FieldLabel>
                 <div className="flex gap-2 mb-2">
                   {(["add", "withdraw"] as const).map((m) => (
                     <button key={m} onClick={() => setContribMode(m)} aria-pressed={contribMode === m}
@@ -627,17 +624,16 @@ export default function LedgerClient() {
             </button>
             <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60 flex-1" />
           </div>
-          <div className="flex gap-2 overflow-x-auto py-0.5" style={{ scrollbarWidth: "none" }}>
-            {["🎯","🏠","✈️","🚗","💍","🎁","📱","🌴","🎓","🐾","💻","🎸","🍽️","🏋️","👶","🐕"].map((e) => (
+          <div className="flex flex-wrap justify-center gap-2">
+            {["✈️","🏠","🚗","💍","🎁","🌴","👶","🎯"].map((e) => (
               <button key={e} type="button" onClick={() => setPotEmoji(e)}
-                className={cn("w-10 h-10 rounded-xl text-lg flex items-center justify-center flex-shrink-0 transition-all",
+                className={cn("w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all",
                   potEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary"
                 )}>{e}</button>
             ))}
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">currency</p>
-            <div className="flex gap-2">
+          <Field label="currency">
+            <div className="flex justify-center gap-2">
               {CURRENCIES.map((c) => (
                 <button key={c} onClick={() => setPotCurrency(c)}
                   className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
@@ -645,12 +641,11 @@ export default function LedgerClient() {
                   )}>{c}</button>
               ))}
             </div>
-          </div>
+          </Field>
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
-          <div>
-            <p className="text-xs text-muted-foreground mb-1.5">target date <span className="opacity-50">(optional)</span></p>
+          <Field label={<>target date <span className="opacity-50">(optional)</span></>}>
             <DateField value={potTarget} onChange={setPotTarget} placeholder="select a date" />
-          </div>
+          </Field>
         </BottomSheet>
 
         {/* Expense action prompt — creator only */}

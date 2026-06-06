@@ -95,6 +95,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
         <SwipePager
           index={activeIndex}
           count={COUNT}
+          className="h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]"
           onIndexChange={(i) => { if (i !== idx) go(i); }}
           onProgress={(p) => vaultBar.current?.setProgress(p)}
           renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i)}</FabGate>}

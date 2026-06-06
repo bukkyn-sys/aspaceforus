@@ -9,6 +9,7 @@ import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
+import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
@@ -32,7 +33,7 @@ interface Todo {
 const RECUR_LABEL: Record<string, string> = { none: "no repeat", daily: "daily", weekly: "weekly", monthly: "monthly" };
 const RECUR_OPTS = ["none", "daily", "weekly", "monthly"];
 
-const LIST_EMOJIS = ["✅", "🛒", "🧳", "🏡", "🎁", "🗓️", "💡", "🧹", "🍽️", "💸", "📋", "⭐"];
+const LIST_EMOJIS = ["🛒", "🧳", "🎁", "🏡", "🍽️", "💸", "💡", "✅"];
 
 function localToday(offset = 0): string {
   const d = new Date(Date.now() + offset * 86400000);
@@ -390,14 +391,13 @@ export default function VaultTodos() {
           title={editingList ? "edit list" : "new list"}
           footer={<Button onClick={handleSaveList} disabled={!listTitle.trim()} className="w-full h-11 rounded-xl">{editingList ? "save" : "create list"}</Button>}
         >
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">emoji</p>
-            <div className="flex gap-2 overflow-x-auto py-1 px-1 -mx-1" style={{ scrollbarWidth: "none" }}>
+          <Field label="emoji">
+            <ChipRow>
               {LIST_EMOJIS.map((e) => (
-                <button key={e} onClick={() => setListEmoji(e)} className={cn("w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-all", listEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70")}>{e}</button>
+                <button key={e} onClick={() => setListEmoji(e)} className={cn("w-11 h-11 rounded-xl text-xl flex items-center justify-center transition-all", listEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary hover:bg-secondary/70")}>{e}</button>
               ))}
-            </div>
-          </div>
+            </ChipRow>
+          </Field>
           <Input value={listTitle} onChange={(e) => setListTitle(e.target.value)} placeholder="list name" className="h-11 rounded-xl bg-card border-border/60" />
         </BottomSheet>
 
@@ -493,10 +493,10 @@ export default function VaultTodos() {
         <textarea value={itemNotes} onChange={(e) => setItemNotes(e.target.value)} placeholder="notes (optional)" rows={2}
           className="w-full text-sm text-foreground placeholder:text-muted-foreground/40 bg-card border border-border/60 rounded-xl px-3.5 py-2.5 resize-none outline-none leading-relaxed" />
         <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">due date <span className="font-normal opacity-50">(optional)</span></p>
+          <FieldLabel>due date <span className="font-normal opacity-50">(optional)</span></FieldLabel>
           <DateField value={itemDue} onChange={setItemDue} placeholder="no due date" />
           {itemDue && (
-            <button onClick={() => { setItemDue(""); setItemRemind(false); }} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground/70 hover:text-foreground mt-1.5 transition-colors">
+            <button onClick={() => { setItemDue(""); setItemRemind(false); }} className="flex items-center justify-center gap-1 w-full text-xs font-medium text-muted-foreground/70 hover:text-foreground mt-1.5 transition-colors">
               <X className="w-3 h-3" /> remove due date
             </button>
           )}
@@ -511,7 +511,7 @@ export default function VaultTodos() {
           )}
         </div>
         <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">for</p>
+          <FieldLabel>for</FieldLabel>
           <div className="flex gap-1.5">
             {[{ v: null, label: "anyone" }, { v: me.id, label: myName }, ...(partner ? [{ v: partner.id, label: partnerName }, { v: "both", label: "both" }] : [])].map((o) => (
               <button key={String(o.v)} onClick={() => setItemAssignee(o.v)}
@@ -522,7 +522,7 @@ export default function VaultTodos() {
           </div>
         </div>
         <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">repeats</p>
+          <FieldLabel>repeats</FieldLabel>
           <div className="flex gap-1.5">
             {RECUR_OPTS.map((r) => (
               <button key={r} onClick={() => setItemRecurrence(r)}
@@ -543,7 +543,7 @@ export default function VaultTodos() {
         )}
         {editingItem && (
           <div>
-            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">subtasks</p>
+            <FieldLabel>subtasks</FieldLabel>
             {subsOf(editingItem.id).length > 0 && (
               <div className="space-y-1.5 mb-2">
                 {subsOf(editingItem.id).map((s) => (
