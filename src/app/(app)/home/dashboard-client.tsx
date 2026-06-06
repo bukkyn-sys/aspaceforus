@@ -723,7 +723,7 @@ export default function DashboardClient() {
                       <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>
                     </div>
                     <Link
-                      href={`/calendar?plan=${w.date}:${w.parts[0] ?? "afternoon"}`}
+                      href={`/calendar?plan=${w.date}&parts=${w.parts.join(",")}`}
                       className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-foreground active:scale-95 transition-transform flex-shrink-0"
                     >
                       <Plus className="w-3 h-3" strokeWidth={2.5} /> plan

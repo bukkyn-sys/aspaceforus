@@ -30,13 +30,6 @@ const PART_META: Record<DayPart, { label: string; time: string }> = {
   evening:   { label: "evening",   time: "17–22" },
   night:     { label: "night",     time: "22–5" },
 };
-// Sensible default event window when planning from a free part (Home "plan").
-const PART_EVENT_TIME: Record<DayPart, { start: string; end: string }> = {
-  morning:   { start: "09:00", end: "11:00" },
-  afternoon: { start: "13:00", end: "15:00" },
-  evening:   { start: "18:00", end: "20:00" },
-  night:     { start: "21:00", end: "23:00" },
-};
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
@@ -77,7 +70,8 @@ export default function CalendarClient() {
   const [loading, setLoading] = useState(true);
   const [rtick, setRtick] = useState(0);
   const [dayView, setDayView] = useState<string | null>(null);
-  const [planContext, setPlanContext] = useState<{ date: string; part: DayPart } | null>(null);
+  const [planContext, setPlanContext] = useState<{ date: string; freeParts: DayPart[] } | null>(null);
+  const [selectedParts, setSelectedParts] = useState<DayPart[]>([]);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
@@ -101,20 +95,20 @@ export default function CalendarClient() {
   // add-event sheet prefilled at the part's default time (from Home's "plan").
   useEffect(() => {
     const plan = searchParams.get("plan");
+    const partsParam = searchParams.get("parts");
     const day = searchParams.get("day");
     if (plan) {
-      const [date, part] = plan.split(":");
-      if (date) {
-        const d = new Date(date + "T12:00:00");
-        setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
-        const t = PART_EVENT_TIME[part as DayPart] ?? PART_EVENT_TIME.evening;
-        setEditingEventId(null);
-        setEventTitle(""); setEventEmoji("📅");
-        setEventDate(date); setEventEndDate("");
-        setEventAllDay(false); setEventStartTime(t.start); setEventEndTime(t.end);
-        setPlanContext(part ? { date, part: part as DayPart } : null);
-        setShowAddEvent(true);
-      }
+      const date = plan;
+      const d = new Date(date + "T12:00:00");
+      setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
+      const freeParts = ((partsParam?.split(",") ?? []).filter((p) => PARTS.includes(p as DayPart))) as DayPart[];
+      setEditingEventId(null);
+      setEventTitle(""); setEventEmoji("📅");
+      setEventDate(date); setEventEndDate("");
+      setEventAllDay(false); setEventStartTime(""); setEventEndTime("");
+      setSelectedParts(freeParts);   // default: book the whole free window
+      setPlanContext({ date, freeParts });
+      setShowAddEvent(true);
     } else if (day) {
       const d = new Date(day + "T12:00:00");
       setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -282,8 +276,10 @@ export default function CalendarClient() {
 
   function handleSaveEvent() {
     if (!eventTitle.trim() || !eventDate) return;
+    if (planContext && selectedParts.length === 0) return;
     const title = eventTitle.trim();
-    const allDay = eventAllDay;
+    // In plan mode there's no all-day toggle — a time makes it timed, no time = all-day.
+    const allDay = planContext ? !eventStartTime : eventAllDay;
     // All-day: store a naive local noon so .slice/date display stays tz-stable.
     // Timed: store a real UTC instant (via toISOString from the viewer's local
     // time) so it renders correctly in each partner's own timezone.
@@ -314,13 +310,14 @@ export default function CalendarClient() {
     // Planning a free window books it: clear that date+part for both partners so
     // they no longer show as free then.
     if (planContext) {
-      const pc = planContext;
-      setRows((prev) => prev.filter((r) => !(r.date === pc.date && r.part === pc.part)));
-      startTransition(() => { clearCoupleAvailabilityPart(coupleId, pc.date, pc.part); });
+      const date = planContext.date;
+      const parts = selectedParts;
+      setRows((prev) => prev.filter((r) => !(r.date === date && parts.includes(r.part))));
+      startTransition(() => { for (const p of parts) clearCoupleAvailabilityPart(coupleId, date, p); });
     }
     setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");
     setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
-    setPlanContext(null); setEditingEventId(null); setShowAddEvent(false);
+    setPlanContext(null); setSelectedParts([]); setEditingEventId(null); setShowAddEvent(false);
   }
 
   function openEditEvent(evt: CalEvent) {
@@ -705,17 +702,39 @@ export default function CalendarClient() {
       {/* Add / edit event sheet */}
       <BottomSheet
         open={showAddEvent}
-        onClose={() => { setShowAddEvent(false); setEditingEventId(null); setPlanContext(null); }}
+        onClose={() => { setShowAddEvent(false); setEditingEventId(null); setPlanContext(null); setSelectedParts([]); }}
         title={editingEventId ? "edit event" : planContext ? "plan your free time" : "new event"}
         footer={
-          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
-            {editingEventId ? "save" : "add event"}
+          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate || (!!planContext && selectedParts.length === 0)} className="w-full h-12 rounded-2xl text-[15px]">
+            {editingEventId ? "save" : planContext ? "book it" : "add event"}
           </Button>
         }
       >
         {planContext && (
-          <div className="rounded-xl bg-sage-light px-3.5 py-2.5">
-            <p className="text-xs text-sage leading-relaxed">booking your free <span className="font-medium">{PART_META[planContext.part].label}</span> — you&apos;ll no longer show as free then.</p>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">block out</p>
+            <div className="flex gap-1.5 flex-wrap">
+              {planContext.freeParts.map((p) => {
+                const single = planContext.freeParts.length === 1;
+                const on = selectedParts.includes(p);
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    disabled={single}
+                    onClick={() => setSelectedParts((prev) => on ? prev.filter((x) => x !== p) : [...prev, p])}
+                    className={cn("px-3.5 h-9 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
+                  >
+                    {PART_META[p].label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-sage mt-1.5">
+              {planContext.freeParts.length === 1
+                ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
+                : "tap the parts you're booking — they'll no longer show as free"}
+            </p>
           </div>
         )}
         <Input
@@ -741,7 +760,8 @@ export default function CalendarClient() {
             ))}
           </div>
         </div>
-        {/* All-day toggle */}
+        {/* All-day toggle (hidden when planning a free window) */}
+        {!planContext && (
         <button
           type="button"
           onClick={() => setEventAllDay((v) => !v)}
@@ -759,11 +779,12 @@ export default function CalendarClient() {
             )} />
           </span>
         </button>
+        )}
 
-        {/* Time — only for timed events */}
+        {/* Time — timed events, and the optional "be specific" time when planning */}
         {!eventAllDay && (
           <div>
-            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time</p>
+            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time {planContext && <span className="normal-case font-normal opacity-50">(optional)</span>}</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="relative rounded-2xl overflow-hidden">
                 <div className="bg-secondary px-3.5 pt-2.5 pb-3">
@@ -783,6 +804,7 @@ export default function CalendarClient() {
           </div>
         )}
 
+        {!planContext && (
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
           <div className="grid grid-cols-2 gap-3">
@@ -806,6 +828,7 @@ export default function CalendarClient() {
             </div>
           </div>
         </div>
+        )}
       </BottomSheet>
 
       {/* Event action prompt — creator only */}
