@@ -1,10 +1,4 @@
-import { Suspense } from "react";
-import LedgerClient from "./ledger-client";
-
+// Rendered by the persistent tab swiper in AppShell (so the tabs swipe live).
 export default function LedgerPage() {
-  return (
-    <Suspense>
-      <LedgerClient />
-    </Suspense>
-  );
+  return null;
 }

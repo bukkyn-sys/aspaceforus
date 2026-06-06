@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition, useCallback, useRef, useLayoutEffect, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
@@ -71,8 +72,15 @@ function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (
       const w = el.clientWidth;
       if (!w) return;
       const i = Math.round(el.scrollLeft / w);
-      if (i === 0) onChange(addMonths(current, -1));
-      else if (i === 2) onChange(addMonths(current, 1));
+      if (i === 1) return;
+      const dir = i === 0 ? -1 : 1;
+      // Swap the month and recentre to the middle pane atomically — flushSync
+      // commits the new panes before we reset scrollLeft, so there's no flash of
+      // the wrong month between the swipe settling and the recenter.
+      lock.current = true;
+      flushSync(() => onChange(addMonths(current, dir)));
+      el.scrollLeft = el.clientWidth;
+      window.setTimeout(() => { lock.current = false; }, 120);
     }, 90);
   }
 
@@ -85,6 +93,8 @@ function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (
         overflowX: "auto",
         overflowY: "hidden",
         scrollSnapType: "x mandatory",
+        scrollBehavior: "auto",
+        overscrollBehaviorX: "contain",
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
         height: height ? `${height}px` : undefined,
@@ -127,14 +137,15 @@ export default function CalendarClient() {
 
   useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Deep-link: ?day=YYYY-MM-DD opens that day's view; ?plan=DATE:part opens the
-  // add-event sheet prefilled at the part's default time (from Home's "plan").
+  // Deep-link: ?day=YYYY-MM-DD opens that day's view; ?plan=DATE&parts=… opens the
+  // add-event sheet on a free window (from Home's "plan"). Reacts to the params
+  // (not just mount) so it works while the calendar stays mounted in the tab shell.
+  const planParam = searchParams.get("plan");
+  const partsParam = searchParams.get("parts");
+  const dayParam = searchParams.get("day");
   useEffect(() => {
-    const plan = searchParams.get("plan");
-    const partsParam = searchParams.get("parts");
-    const day = searchParams.get("day");
-    if (plan) {
-      const date = plan;
+    if (planParam) {
+      const date = planParam;
       const d = new Date(date + "T12:00:00");
       setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
       const freeParts = ((partsParam?.split(",") ?? []).filter((p) => PARTS.includes(p as DayPart))) as DayPart[];
@@ -142,12 +153,13 @@ export default function CalendarClient() {
       setComposeDate(date);
       setPlanContext({ date, freeParts });
       setShowAddEvent(true);
-    } else if (day) {
-      const d = new Date(day + "T12:00:00");
+    } else if (dayParam) {
+      const d = new Date(dayParam + "T12:00:00");
       setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
-      setDayView(day);
+      setDayView(dayParam);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planParam, partsParam, dayParam]);
 
 
   useEffect(() => {
@@ -534,7 +546,7 @@ export default function CalendarClient() {
       {/* ── Header (sticky) ───────────────────────────────── */}
       <div className={cn("hdr-float sticky top-0 z-30 bg-background px-5 pt-10 pb-3 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
         <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
-        <p className={cn("text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
+        <p key={monthLabel} className={cn("swap-fade text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
           {overlaps > 0
             ? `${overlaps} free day${overlaps !== 1 ? "s" : ""} together this month`
             : "mark your free days"}
@@ -550,7 +562,7 @@ export default function CalendarClient() {
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <p className="flex-1 text-center text-sm font-semibold text-foreground">{monthLabel}</p>
+        <p key={monthLabel} className="swap-fade flex-1 text-center text-sm font-semibold text-foreground">{monthLabel}</p>
         <button
           onClick={() => setCurrent(new Date(year, month + 1, 1))}
           aria-label="next month"

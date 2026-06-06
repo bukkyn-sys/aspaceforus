@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/bottom-nav";
 import PushSubscribe from "@/components/push-subscribe";
-import PageTransition from "@/components/page-transition";
+import AppShell from "@/components/app-shell";
 import Toaster from "@/components/toaster";
 import OfflineBanner from "@/components/offline-banner";
 import { CoupleProvider } from "@/contexts/couple-context";
@@ -91,7 +91,7 @@ export default async function AppLayout({
             <Toaster />
             <OfflineBanner />
             <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
-              <PageTransition>{children}</PageTransition>
+              <AppShell>{children}</AppShell>
             </main>
             <BottomNav />
             {/* Cold-start splash — bg + wordmark, dissolves into the app (CSS only). */}

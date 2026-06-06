@@ -1,10 +1,4 @@
-import { Suspense } from "react";
-import VaultClient from "./vault-client";
-
+// Rendered by the persistent tab swiper in AppShell (so the tabs swipe live).
 export default function VaultPage() {
-  return (
-    <Suspense>
-      <VaultClient />
-    </Suspense>
-  );
+  return null;
 }

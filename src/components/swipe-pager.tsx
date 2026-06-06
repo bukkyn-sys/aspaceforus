@@ -105,6 +105,8 @@ export function SwipePager({
         overflowX: "auto",
         overflowY: "hidden",
         scrollSnapType: "x mandatory",
+        scrollBehavior: "auto",
+        overscrollBehaviorX: "contain",
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
         height: height ? `${height}px` : undefined,
@@ -117,7 +119,7 @@ export function SwipePager({
           <div
             key={i}
             ref={(el) => { if (el) paneRefs.current.set(i, el); else paneRefs.current.delete(i); }}
-            style={{ flex: "0 0 100%", minWidth: "100%", scrollSnapAlign: "start", alignSelf: "flex-start" }}
+            style={{ flex: "0 0 100%", minWidth: "100%", minHeight: "75vh", scrollSnapAlign: "start", alignSelf: "flex-start" }}
           >
             {mounted ? renderPane(i, i === index) : null}
           </div>

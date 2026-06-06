@@ -211,6 +211,17 @@
   .hdr-float { animation: none; }
 }
 
+/* Gentle swap for text that updates alongside a swipe (e.g. the month/year label
+   and calendar subtitle). Replays whenever its `key` changes. */
+@keyframes swap-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.swap-fade { animation: swap-fade 0.3s cubic-bezier(0.33, 0, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .swap-fade { animation: none; }
+}
+
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
 @layer utilities {
   .font-heading {

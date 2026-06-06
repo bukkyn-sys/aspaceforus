@@ -1,10 +1,4 @@
-import { Suspense } from "react";
-import CalendarClient from "./calendar-client";
-
+// Rendered by the persistent tab swiper in AppShell (so the tabs swipe live).
 export default function CalendarPage() {
-  return (
-    <Suspense>
-      <CalendarClient />
-    </Suspense>
-  );
+  return null;
 }

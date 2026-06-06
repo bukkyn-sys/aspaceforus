@@ -1129,6 +1129,13 @@ export default function VaultClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // React to ?tab= changing (e.g. a notification deep-link) while vault stays
+  // mounted in the tab shell.
+  useEffect(() => {
+    if (param && VAULT_TABS.some((t) => t.id === param) && param !== tab) setTab(param);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [param]);
+
   function select(t: VaultTab) {
     setTab(t);
     if (typeof window !== "undefined") localStorage.setItem("us_vault_tab", t);
