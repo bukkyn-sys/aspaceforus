@@ -32,16 +32,6 @@ export async function deleteTodoList(id: string, coupleId: string) {
   await supabase.from("vault_todo_lists").delete().eq("id", id).eq("couple_id", coupleId);
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-function rollDate(from: string | null, recurrence: string): string {
-  const base = from ? new Date(from + "T12:00:00") : new Date();
-  const d = new Date(base);
-  if (recurrence === "daily") d.setDate(d.getDate() + 1);
-  else if (recurrence === "weekly") d.setDate(d.getDate() + 7);
-  else if (recurrence === "monthly") d.setMonth(d.getMonth() + 1);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 export async function addTodo(data: {
   coupleId: string;
   listId: string;
@@ -52,6 +42,7 @@ export async function addTodo(data: {
   recurrence?: string;
   parentId?: string;
   remind?: boolean;
+  needsBoth?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -68,6 +59,7 @@ export async function addTodo(data: {
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",
       remind: data.remind || false,
+      needs_both: data.needsBoth || false,
     })
     .select("id")
     .single();
@@ -87,6 +79,7 @@ export async function updateTodo(data: {
   assignee?: string | null;
   recurrence?: string;
   remind?: boolean;
+  needsBoth?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -99,47 +92,26 @@ export async function updateTodo(data: {
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",
       remind: data.remind || false,
+      needs_both: data.needsBoth || false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId);
 }
 
-// Shared list: either partner may tick any item. done_by records who did.
-export async function setTodoDone(id: string, coupleId: string, done: boolean, title: string) {
+// Toggle the caller's tick on a shared item. `done` is derived server-side
+// (needs_both ? both partners : ≥1) and recurring spawn is handled atomically.
+export async function toggleTodoTick(id: string, coupleId: string, title: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase
-    .from("vault_todos")
-    .update({
-      done,
-      done_at: done ? new Date().toISOString() : null,
-      done_by: done ? uid : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .eq("couple_id", coupleId);
-  if (done) {
+  const { data } = await supabase.rpc("toggle_todo_tick", { p_id: id, p_couple_id: coupleId });
+  const res = (data ?? {}) as { done?: boolean; became_done?: boolean; needs_more?: boolean };
+  if (res.needs_more) {
+    await notifyPartner(coupleId, uid, "us.", `"${title}" needs your tick too`, "/vault?tab=todos");
+  } else if (res.became_done) {
     await notifyPartner(coupleId, uid, "us.", `your partner ticked "${title}"`, "/vault?tab=todos");
-    // Recurring top-level item: spawn the next occurrence with the due date rolled
-    // forward, so the list always carries the next instance.
-    const { data: row } = await supabase
-      .from("vault_todos")
-      .select("list_id,couple_id,created_by,parent_id,title,notes,assignee,due_date,recurrence")
-      .eq("id", id).single();
-    if (row && row.recurrence && row.recurrence !== "none" && !row.parent_id) {
-      await supabase.from("vault_todos").insert({
-        couple_id: row.couple_id,
-        list_id: row.list_id,
-        created_by: row.created_by,
-        title: row.title,
-        notes: row.notes,
-        assignee: row.assignee,
-        recurrence: row.recurrence,
-        due_date: rollDate(row.due_date, row.recurrence),
-      });
-    }
   }
+  return res;
 }
 
 export async function deleteTodo(id: string, coupleId: string) {

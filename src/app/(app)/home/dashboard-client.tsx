@@ -8,7 +8,7 @@ import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown, setDashboardLayout } from "./actions";
 import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
-import { setTodoDone } from "@/app/(app)/vault/todo-actions";
+import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
 import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -430,7 +430,7 @@ export default function DashboardClient() {
       },
     } : prev);
     track("todo_completed");
-    startTransition(() => { setTodoDone(item.id, coupleId, true, item.title); });
+    startTransition(() => { toggleTodoTick(item.id, coupleId, item.title); });
   }
 
   const today = new Date().toISOString().split("T")[0];
