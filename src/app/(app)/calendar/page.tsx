@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import CalendarClient from "./calendar-client";
 
 export default function CalendarPage() {
-  return <CalendarClient />;
+  return (
+    <Suspense>
+      <CalendarClient />
+    </Suspense>
+  );
 }

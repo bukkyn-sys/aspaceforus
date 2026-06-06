@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
@@ -28,6 +29,13 @@ const PART_META: Record<DayPart, { label: string; time: string }> = {
   afternoon: { label: "afternoon", time: "12–17" },
   evening:   { label: "evening",   time: "17–22" },
   night:     { label: "night",     time: "22–5" },
+};
+// Sensible default event window when planning from a free part (Home "plan").
+const PART_EVENT_TIME: Record<DayPart, { start: string; end: string }> = {
+  morning:   { start: "09:00", end: "11:00" },
+  afternoon: { start: "13:00", end: "15:00" },
+  evening:   { start: "18:00", end: "20:00" },
+  night:     { start: "21:00", end: "23:00" },
 };
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
@@ -61,6 +69,7 @@ export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const resolveOwner = useOwnerIdentity();
+  const searchParams = useSearchParams();
   const [current, setCurrent] = useState(() => new Date());
   const [rows, setRows] = useState<Row[]>([]);
   const [events, setEvents] = useState<CalEvent[]>([]);
@@ -86,6 +95,30 @@ export default function CalendarClient() {
   const month = current.getMonth();
 
   useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deep-link: ?day=YYYY-MM-DD opens that day's view; ?plan=DATE:part opens the
+  // add-event sheet prefilled at the part's default time (from Home's "plan").
+  useEffect(() => {
+    const plan = searchParams.get("plan");
+    const day = searchParams.get("day");
+    if (plan) {
+      const [date, part] = plan.split(":");
+      if (date) {
+        const d = new Date(date + "T12:00:00");
+        setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
+        const t = PART_EVENT_TIME[part as DayPart] ?? PART_EVENT_TIME.evening;
+        setEditingEventId(null);
+        setEventTitle(""); setEventEmoji("📅");
+        setEventDate(date); setEventEndDate("");
+        setEventAllDay(false); setEventStartTime(t.start); setEventEndTime(t.end);
+        setShowAddEvent(true);
+      }
+    } else if (day) {
+      const d = new Date(day + "T12:00:00");
+      setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
+      setDayView(day);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   useEffect(() => {
@@ -382,6 +415,8 @@ export default function CalendarClient() {
             const isEventDay = dayEvents.length > 0 || dayCds.length > 0;
             const dayEmojis = isEventDay ? [...dayEvents.map(e => e.emoji), ...dayCds.map(c => c.emoji)] : [];
             const myFree = freeParts(me.id, ds);
+            const theirFree = partner ? freeParts(partner.id, ds) : [];
+            const hasAvail = myFree.length > 0 || theirFree.length > 0;
             const availLabel = [
               isEventDay ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}` : "",
               myFree.length ? `, you free ${myFree.join(", ")}` : "",
@@ -424,22 +459,27 @@ export default function CalendarClient() {
                   </div>
                 )}
 
-                {/* 4-part availability bar (morning · afternoon · evening · night) */}
-                <div className="flex items-center gap-[2px] h-1.5">
-                  {PARTS.map((p) => {
-                    const both = bothFree(ds, p);
-                    const mineP = isFree(me.id, ds, p);
-                    const theirsP = partner ? isFree(partner.id, ds, p) : false;
-                    const segStyle = both
-                      ? { backgroundColor: "var(--free-ink)" }
-                      : mineP
-                      ? { backgroundColor: myAccent.hex }
-                      : theirsP
-                      ? { backgroundColor: partnerAccent.hex, opacity: 0.6 }
-                      : { backgroundColor: "rgba(127,127,127,0.16)" };
-                    return <span key={p} className="w-1.5 h-1.5 rounded-[2px]" style={segStyle} />;
-                  })}
-                </div>
+                {/* 4-part availability bar (morning · afternoon · evening · night).
+                    Only shown when there's some availability, to keep empty days calm. */}
+                {hasAvail ? (
+                  <div className="flex w-6 h-1 rounded-full overflow-hidden">
+                    {PARTS.map((p) => {
+                      const both = bothFree(ds, p);
+                      const mineP = isFree(me.id, ds, p);
+                      const theirsP = partner ? isFree(partner.id, ds, p) : false;
+                      const segStyle = both
+                        ? { backgroundColor: "var(--free-ink)" }
+                        : mineP
+                        ? { backgroundColor: myAccent.hex }
+                        : theirsP
+                        ? { backgroundColor: partnerAccent.hex, opacity: 0.6 }
+                        : { backgroundColor: "rgba(127,127,127,0.14)" };
+                      return <span key={p} className="flex-1 h-full" style={segStyle} />;
+                    })}
+                  </div>
+                ) : (
+                  <div className="h-1" />
+                )}
               </button>
             );
           })}
