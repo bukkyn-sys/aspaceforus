@@ -518,13 +518,12 @@ export default function DashboardClient() {
 
       {/* Shared note — post-it with a folded bottom-right corner */}
       <div className="relative">
+        {/* Square the bottom-right corner (the fold sits there); round the rest. */}
         <div
-          className="rounded-sm px-4 pt-4 pb-5 relative"
+          className="rounded-t-sm rounded-bl-sm px-4 pt-4 pb-5 relative"
           style={{
             backgroundColor: "#FAF1C6",
             boxShadow: "3px 5px 16px rgba(0,0,0,0.08), inset 0 -1px 0 rgba(180,140,60,0.10)",
-            // Clip the bottom-right corner away so the fold reads as a real peel.
-            clipPath: "polygon(0 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%)",
           }}
         >
           <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE0A0" }} />
@@ -539,16 +538,16 @@ export default function DashboardClient() {
             rows={3}
           />
         </div>
-        {/* Folded corner flap — the lifted underside of the peel. Drawn outside the
-            clipped note (a sibling, not a child) so it isn't clipped away, and casts
-            a soft fold shadow back onto the note. */}
+        {/* Folded flap — the lifted underside of the corner, drawn ON TOP of the
+            note (nothing dark is ever revealed). Its drop-shadow follows the
+            triangle and falls on the paper along the fold line as the crease. */}
         <div
           aria-hidden
-          className="absolute bottom-0 right-0 w-[30px] h-[30px] pointer-events-none"
+          className="absolute bottom-0 right-0 w-[28px] h-[28px] pointer-events-none"
           style={{
-            background: "linear-gradient(135deg, #F3E7AC 0%, #E2D079 100%)",
+            background: "linear-gradient(135deg, #E4D585 0%, #F4E9B0 100%)",
             clipPath: "polygon(100% 0, 100% 100%, 0 100%)",
-            filter: "drop-shadow(-1px -1px 1px rgba(120,90,20,0.22))",
+            filter: "drop-shadow(-1.5px -1.5px 1.5px rgba(120,90,20,0.28))",
           }}
         />
       </div>
