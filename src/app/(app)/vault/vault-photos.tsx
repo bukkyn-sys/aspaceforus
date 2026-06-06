@@ -10,7 +10,6 @@ import { getCache, setCache } from "@/lib/data-cache";
 import { track } from "@/lib/analytics";
 import { toast } from "@/lib/toast";
 import { validateImage } from "@/lib/validate-image";
-import { SignedImg } from "@/components/signed-img";
 import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +38,8 @@ const SUPA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 function photoUrl(path: string): string {
   return `${SUPA}/storage/v1/object/public/photos/${path}`;
 }
+
+const SIGN_EXPIRY = 60 * 60 * 8; // 8h
 
 // Decode → cap longest edge at 2048 → re-encode JPEG. Returns the downscaled blob
 // and its final dimensions (used for masonry layout).
@@ -88,6 +89,12 @@ export default function VaultPhotos() {
   const [editAlbumName, setEditAlbumName] = useState("");
   const [movingPhoto, setMovingPhoto] = useState<Photo | null>(null);
 
+  // Thumbnails are signed in ONE batched request (not one per tile) — a wall of
+  // per-image signs used to race/throttle and leave broken tiles until you opened
+  // the lightbox. path → signed URL.
+  const [signed, setSigned] = useState<Record<string, string>>({});
+  const requested = useRef<Set<string>>(new Set());
+
   useEffect(() => { setMounted(true); }, []);
 
   // Load (photos + albums); archived photos excluded everywhere.
@@ -105,6 +112,37 @@ export default function VaultPhotos() {
       setPhotos(next); setAlbums((al as Album[]) ?? []); setCache(`vphotos:${coupleId}`, next);
     });
   }, [coupleId, rtick, supabase]);
+
+  // Batch-sign any not-yet-signed photo paths (one request) for the wall.
+  useEffect(() => {
+    const fresh = photos.filter((p) => !p.local && !requested.current.has(p.path)).map((p) => p.path);
+    if (fresh.length === 0) return;
+    fresh.forEach((p) => requested.current.add(p));
+    let active = true;
+    supabase.storage.from("photos").createSignedUrls(fresh, SIGN_EXPIRY).then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data) { fresh.forEach((p) => requested.current.delete(p)); return; } // let a later pass retry
+      setSigned((prev) => {
+        const n = { ...prev };
+        for (const d of data) { if (d.path && d.signedUrl) n[d.path] = d.signedUrl; }
+        return n;
+      });
+    });
+    return () => { active = false; };
+  }, [photos, supabase]);
+
+  // A thumbnail that fails to load (e.g. a stale signed URL) re-signs itself once
+  // or twice — a fresh token changes the src and forces a reload.
+  const retries = useRef<Map<string, number>>(new Map());
+  function reSign(path: string) {
+    const n = (retries.current.get(path) ?? 0) + 1;
+    if (n > 2) return;
+    retries.current.set(path, n);
+    supabase.storage.from("photos").createSignedUrls([path], SIGN_EXPIRY).then(({ data }) => {
+      const u = data?.[0]?.signedUrl;
+      if (u) setSigned((prev) => ({ ...prev, [path]: u }));
+    });
+  }
 
   // Realtime — partner uploads / deletes
   useEffect(() => {
@@ -290,7 +328,11 @@ export default function VaultPhotos() {
                   className="block w-full rounded-2xl overflow-hidden bg-secondary active:scale-[0.99] transition-transform relative"
                   style={{ aspectRatio: p.width && p.height ? `${p.width}/${p.height}` : "1/1" }}
                 >
-                  <SignedImg src={p.local ?? photoUrl(p.path)} className="w-full h-full object-cover" />
+                  {(() => {
+                    const url = p.local ?? signed[p.path];
+                    // eslint-disable-next-line @next/next/no-img-element
+                    return url ? <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" onError={() => { if (!p.local) reSign(p.path); }} /> : null;
+                  })()}
                   {p.favorite && <Heart className="absolute top-1.5 right-1.5 w-4 h-4 text-white fill-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />}
                 </button>
               ))}
@@ -302,7 +344,7 @@ export default function VaultPhotos() {
       {mounted && lightbox && createPortal(
         <Lightbox
           photo={lightbox}
-          src={lightbox.local ?? photoUrl(lightbox.path)}
+          src={lightbox.local ?? signed[lightbox.path] ?? photoUrl(lightbox.path)}
           canEdit
           hasPrev={lightboxIndex > 0}
           hasNext={lightboxIndex < shown.length - 1}

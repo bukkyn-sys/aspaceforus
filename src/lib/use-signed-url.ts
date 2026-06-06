@@ -24,6 +24,8 @@ export function useSignedUrl(stored: string | null | undefined): string | null {
 
   useEffect(() => {
     if (!stored) { setUrl(null); return; }
+    // Already a signed URL (carries a token) — use it directly, don't re-sign.
+    if (stored.includes("/object/sign/") && stored.includes("token=")) { setUrl(stored); return; }
     const cached = cache.get(stored);
     if (cached) { setUrl(cached); return; }
 
