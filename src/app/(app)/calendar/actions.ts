@@ -31,6 +31,7 @@ export async function addEvent(data: {
   startAt: string;
   endAt?: string | null;
   emoji?: string;
+  allDay?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -41,6 +42,7 @@ export async function addEvent(data: {
     start_at: data.startAt,
     end_at: data.endAt ?? null,
     emoji: data.emoji ?? "📅",
+    all_day: data.allDay ?? false,
   });
 }
 
@@ -52,6 +54,7 @@ export async function updateEvent(data: {
   startAt: string;
   endAt?: string | null;
   emoji?: string;
+  allDay?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -64,6 +67,7 @@ export async function updateEvent(data: {
       start_at: data.startAt,
       end_at: data.endAt ?? null,
       emoji: data.emoji ?? "📅",
+      all_day: data.allDay ?? false,
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId);

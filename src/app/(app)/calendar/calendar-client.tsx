@@ -21,12 +21,34 @@ import { useScrolled } from "@/lib/use-scrolled";
 
 type Status = "free" | null;
 interface Row { user_id: string; date: string; status: Status; }
-interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; }
+interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; all_day: boolean; }
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 
 const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
 
 type CalCache = { rows: Row[]; events: CalEvent[]; countdowns: Countdown[] };
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+// Local calendar date (YYYY-MM-DD) of an instant — used to bucket events into day
+// cells in the VIEWER's timezone (timed events store a UTC instant; all-day events
+// store a naive local noon). Keeps month placement correct across timezones.
+function localDateOf(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+// "7pm" / "7:30pm" in the viewer's local timezone.
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  let h = d.getHours(); const m = d.getMinutes();
+  const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
+  return m === 0 ? `${h}${ap}` : `${h}:${pad2(m)}${ap}`;
+}
+// "HH:MM" local value for a <input type="time">.
+function timeInputOf(iso: string): string {
+  const d = new Date(iso);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
@@ -46,6 +68,9 @@ export default function CalendarClient() {
   const [eventDate, setEventDate] = useState("");
   const [eventEndDate, setEventEndDate] = useState("");
   const [eventEmoji, setEventEmoji] = useState("📅");
+  const [eventAllDay, setEventAllDay] = useState(false);
+  const [eventStartTime, setEventStartTime] = useState("18:00");
+  const [eventEndTime, setEventEndTime] = useState("");
   const [, startTransition] = useTransition();
 
   const scrolled = useScrolled();
@@ -80,7 +105,7 @@ export default function CalendarClient() {
         .lte("date", end),
       supabase
         .from("events")
-        .select("id, title, start_at, end_at, emoji, created_by")
+        .select("id, title, start_at, end_at, emoji, created_by, all_day")
         .eq("couple_id", coupleId)
         .gte("start_at", start + "T00:00:00")
         .lte("start_at", end + "T23:59:59")
@@ -131,8 +156,8 @@ export default function CalendarClient() {
 
   function getEvents(dateStr: string): CalEvent[] {
     return events.filter((e) => {
-      const start = e.start_at.slice(0, 10);
-      const end = e.end_at ? e.end_at.slice(0, 10) : start;
+      const start = localDateOf(e.start_at);
+      const end = e.end_at ? localDateOf(e.end_at) : start;
       return dateStr >= start && dateStr <= end;
     });
   }
@@ -184,28 +209,43 @@ export default function CalendarClient() {
     setEventTitle(""); setEventEmoji("📅");
     setEventDate(today);
     setEventEndDate("");
+    setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
     setShowAddEvent(true);
   });
 
   function handleSaveEvent() {
     if (!eventTitle.trim() || !eventDate) return;
     const title = eventTitle.trim();
-    const startAt = eventDate + "T12:00:00";
-    const endAt = eventEndDate ? eventEndDate + "T12:00:00" : null;
+    const allDay = eventAllDay;
+    // All-day: store a naive local noon so .slice/date display stays tz-stable.
+    // Timed: store a real UTC instant (via toISOString from the viewer's local
+    // time) so it renders correctly in each partner's own timezone.
+    let startAt: string;
+    let endAt: string | null;
+    if (allDay) {
+      startAt = eventDate + "T12:00:00";
+      endAt = eventEndDate ? eventEndDate + "T12:00:00" : null;
+    } else {
+      startAt = new Date(`${eventDate}T${eventStartTime || "12:00"}`).toISOString();
+      endAt = eventEndTime
+        ? new Date(`${eventEndDate || eventDate}T${eventEndTime}`).toISOString()
+        : (eventEndDate ? eventEndDate + "T12:00:00" : null);
+    }
     if (editingEventId) {
       const id = editingEventId;
       setEvents((prev) => prev
-        .map((e) => e.id === id ? { ...e, title, start_at: startAt, end_at: endAt, emoji: eventEmoji } : e)
+        .map((e) => e.id === id ? { ...e, title, start_at: startAt, end_at: endAt, emoji: eventEmoji, all_day: allDay } : e)
         .sort((a, b) => a.start_at.localeCompare(b.start_at)));
-      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji }); });
+      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji, allDay }); });
     } else {
-      const optimistic: CalEvent = { id: crypto.randomUUID(), title, start_at: startAt, end_at: endAt, emoji: eventEmoji, created_by: me.id };
+      const optimistic: CalEvent = { id: crypto.randomUUID(), title, start_at: startAt, end_at: endAt, emoji: eventEmoji, created_by: me.id, all_day: allDay };
       setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
       markActivity("calendar");
-      track("event_created", { multi_day: !!endAt });
-      startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji }); });
+      track("event_created", { multi_day: !!eventEndDate, all_day: allDay });
+      startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji, allDay }); });
     }
     setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");
+    setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
     setEditingEventId(null); setShowAddEvent(false);
   }
 
@@ -214,8 +254,11 @@ export default function CalendarClient() {
     setEditingEventId(evt.id);
     setEventTitle(evt.title);
     setEventEmoji(evt.emoji);
-    setEventDate(evt.start_at.slice(0, 10));
-    setEventEndDate(evt.end_at ? evt.end_at.slice(0, 10) : "");
+    setEventDate(localDateOf(evt.start_at));
+    setEventEndDate(evt.end_at ? localDateOf(evt.end_at) : "");
+    setEventAllDay(evt.all_day);
+    setEventStartTime(evt.all_day ? "18:00" : timeInputOf(evt.start_at));
+    setEventEndTime(evt.all_day || !evt.end_at ? "" : timeInputOf(evt.end_at));
     setShowAddEvent(true);
   }
 
@@ -450,7 +493,9 @@ export default function CalendarClient() {
                           <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                            {evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`}
+                            {evt.all_day
+                              ? (evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`)
+                              : ` · ${fmtTime(evt.start_at)}${evt.end_at ? `–${fmtTime(evt.end_at)}` : ""}`}
                           </p>
                         </div>
                       </div>
@@ -524,6 +569,48 @@ export default function CalendarClient() {
             ))}
           </div>
         </div>
+        {/* All-day toggle */}
+        <button
+          type="button"
+          onClick={() => setEventAllDay((v) => !v)}
+          aria-pressed={eventAllDay}
+          className={cn(
+            "flex items-center justify-between w-full rounded-2xl px-4 h-12 transition-colors",
+            eventAllDay ? "bg-foreground text-background" : "bg-secondary text-foreground"
+          )}
+        >
+          <span className="text-sm font-medium">all day</span>
+          <span className={cn("relative w-9 h-5 rounded-full transition-colors", eventAllDay ? "bg-background/30" : "bg-foreground/15")}>
+            <span className={cn(
+              "absolute top-0.5 w-4 h-4 rounded-full transition-all",
+              eventAllDay ? "left-[1.15rem] bg-background" : "left-0.5 bg-foreground/50"
+            )} />
+          </span>
+        </button>
+
+        {/* Time — only for timed events */}
+        {!eventAllDay && (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative rounded-2xl overflow-hidden">
+                <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">from</p>
+                  <p className="text-sm font-medium text-foreground">{eventStartTime || "select"}</p>
+                </div>
+                <input type="time" value={eventStartTime} onChange={(e) => setEventStartTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+              </div>
+              <div className="relative rounded-2xl overflow-hidden">
+                <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+                  <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">to <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                  <p className={cn("text-sm font-medium", eventEndTime ? "text-foreground" : "text-muted-foreground/40")}>{eventEndTime || "select"}</p>
+                </div>
+                <input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
           <div className="grid grid-cols-2 gap-3">
