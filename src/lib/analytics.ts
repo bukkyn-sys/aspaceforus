@@ -18,7 +18,8 @@ export type AnalyticsEvent =
   | "todo_list_created"
   | "todo_added"
   | "todo_completed"
-  | "photo_added";
+  | "photo_added"
+  | "album_created";
 
 type EventProps = Record<string, string | number | boolean | null | undefined>;
 

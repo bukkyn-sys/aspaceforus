@@ -13,8 +13,9 @@ import { SignedImg } from "@/components/signed-img";
 import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check } from "lucide-react";
-import { addPhoto, updatePhotoCaption, deletePhoto } from "./photo-actions";
+import { BottomSheet, Dialog } from "@/components/ui/sheet";
+import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus } from "lucide-react";
+import { addPhoto, updatePhotoCaption, deletePhoto, createAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
 
 interface Photo {
   id: string;
@@ -24,8 +25,10 @@ interface Photo {
   caption: string | null;
   created_by: string;
   created_at: string;
+  album_id: string | null;
   local?: string; // object URL for optimistic tiles still uploading
 }
+interface Album { id: string; name: string; created_at: string; }
 
 const SUPA = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 // A storage URL SignedImg can parse + sign (the bucket is private; the "public"
@@ -73,16 +76,25 @@ export default function VaultPhotos() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
 
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [activeAlbum, setActiveAlbum] = useState<string | null>(null); // null = all
+  const [showNewAlbum, setShowNewAlbum] = useState(false);
+  const [albumName, setAlbumName] = useState("");
+  const [confirmDelAlbum, setConfirmDelAlbum] = useState<Album | null>(null);
+  const [movingPhoto, setMovingPhoto] = useState<Photo | null>(null);
+
   useEffect(() => { setMounted(true); }, []);
 
-  // Load
+  // Load (photos + albums); archived photos excluded everywhere.
   useEffect(() => {
-    supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at")
-      .eq("couple_id", coupleId).order("created_at", { ascending: false })
-      .then(({ data }) => {
-        const next = (data as Photo[]) ?? [];
-        setPhotos(next); setLoading(false); setCache(`vphotos:${coupleId}`, next);
-      });
+    Promise.all([
+      supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id")
+        .eq("couple_id", coupleId).is("archived_at", null).order("created_at", { ascending: false }),
+      supabase.from("vault_albums").select("id,name,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
+    ]).then(([{ data: ph }, { data: al }]) => {
+      const next = (ph as Photo[]) ?? [];
+      setPhotos(next); setAlbums((al as Album[]) ?? []); setLoading(false); setCache(`vphotos:${coupleId}`, next);
+    });
   }, [coupleId, rtick, supabase]);
 
   // Realtime — partner uploads / deletes
@@ -120,13 +132,13 @@ export default function VaultPhotos() {
       const tempId = crypto.randomUUID();
       const local = URL.createObjectURL(blob);
       const path = `${coupleId}/${crypto.randomUUID()}.jpg`;
-      setPhotos((prev) => [{ id: tempId, path, width, height, caption: null, created_by: me.id, created_at: new Date().toISOString(), local }, ...prev]);
+      setPhotos((prev) => [{ id: tempId, path, width, height, caption: null, created_by: me.id, created_at: new Date().toISOString(), album_id: activeAlbum, local }, ...prev]);
 
       const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType: "image/jpeg", upsert: false });
       setUploadCount((c) => c - 1);
       if (error) { toast("a photo failed to upload"); setPhotos((prev) => prev.filter((p) => p.id !== tempId)); continue; }
       track("photo_added");
-      const realId = await addPhoto({ coupleId, path, width, height });
+      const realId = await addPhoto({ coupleId, path, width, height, albumId: activeAlbum });
       setPhotos((prev) => prev.map((p) => p.id === tempId ? { ...p, id: realId ?? p.id, local: undefined } : p));
     }
   }
@@ -142,17 +154,43 @@ export default function VaultPhotos() {
     updatePhotoCaption(p.id, coupleId, caption);
   }
 
+  function handleCreateAlbum() {
+    const name = albumName.trim();
+    if (!name) return;
+    const tempId = crypto.randomUUID();
+    setAlbums((prev) => [...prev, { id: tempId, name, created_at: new Date().toISOString() }]);
+    track("album_created");
+    createAlbum(coupleId, name).then((realId) => { if (realId) setAlbums((prev) => prev.map((a) => a.id === tempId ? { ...a, id: realId } : a)); });
+    setShowNewAlbum(false); setAlbumName("");
+  }
+
+  function handleDeleteAlbum(a: Album) {
+    setAlbums((prev) => prev.filter((x) => x.id !== a.id));
+    setPhotos((prev) => prev.map((p) => p.album_id === a.id ? { ...p, album_id: null } : p));
+    if (activeAlbum === a.id) setActiveAlbum(null);
+    setConfirmDelAlbum(null);
+    deleteAlbum(a.id, coupleId);
+  }
+
+  function handleMove(photo: Photo, albumId: string | null) {
+    setPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, album_id: albumId } : p));
+    setMovingPhoto(null);
+    movePhotoToAlbum(photo.id, coupleId, albumId);
+  }
+
+  const shown = activeAlbum ? photos.filter((p) => p.album_id === activeAlbum) : photos;
+
   // Greedy 2-column masonry — push each photo to the currently shorter column.
   const cols: Photo[][] = [[], []];
   const colH = [0, 0];
-  for (const p of photos) {
+  for (const p of shown) {
     const ratio = (p.height || 1) / (p.width || 1);
     const i = colH[0] <= colH[1] ? 0 : 1;
     cols[i].push(p); colH[i] += ratio;
   }
 
-  const lightboxIndex = lightboxId ? photos.findIndex((p) => p.id === lightboxId) : -1;
-  const lightbox = lightboxIndex >= 0 ? photos[lightboxIndex] : null;
+  const lightboxIndex = lightboxId ? shown.findIndex((p) => p.id === lightboxId) : -1;
+  const lightbox = lightboxIndex >= 0 ? shown[lightboxIndex] : null;
 
   return (
     <div className="px-3 pb-24 pt-3">
@@ -162,15 +200,28 @@ export default function VaultPhotos() {
         <p className="text-xs text-muted-foreground/60 text-center mb-2">uploading {uploadCount} photo{uploadCount !== 1 ? "s" : ""}…</p>
       )}
 
+      {/* Album chips — all · {albums} · + (long-press an album to delete) */}
+      {(albums.length > 0 || photos.length > 0) && (
+        <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+          <AlbumChip active={activeAlbum === null} label="all" onClick={() => setActiveAlbum(null)} />
+          {albums.map((a) => (
+            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} onLong={() => setConfirmDelAlbum(a)} />
+          ))}
+          <button onClick={() => { setAlbumName(""); setShowNewAlbum(true); }} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <Plus className="w-3.5 h-3.5" /> album
+          </button>
+        </div>
+      )}
+
       {loading && photos.length === 0 ? (
         <div className="grid grid-cols-2 gap-2">
           {[0, 1, 2, 3].map((i) => <div key={i} className="rounded-2xl bg-secondary/50 animate-pulse" style={{ aspectRatio: i % 2 ? "3/4" : "1/1" }} />)}
         </div>
-      ) : photos.length === 0 ? (
+      ) : shown.length === 0 ? (
         <button onClick={() => fileRef.current?.click()} className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
           <ImagePlus className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">no photos yet</p>
-          <p className="text-xs text-muted-foreground/40 mt-0.5">tap to add some — a shared wall, just the two of you</p>
+          <p className="text-sm text-muted-foreground">{activeAlbum ? "no photos in this album yet" : "no photos yet"}</p>
+          <p className="text-xs text-muted-foreground/40 mt-0.5">{activeAlbum ? "upload here, or move photos in from the wall" : "tap to add some — a shared wall, just the two of you"}</p>
         </button>
       ) : (
         <div className="flex gap-2 items-start">
@@ -197,21 +248,80 @@ export default function VaultPhotos() {
           src={lightbox.local ?? photoUrl(lightbox.path)}
           canEdit
           hasPrev={lightboxIndex > 0}
-          hasNext={lightboxIndex < photos.length - 1}
-          onPrev={() => setLightboxId(photos[lightboxIndex - 1]?.id ?? null)}
-          onNext={() => setLightboxId(photos[lightboxIndex + 1]?.id ?? null)}
+          hasNext={lightboxIndex < shown.length - 1}
+          onPrev={() => setLightboxId(shown[lightboxIndex - 1]?.id ?? null)}
+          onNext={() => setLightboxId(shown[lightboxIndex + 1]?.id ?? null)}
           onClose={() => setLightboxId(null)}
           onDelete={() => removePhoto(lightbox)}
           onCaption={(c) => saveCaption(lightbox, c)}
+          onMove={() => { const p = lightbox; setLightboxId(null); setMovingPhoto(p); }}
         />,
         document.body
       )}
+
+      {/* New album */}
+      <BottomSheet open={showNewAlbum} onClose={() => setShowNewAlbum(false)} title="new album"
+        footer={<Button onClick={handleCreateAlbum} disabled={!albumName.trim()} className="w-full h-11 rounded-xl">create</Button>}>
+        <Input value={albumName} onChange={(e) => setAlbumName(e.target.value)} placeholder="album name" className="h-11 rounded-xl bg-card border-border/60" />
+      </BottomSheet>
+
+      {/* Move photo to album */}
+      <BottomSheet open={movingPhoto !== null} onClose={() => setMovingPhoto(null)} title="move to album">
+        {movingPhoto && (
+          <div className="space-y-1.5">
+            <MoveOption label="unsorted (wall)" active={movingPhoto.album_id === null} onClick={() => handleMove(movingPhoto, null)} />
+            {albums.map((a) => (
+              <MoveOption key={a.id} label={a.name} active={movingPhoto.album_id === a.id} onClick={() => handleMove(movingPhoto, a.id)} />
+            ))}
+            <button onClick={() => { setMovingPhoto(null); setAlbumName(""); setShowNewAlbum(true); }} className="w-full text-left px-4 h-11 rounded-xl bg-secondary/60 text-sm text-muted-foreground flex items-center gap-2">
+              <Plus className="w-4 h-4" /> new album
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* Delete album */}
+      <Dialog open={confirmDelAlbum !== null} onClose={() => setConfirmDelAlbum(null)}>
+        {confirmDelAlbum && (
+          <>
+            <p className="font-semibold text-foreground text-center truncate">{confirmDelAlbum.name}</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">delete this album? the photos stay — they just go back to the wall.</p>
+            <div className="space-y-2">
+              <Button variant="outline" onClick={() => handleDeleteAlbum(confirmDelAlbum)} className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light">
+                <Trash2 className="w-4 h-4 mr-1.5" /> delete album
+              </Button>
+              <button onClick={() => setConfirmDelAlbum(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+            </div>
+          </>
+        )}
+      </Dialog>
     </div>
   );
 }
 
+function MoveOption({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={`w-full text-left px-4 h-11 rounded-xl flex items-center justify-between ${active ? "bg-foreground text-background" : "bg-secondary/60 text-foreground"}`}>
+      <span className="text-sm truncate">{label}</span>
+      {active && <Check className="w-4 h-4 flex-shrink-0" />}
+    </button>
+  );
+}
+
+function AlbumChip({ active, label, onClick, onLong }: { active: boolean; label: string; onClick: () => void; onLong?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={onLong ? (e) => { e.preventDefault(); onLong(); } : undefined}
+      className={`flex-shrink-0 px-3.5 h-8 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${active ? "bg-foreground text-background" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function Lightbox({
-  photo, src, canEdit, hasPrev, hasNext, onPrev, onNext, onClose, onDelete, onCaption,
+  photo, src, canEdit, hasPrev, hasNext, onPrev, onNext, onClose, onDelete, onCaption, onMove,
 }: {
   photo: Photo;
   src: string;
@@ -223,6 +333,7 @@ function Lightbox({
   onClose: () => void;
   onDelete: () => void;
   onCaption: (c: string) => void;
+  onMove: () => void;
 }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -243,6 +354,11 @@ function Lightbox({
           <a href={signed ?? src} download target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="download">
             <Download className="w-4 h-4" />
           </a>
+          {canEdit && (
+            <button onClick={onMove} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="move to album">
+              <FolderInput className="w-4 h-4" />
+            </button>
+          )}
           {canEdit && (
             <button onClick={() => setConfirmDel(true)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="delete">
               <Trash2 className="w-4 h-4" />
