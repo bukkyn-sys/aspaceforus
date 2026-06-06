@@ -32,6 +32,16 @@ export async function deleteTodoList(id: string, coupleId: string) {
   await supabase.from("vault_todo_lists").delete().eq("id", id).eq("couple_id", coupleId);
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+function rollDate(from: string | null, recurrence: string): string {
+  const base = from ? new Date(from + "T12:00:00") : new Date();
+  const d = new Date(base);
+  if (recurrence === "daily") d.setDate(d.getDate() + 1);
+  else if (recurrence === "weekly") d.setDate(d.getDate() + 7);
+  else if (recurrence === "monthly") d.setMonth(d.getMonth() + 1);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 export async function addTodo(data: {
   coupleId: string;
   listId: string;
@@ -39,6 +49,8 @@ export async function addTodo(data: {
   notes?: string;
   dueDate?: string;
   assignee?: string;
+  recurrence?: string;
+  parentId?: string;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -48,14 +60,19 @@ export async function addTodo(data: {
       couple_id: data.coupleId,
       list_id: data.listId,
       created_by: uid,
+      parent_id: data.parentId || null,
       title: data.title,
       notes: data.notes || null,
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
+      recurrence: data.recurrence || "none",
     })
     .select("id")
     .single();
-  await notifyPartner(data.coupleId, uid, "us.", `your partner added "${data.title}" to a to-do list`, "/vault?tab=todos");
+  // Only nudge for top-level items (not subtasks).
+  if (!data.parentId) {
+    await notifyPartner(data.coupleId, uid, "us.", `your partner added "${data.title}" to a to-do list`, "/vault?tab=todos");
+  }
   return row?.id as string | undefined;
 }
 
@@ -66,6 +83,7 @@ export async function updateTodo(data: {
   notes?: string | null;
   dueDate?: string | null;
   assignee?: string | null;
+  recurrence?: string;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -76,6 +94,7 @@ export async function updateTodo(data: {
       notes: data.notes || null,
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
+      recurrence: data.recurrence || "none",
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)
@@ -98,6 +117,24 @@ export async function setTodoDone(id: string, coupleId: string, done: boolean, t
     .eq("couple_id", coupleId);
   if (done) {
     await notifyPartner(coupleId, uid, "us.", `your partner ticked "${title}"`, "/vault?tab=todos");
+    // Recurring top-level item: spawn the next occurrence with the due date rolled
+    // forward, so the list always carries the next instance.
+    const { data: row } = await supabase
+      .from("vault_todos")
+      .select("list_id,couple_id,created_by,parent_id,title,notes,assignee,due_date,recurrence")
+      .eq("id", id).single();
+    if (row && row.recurrence && row.recurrence !== "none" && !row.parent_id) {
+      await supabase.from("vault_todos").insert({
+        couple_id: row.couple_id,
+        list_id: row.list_id,
+        created_by: row.created_by,
+        title: row.title,
+        notes: row.notes,
+        assignee: row.assignee,
+        recurrence: row.recurrence,
+        due_date: rollDate(row.due_date, row.recurrence),
+      });
+    }
   }
 }
 

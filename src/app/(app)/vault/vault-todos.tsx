@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin } from "lucide-react";
+import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin, Repeat } from "lucide-react";
 import {
   createTodoList, renameTodoList, deleteTodoList,
   addTodo, updateTodo, setTodoDone, deleteTodo, clearCompleted, setPriorityTodoList,
@@ -25,7 +25,11 @@ interface Todo {
   id: string; list_id: string; title: string; notes: string | null;
   done: boolean; done_at: string | null; done_by: string | null;
   due_date: string | null; assignee: string | null; created_by: string; created_at: string;
+  parent_id: string | null; recurrence: string;
 }
+
+const RECUR_LABEL: Record<string, string> = { none: "no repeat", daily: "daily", weekly: "weekly", monthly: "monthly" };
+const RECUR_OPTS = ["none", "daily", "weekly", "monthly"];
 
 const LIST_EMOJIS = ["✅", "🛒", "🧳", "🏡", "🎁", "🗓️", "💡", "🧹", "🍽️", "💸", "📋", "⭐"];
 
@@ -79,6 +83,8 @@ export default function VaultTodos() {
   const [itemNotes, setItemNotes] = useState("");
   const [itemDue, setItemDue] = useState("");
   const [itemAssignee, setItemAssignee] = useState<string | null>(null);
+  const [itemRecurrence, setItemRecurrence] = useState("none");
+  const [subtaskDraft, setSubtaskDraft] = useState("");
 
   // ── Loads ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -175,10 +181,11 @@ export default function VaultTodos() {
   function openList(l: TodoList) { setActiveList(l); setView("items"); setShowDone(false); }
   function backToLists() { setView("lists"); setActiveList(null); }
 
-  function openAddItem() { setEditingItem(null); setItemTitle(""); setItemNotes(""); setItemDue(""); setItemAssignee(null); setShowItem(true); }
+  function openAddItem() { setEditingItem(null); setItemTitle(""); setItemNotes(""); setItemDue(""); setItemAssignee(null); setItemRecurrence("none"); setSubtaskDraft(""); setShowItem(true); }
   function openEditItem(t: Todo) {
     setEditingItem(t);
     setItemTitle(t.title); setItemNotes(t.notes ?? ""); setItemDue(t.due_date ?? ""); setItemAssignee(t.assignee);
+    setItemRecurrence(t.recurrence ?? "none"); setSubtaskDraft("");
     setShowItem(true);
   }
 
@@ -189,17 +196,18 @@ export default function VaultTodos() {
     const notes = itemNotes.trim() || null;
     if (editingItem) {
       const id = editingItem.id;
-      setTodos((prev) => prev.map((t) => t.id === id ? { ...t, title, notes, due_date: due, assignee: itemAssignee } : t));
-      startTransition(() => { updateTodo({ id, coupleId, title, notes, dueDate: due, assignee: itemAssignee }); });
+      setTodos((prev) => prev.map((t) => t.id === id ? { ...t, title, notes, due_date: due, assignee: itemAssignee, recurrence: itemRecurrence } : t));
+      startTransition(() => { updateTodo({ id, coupleId, title, notes, dueDate: due, assignee: itemAssignee, recurrence: itemRecurrence }); });
     } else {
       const tempId = crypto.randomUUID();
       const optimistic: Todo = {
         id: tempId, list_id: activeList.id, title, notes, done: false, done_at: null, done_by: null,
         due_date: due, assignee: itemAssignee, created_by: me.id, created_at: new Date().toISOString(),
+        parent_id: null, recurrence: itemRecurrence,
       };
       setTodos((prev) => [...prev, optimistic]);
       track("todo_added");
-      addTodo({ coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined })
+      addTodo({ coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined, recurrence: itemRecurrence })
         .then((realId) => { if (realId) setTodos((prev) => prev.map((t) => t.id === tempId ? { ...t, id: realId } : t)); });
     }
     setShowItem(false); setEditingItem(null);
@@ -224,6 +232,26 @@ export default function VaultTodos() {
     startTransition(() => { clearCompleted(activeList.id, coupleId); });
   }
 
+  function addSubtask() {
+    const t = subtaskDraft.trim();
+    if (!t || !editingItem || !activeList) return;
+    const tempId = crypto.randomUUID();
+    const optimistic: Todo = {
+      id: tempId, list_id: activeList.id, title: t, notes: null, done: false, done_at: null, done_by: null,
+      due_date: null, assignee: null, created_by: me.id, created_at: new Date().toISOString(),
+      parent_id: editingItem.id, recurrence: "none",
+    };
+    setTodos((prev) => [...prev, optimistic]);
+    addTodo({ coupleId, listId: activeList.id, title: t, parentId: editingItem.id })
+      .then((realId) => { if (realId) setTodos((prev) => prev.map((x) => x.id === tempId ? { ...x, id: realId } : x)); });
+    setSubtaskDraft("");
+  }
+
+  function deleteSub(t: Todo) {
+    setTodos((prev) => prev.filter((x) => x.id !== t.id));
+    startTransition(() => { deleteTodo(t.id, coupleId); });
+  }
+
   // assignee → people to render
   function assigneePeople(assignee: string | null) {
     if (assignee === me.id) return [{ url: me.avatar_url, name: myName, hex: myAccent.hex }];
@@ -235,8 +263,10 @@ export default function VaultTodos() {
     return [];
   }
 
-  const undone = todos.filter((t) => !t.done);
-  const doneItems = todos.filter((t) => t.done).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
+  const topLevel = todos.filter((t) => !t.parent_id);
+  const undone = topLevel.filter((t) => !t.done);
+  const doneItems = topLevel.filter((t) => t.done).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
+  const subsOf = (id: string) => todos.filter((s) => s.parent_id === id);
 
   // ── LISTS VIEW ───────────────────────────────────────────────────────────────
   if (view === "lists") {
@@ -347,17 +377,21 @@ export default function VaultTodos() {
         <h1 className="text-xl font-semibold text-foreground flex-1 truncate">
           <span className="mr-1.5">{activeList?.emoji}</span>{activeList?.title}
         </h1>
-        <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">{doneItems.length}/{todos.length}</span>
+        <span className="text-xs text-muted-foreground tabular-nums flex-shrink-0">{doneItems.length}/{topLevel.length}</span>
       </div>
 
-      {itemsLoading ? <SkeletonRows count={4} /> : todos.length === 0 ? (
+      {itemsLoading ? <SkeletonRows count={4} /> : topLevel.length === 0 ? (
         <button onClick={openAddItem} className="w-full rounded-3xl border border-dashed border-border/60 p-8 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
           <p className="text-sm text-muted-foreground">nothing on this list yet</p>
           <p className="text-xs text-muted-foreground/40 mt-0.5">tap + to add the first thing</p>
         </button>
       ) : (
         <div className="space-y-0.5">
-          {undone.map((t) => <TodoRow key={t.id} t={t} onToggle={toggle} onTap={openEditItem} people={assigneePeople(t.assignee)} />)}
+          {undone.map((t) => {
+            const subs = subsOf(t.id);
+            return <TodoRow key={t.id} t={t} onToggle={toggle} onTap={openEditItem} people={assigneePeople(t.assignee)}
+              recurring={t.recurrence !== "none"} subProgress={subs.length ? { done: subs.filter((s) => s.done).length, total: subs.length } : undefined} />;
+          })}
 
           {doneItems.length > 0 && (
             <div className="pt-2">
@@ -414,17 +448,54 @@ export default function VaultTodos() {
             ))}
           </div>
         </div>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">repeats</p>
+          <div className="flex gap-1.5">
+            {RECUR_OPTS.map((r) => (
+              <button key={r} onClick={() => setItemRecurrence(r)}
+                className={cn("flex-1 h-9 rounded-xl text-xs font-medium transition-colors", itemRecurrence === r ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>
+                {r === "none" ? "never" : RECUR_LABEL[r]}
+              </button>
+            ))}
+          </div>
+        </div>
+        {editingItem && (
+          <div>
+            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">subtasks</p>
+            {subsOf(editingItem.id).length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {subsOf(editingItem.id).map((s) => (
+                  <div key={s.id} className="flex items-center gap-2.5">
+                    <button onClick={() => toggle(s)} className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0", s.done ? "bg-sage" : "border-[1.5px] border-muted-foreground/30")}>
+                      {s.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    </button>
+                    <span className={cn("text-sm flex-1 truncate", s.done ? "line-through text-muted-foreground/50" : "text-foreground")}>{s.title}</span>
+                    <button onClick={() => deleteSub(s)} className="text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Input value={subtaskDraft} onChange={(e) => setSubtaskDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSubtask(); } }}
+                placeholder="add a subtask" className="h-9 rounded-xl bg-card border-border/60 text-sm flex-1" />
+              <Button onClick={addSubtask} disabled={!subtaskDraft.trim()} className="h-9 px-3 rounded-xl"><Plus className="w-4 h-4" /></Button>
+            </div>
+          </div>
+        )}
       </BottomSheet>
     </div>
   );
 }
 
-function TodoRow({ t, onToggle, onTap, people, doneByName }: {
+function TodoRow({ t, onToggle, onTap, people, doneByName, recurring, subProgress }: {
   t: Todo;
   onToggle: (t: Todo) => void;
   onTap: (t: Todo) => void;
   people: { url: string | null; name: string; hex: string }[];
   doneByName?: string | null;
+  recurring?: boolean;
+  subProgress?: { done: number; total: number };
 }) {
   const due = dueMeta(t.due_date);
   return (
@@ -443,13 +514,15 @@ function TodoRow({ t, onToggle, onTap, people, doneByName }: {
       <button onClick={() => onTap(t)} className="flex-1 min-w-0 text-left">
         <p className={cn("text-sm leading-snug", t.done ? "line-through text-muted-foreground/50" : "text-foreground")}>{t.title}</p>
         {t.notes && !t.done && <p className="text-xs text-muted-foreground/60 truncate mt-0.5">{t.notes}</p>}
-        {(due || people.length > 0 || doneByName) && (
+        {(due || people.length > 0 || doneByName || recurring || subProgress) && (
           <div className="flex items-center gap-2 mt-1">
             {due && !t.done && (
               <span className={cn("text-[11px] font-medium", due.tone === "over" ? "text-terracotta/80" : due.tone === "today" ? "text-sage" : "text-muted-foreground/50")}>
                 {due.label}
               </span>
             )}
+            {!t.done && recurring && <Repeat className="w-3 h-3 text-muted-foreground/45" />}
+            {!t.done && subProgress && <span className="text-[11px] text-muted-foreground/50 tabular-nums">{subProgress.done}/{subProgress.total}</span>}
             {!t.done && people.map((p, i) => (
               <span key={i} className="w-4 h-4 rounded-full overflow-hidden bg-secondary inline-flex items-center justify-center flex-shrink-0" style={{ boxShadow: `0 0 0 1.5px ${p.hex}` }}>
                 {p.url ? <SignedImg src={p.url} className="w-full h-full object-cover" /> : <span className="text-[8px] font-semibold text-muted-foreground">{p.name[0]?.toUpperCase()}</span>}
