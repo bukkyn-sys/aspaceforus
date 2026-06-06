@@ -6,11 +6,11 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
+import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown, setDashboardLayout } from "./actions";
 import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
 import { setTodoDone } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -53,6 +53,30 @@ function todoDue(due: string | null): { label: string; tone: "muted" | "today" |
   return { label: new Date(due + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }), tone: "muted" };
 }
 
+type DashSize = "full" | "half";
+interface DashModule { id: string; size: DashSize; }
+const DEFAULT_LAYOUT: DashModule[] = [
+  { id: "mood", size: "full" }, { id: "daily", size: "full" }, { id: "note", size: "full" },
+  { id: "countdowns", size: "full" }, { id: "free", size: "full" }, { id: "accounts", size: "full" },
+  { id: "todo", size: "full" },
+];
+const MODULE_ORDER = DEFAULT_LAYOUT.map((m) => m.id);
+const MODULE_LABEL: Record<string, string> = {
+  mood: "mood", daily: "the daily", note: "shared note", countdowns: "countdowns",
+  free: "free times", accounts: "accounts", todo: "to-dos",
+};
+// Modules that read acceptably at half width. mood + the daily need full width.
+const HALF_CAPABLE = new Set(["note", "countdowns", "free", "accounts", "todo"]);
+
+// Merge a saved layout with the canonical module set (so new modules always
+// appear, and a stale cache without a layout is handled).
+function normalizeLayout(saved: DashModule[] | null | undefined): DashModule[] {
+  const valid = (saved ?? []).filter((m) => MODULE_ORDER.includes(m.id));
+  const base = valid.length ? valid : DEFAULT_LAYOUT;
+  const missing = MODULE_ORDER.filter((id) => !base.some((m) => m.id === id)).map((id) => ({ id, size: "full" as DashSize }));
+  return [...base, ...missing];
+}
+
 interface DashboardData {
   myMood: number | null;
   myMoodAt: string | null;
@@ -70,6 +94,7 @@ interface DashboardData {
   pots: PotMini[];
   daily: DailyData;
   priorityTodo: PriorityTodo | null;
+  dashboardLayout: DashModule[];
 }
 
 // Shape returned by the get_home_data RPC (single-call Home load).
@@ -79,6 +104,7 @@ interface HomeData {
   couple: {
     shared_note: string | null; started_at: string | null; invite_code: string | null;
     banner_url: string | null; banner_focus: number | null; currency: string | null;
+    dashboard_layout: DashModule[] | null;
   } | null;
   countdowns: Countdown[];
   events: { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string }[];
@@ -153,7 +179,7 @@ export default function DashboardClient() {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false }, priorityTodo: null,
+      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false }, priorityTodo: null, dashboardLayout: [],
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -164,6 +190,8 @@ export default function DashboardClient() {
   const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
+  const [layoutDraft, setLayoutDraft] = useState<DashModule[]>([]);
   const [, startTransition] = useTransition();
 
   // Countdown form
@@ -234,6 +262,7 @@ export default function DashboardClient() {
         pots,
         daily: h.daily ?? { paired: false },
         priorityTodo: h.priority_todo ?? null,
+        dashboardLayout: h.couple?.dashboard_layout ?? [],
       };
       const hasP = !!partner;
       setHasPartner(hasP);
@@ -408,13 +437,41 @@ export default function DashboardClient() {
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
+  // ── Modular layout (CSS order + grid col-span; cards themselves are unchanged) ─
+  const layout = normalizeLayout(data.dashboardLayout);
+  const modIndex = new Map(layout.map((m, i) => [m.id, i]));
+  const modSize = new Map(layout.map((m) => [m.id, m.size]));
+  function mod(id: string) {
+    return {
+      style: { order: modIndex.get(id) ?? 99 },
+      className: modSize.get(id) === "half" ? "col-span-1 min-w-0" : "col-span-2",
+    };
+  }
+  function openLayoutEditor() { setLayoutDraft(normalizeLayout(data.dashboardLayout)); setShowLayoutEditor(true); }
+  function moveModule(i: number, dir: -1 | 1) {
+    setLayoutDraft((prev) => {
+      const next = [...prev];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+  function toggleSize(id: string) {
+    setLayoutDraft((prev) => prev.map((m) => m.id === id ? { ...m, size: m.size === "half" ? "full" : "half" } : m));
+  }
+  function saveLayout() {
+    setData((prev) => ({ ...prev, dashboardLayout: layoutDraft }));
+    setShowLayoutEditor(false);
+    startTransition(() => { setDashboardLayout(coupleId, layoutDraft); });
+  }
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
       {/* Banner — fixed-height sticky header */}
       <HomeBanner bannerUrl={data.bannerUrl} focus={data.bannerFocus} />
 
-      <div className="px-4 space-y-4 pt-4">
+      <div className="px-4 pt-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -451,7 +508,9 @@ export default function DashboardClient() {
         </Link>
       </div>
 
+      <div className="grid grid-cols-2 gap-4 items-start mt-4">
       {/* Mood card */}
+      <div {...mod("mood")}>
       <div className="card p-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">how are you both?</p>
         <div className="space-y-3">
@@ -538,17 +597,21 @@ export default function DashboardClient() {
           )}
         </div>
       </div>
+      </div>
 
       {/* The daily — one shared question a day */}
       {!loading && (
+        <div {...mod("daily")}>
         <DailyCard
           initial={data.daily}
           onBroadcast={() => channelRef.current?.send({ type: "broadcast", event: "daily_answered", payload: { by: me.id } })}
           registerRefetch={(fn) => { dailyRefetch.current = fn; }}
         />
+        </div>
       )}
 
       {/* Shared note — post-it */}
+      <div {...mod("note")}>
       <div
         className="rounded-sm px-4 pt-4 pb-4 relative"
         style={{
@@ -568,10 +631,12 @@ export default function DashboardClient() {
           rows={3}
         />
       </div>
+      </div>
 
       {/* Countdowns */}
       {!loading && (
-        data.countdowns.length === 0 ? (
+        <div {...mod("countdowns")}>
+        {data.countdowns.length === 0 ? (
           <button
             onClick={() => setShowCountdownSheet(true)}
             className="w-full rounded-3xl border border-dashed border-border/60 p-8 text-center transition-colors hover:border-border bg-secondary/40"
@@ -606,11 +671,13 @@ export default function DashboardClient() {
               );
             })}
           </div>
-        )
+        )}
+        </div>
       )}
 
       {/* Next free days */}
       {!loading && hasPartner && (
+        <div {...mod("free")}>
         <div className="card p-4">
           <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">next free times</p>
           {data.freeWindows.length === 0 ? (
@@ -643,10 +710,12 @@ export default function DashboardClient() {
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* Money — settlement snapshot + savings pots */}
       {!loading && (
+        <div {...mod("accounts")}>
         <div className="card p-4">
           <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">accounts</p>
 
@@ -690,10 +759,12 @@ export default function DashboardClient() {
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* Pinned to-do list — check off without leaving Home */}
       {!loading && data.priorityTodo && data.priorityTodo.items.length > 0 && (
+        <div {...mod("todo")}>
         <div className="card p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs text-muted-foreground font-medium tracking-wide truncate">
@@ -726,6 +797,15 @@ export default function DashboardClient() {
             <p className="text-[11px] text-muted-foreground/50 mt-2">+{data.priorityTodo.remaining - data.priorityTodo.items.length} more on the list</p>
           )}
         </div>
+        </div>
+      )}
+      </div>
+
+      {/* Customize layout */}
+      {!loading && (
+        <button onClick={openLayoutEditor} className="w-full mt-4 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors py-2">
+          <LayoutGrid className="w-3.5 h-3.5" /> edit layout
+        </button>
       )}
 
       {/* Date picker sheet (started_at) — requires explicit save (no auto-commit). */}
@@ -833,6 +913,35 @@ export default function DashboardClient() {
           </>
         )}
       </Dialog>
+
+      {/* Layout editor — reorder + half/full sizing */}
+      <BottomSheet
+        open={showLayoutEditor}
+        onClose={() => setShowLayoutEditor(false)}
+        title="edit layout"
+        footer={<Button onClick={saveLayout} className="w-full h-11 rounded-xl">done</Button>}
+      >
+        <p className="text-xs text-muted-foreground/60 mb-1">reorder your home — set a module to half-width and two will sit side by side.</p>
+        <div className="space-y-1.5">
+          {layoutDraft.map((m, i) => (
+            <div key={m.id} className="flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2.5">
+              <span className="text-sm text-foreground flex-1 truncate">{MODULE_LABEL[m.id] ?? m.id}</span>
+              {HALF_CAPABLE.has(m.id) && (
+                <button
+                  onClick={() => toggleSize(m.id)}
+                  className={cn("text-[11px] font-medium px-2 py-1 rounded-md transition-colors", m.size === "half" ? "bg-foreground text-background" : "bg-card text-muted-foreground")}
+                >
+                  {m.size === "half" ? "half" : "full"}
+                </button>
+              )}
+              <div className="flex items-center gap-0.5">
+                <button onClick={() => moveModule(i, -1)} disabled={i === 0} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30 hover:bg-card transition-colors" aria-label="move up"><ChevronUp className="w-4 h-4" /></button>
+                <button onClick={() => moveModule(i, 1)} disabled={i === layoutDraft.length - 1} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30 hover:bg-card transition-colors" aria-label="move down"><ChevronDown className="w-4 h-4" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </BottomSheet>
       </div>
     </div>
   );
