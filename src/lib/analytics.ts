@@ -17,7 +17,8 @@ export type AnalyticsEvent =
   | "daily_history_opened"
   | "todo_list_created"
   | "todo_added"
-  | "todo_completed";
+  | "todo_completed"
+  | "photo_added";
 
 type EventProps = Record<string, string | number | boolean | null | undefined>;
 

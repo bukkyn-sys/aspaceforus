@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef, type ReactNode } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
@@ -14,7 +14,7 @@ import {
   updateVaultItem,
   deleteVaultItem,
 } from "./actions";
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2, Copy, Images } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -28,6 +28,7 @@ import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 import { validateImage } from "@/lib/validate-image";
 import VaultTodos from "./vault-todos";
+import VaultPhotos from "./vault-photos";
 
 // Only allow http/https links — blocks javascript:/data:/etc. (stored XSS).
 function safeExternalUrl(url: string | null | undefined): string | null {
@@ -1157,18 +1158,8 @@ export default function VaultClient() {
       </div>
 
       {tab === "lists"  && <VaultLists />}
-      {tab === "photos" && <VaultComingSoon icon={<Images className="w-6 h-6" />} title="photos" line="a shared photo wall, just the two of you — coming here soon." />}
+      {tab === "photos" && <VaultPhotos />}
       {tab === "todos"  && <VaultTodos />}
-    </div>
-  );
-}
-
-function VaultComingSoon({ icon, title, line }: { icon: ReactNode; title: string; line: string }) {
-  return (
-    <div className="px-4 pt-16 pb-24 flex flex-col items-center text-center">
-      <div className="w-14 h-14 rounded-2xl bg-secondary flex items-center justify-center text-muted-foreground/50 mb-3">{icon}</div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="text-xs text-muted-foreground/50 mt-1 max-w-[230px] leading-relaxed">{line}</p>
     </div>
   );
 }
