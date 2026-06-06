@@ -105,7 +105,7 @@ function priceValue(p: string | null): number {
 
 // Trimmed to the genuinely-likely, with one general option last (📁 / ⭐).
 const EMOJI_OPTIONS = ["🌹", "🎁", "✈️", "🍽️", "🎬", "🏖️", "🎉", "📁"];
-const ITEM_EMOJIS   = ["🍽️", "🍷", "🎬", "✈️", "🎁", "🛍️", "🎨", "🏖️", "☕", "⭐"];
+const ITEM_EMOJIS   = ["🍽️", "🍷", "🎬", "✈️", "🎁", "🛍️", "🎨", "⭐"];
 
 // ── Module-level sub-components (must NOT be inside VaultClient — inline
 //    definitions get a new reference every render, causing unmount/remount) ──

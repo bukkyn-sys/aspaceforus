@@ -79,7 +79,7 @@ export function EventSheet({
   }
 
   const attendeeOpts = [
-    { id: null as string | null, name: "both of us", url: null as string | null, hex: "" },
+    { id: null as string | null, name: "both", url: null as string | null, hex: "" },
     { id: me.id, name: myName, url: me.avatar_url, hex: getAccent(me.accent_color).hex },
     ...(partner ? [{ id: partner.id, name: partnerName, url: partner.avatar_url, hex: getAccent(partner.accent_color).hex }] : []),
   ];
@@ -110,7 +110,7 @@ export function EventSheet({
               type="button"
               onClick={() => setEmoji(e)}
               className={cn(
-                "w-11 h-11 rounded-2xl text-xl flex items-center justify-center transition-all",
+                "h-11 rounded-2xl text-xl flex items-center justify-center transition-all",
                 emoji === e ? "bg-foreground" : "bg-secondary"
               )}
             >
@@ -132,20 +132,18 @@ export function EventSheet({
                   type="button"
                   onClick={() => setAttendee(a.id)}
                   className={cn(
-                    "inline-flex items-center gap-1.5 pl-1.5 pr-3 h-9 rounded-xl text-xs font-medium transition-colors",
+                    "flex items-center justify-center gap-1.5 px-2 h-10 rounded-xl text-xs font-medium transition-colors",
                     on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground"
                   )}
                 >
-                  {a.id === null ? (
-                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-foreground/10 text-[11px]">👥</span>
-                  ) : (
+                  {a.id !== null && (
                     <span className="w-6 h-6 rounded-full overflow-hidden flex-shrink-0" style={{ boxShadow: `0 0 0 1.5px ${a.hex}` }}>
                       {a.url
                         ? <SignedImg src={a.url} className="w-full h-full object-cover" />
                         : <span className="w-full h-full flex items-center justify-center text-[10px] font-semibold bg-secondary text-muted-foreground">{a.name[0]?.toUpperCase()}</span>}
                     </span>
                   )}
-                  {a.name}
+                  <span className="truncate">{a.name}</span>
                 </button>
               );
             })}
@@ -165,24 +163,24 @@ export function EventSheet({
                 type="button"
                 disabled={single}
                 onClick={() => setParts((prev) => on ? prev.filter((x) => x !== p) : [...prev, p])}
-                className={cn("px-3.5 h-9 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
+                className={cn("h-10 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
               >
                 {PART_META[p].label}
               </button>
             );
           })}
-          {!planContext && (
-            <button
-              type="button"
-              onClick={() => setParts((prev) => prev.length >= 4 ? [] : [...PARTS])}
-              className={cn("px-3.5 h-9 rounded-xl text-xs font-medium transition-colors", parts.length >= 4 ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
-            >
-              all day
-            </button>
-          )}
         </ChipRow>
+        {!planContext && (
+          <button
+            type="button"
+            onClick={() => setParts((prev) => prev.length >= 4 ? [] : [...PARTS])}
+            className={cn("w-full h-10 mt-2 rounded-xl text-xs font-medium transition-colors", parts.length >= 4 ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
+          >
+            all day
+          </button>
+        )}
         {planContext && (
-          <p className="text-[11px] text-sage mt-2 text-center">
+          <p className="text-[11px] text-sage mt-2">
             {planContext.freeParts.length === 1
               ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
               : "tap the parts you're booking — they'll no longer show as free"}
@@ -214,15 +212,15 @@ export function EventSheet({
             </div>
           </div>
           {multiDay && (
-            <p className="text-[11px] text-muted-foreground/50 mt-1.5 text-center">a multi-day event books every part of each day</p>
+            <p className="text-[11px] text-muted-foreground/50 mt-1.5">a multi-day event books every part of each day</p>
           )}
         </Field>
       )}
 
       {/* Optional exact time — a label only; the day-part is what books the slot */}
       <Field label={<>time <span className="normal-case font-normal opacity-50">(optional)</span></>}>
-        <div className="relative rounded-2xl overflow-hidden w-1/2 mx-auto">
-          <div className="bg-secondary px-3.5 pt-2.5 pb-3 text-center">
+        <div className="relative rounded-2xl overflow-hidden">
+          <div className="bg-secondary px-3.5 pt-2.5 pb-3">
             <p className={cn("text-sm font-medium", time ? "text-foreground" : "text-muted-foreground/40")}>{time ? fmtTimeLabel(time) : "select"}</p>
           </div>
           <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />

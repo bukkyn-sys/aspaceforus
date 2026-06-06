@@ -506,14 +506,14 @@ export default function LedgerClient() {
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="what for?" className="h-11 rounded-xl bg-card border-border/60" />
           <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`amount (${currency})`} type="number" min="0" step="0.01" className="h-11 rounded-xl bg-card border-border/60" />
           <Field label="category">
-            <ChipRow className="gap-1.5">
+            <div className="flex gap-1.5 overflow-x-auto py-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
               {CATEGORIES.map((c) => (
                 <button key={c.id} onClick={() => setCategory(category === c.id ? null : c.id)}
-                  className={cn("px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
+                  className={cn("flex-shrink-0 px-2.5 py-1.5 rounded-xl text-sm border transition-colors flex items-center gap-1",
                     category === c.id ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}><span>{c.emoji}</span>{c.label}</button>
               ))}
-            </ChipRow>
+            </div>
           </Field>
           <Field label="who paid?">
             <div className="flex gap-2">
@@ -543,7 +543,7 @@ export default function LedgerClient() {
                   )}>{r.label}</button>
               ))}
             </div>
-            {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5 text-center">recurring expenses stay on the ledger after you settle up</p>}
+            {recurrence !== "none" && <p className="text-[11px] text-muted-foreground/50 mt-1.5">recurring expenses stay on the ledger after you settle up</p>}
           </Field>
         </BottomSheet>
 
@@ -624,23 +624,23 @@ export default function LedgerClient() {
             </button>
             <Input value={potTitle} onChange={(e) => setPotTitle(e.target.value)} placeholder="what are you saving for?" className="h-11 rounded-xl bg-card border-border/60 flex-1" />
           </div>
-          <div className="flex flex-wrap justify-center gap-2">
+          <ChipRow>
             {["✈️","🏠","🚗","💍","🎁","🌴","👶","🎯"].map((e) => (
               <button key={e} type="button" onClick={() => setPotEmoji(e)}
-                className={cn("w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all",
+                className={cn("h-10 rounded-xl text-lg flex items-center justify-center transition-all",
                   potEmoji === e ? "bg-foreground/10 ring-2 ring-foreground/40" : "bg-secondary"
                 )}>{e}</button>
             ))}
-          </div>
+          </ChipRow>
           <Field label="currency">
-            <div className="flex justify-center gap-2">
+            <ChipRow>
               {CURRENCIES.map((c) => (
                 <button key={c} onClick={() => setPotCurrency(c)}
-                  className={cn("w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
+                  className={cn("h-11 rounded-xl text-sm font-bold border transition-colors",
                     potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
                   )}>{c}</button>
               ))}
-            </div>
+            </ChipRow>
           </Field>
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
           <Field label={<>target date <span className="opacity-50">(optional)</span></>}>
