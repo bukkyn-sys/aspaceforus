@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
-import { setAvailability, setAvailabilityDay, clearCoupleAvailabilityPart, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
+import { setAvailability, setAvailabilityDay, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -20,7 +20,7 @@ import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
 interface Row { user_id: string; date: string; part: DayPart; }
-interface CalEvent { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string; all_day: boolean; }
+interface CalEvent { id: string; title: string; emoji: string; on_date: string; parts: DayPart[]; until_date: string | null; start_time: string | null; created_by: string; }
 
 const PARTS: DayPart[] = ["morning", "afternoon", "evening", "night"];
 const PART_META: Record<DayPart, { label: string; time: string }> = {
@@ -35,24 +35,18 @@ type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-// Local calendar date (YYYY-MM-DD) of an instant — used to bucket events into day
-// cells in the VIEWER's timezone (timed events store a UTC instant; all-day events
-// store a naive local noon). Keeps month placement correct across timezones.
-function localDateOf(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-// "7pm" / "7:30pm" in the viewer's local timezone.
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  let h = d.getHours(); const m = d.getMinutes();
+// "19:00" → "7pm" / "7:30pm". start_time is an optional cosmetic label only.
+function fmtTimeLabel(hhmm: string): string {
+  const [hs, ms] = hhmm.split(":");
+  let h = parseInt(hs, 10); const m = parseInt(ms ?? "0", 10);
+  if (Number.isNaN(h)) return hhmm;
   const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
   return m === 0 ? `${h}${ap}` : `${h}:${pad2(m)}${ap}`;
 }
-// "HH:MM" local value for a <input type="time">.
-function timeInputOf(iso: string): string {
-  const d = new Date(iso);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+// Pretty day-parts label: "all day" when all four, else "morning · evening".
+function partsLabel(parts: DayPart[]): string {
+  if (parts.length >= 4) return "all day";
+  return PARTS.filter((p) => parts.includes(p)).map((p) => PART_META[p].label).join(" · ");
 }
 
 export default function CalendarClient() {
@@ -73,11 +67,9 @@ export default function CalendarClient() {
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
   const [eventTitle, setEventTitle] = useState("");
   const [eventDate, setEventDate] = useState("");
-  const [eventEndDate, setEventEndDate] = useState("");
+  const [eventUntilDate, setEventUntilDate] = useState("");
   const [eventEmoji, setEventEmoji] = useState("📅");
-  const [eventAllDay, setEventAllDay] = useState(false);
-  const [eventStartTime, setEventStartTime] = useState("18:00");
-  const [eventEndTime, setEventEndTime] = useState("");
+  const [eventTime, setEventTime] = useState("");
   const [, startTransition] = useTransition();
 
   const scrolled = useScrolled();
@@ -99,8 +91,7 @@ export default function CalendarClient() {
       const freeParts = ((partsParam?.split(",") ?? []).filter((p) => PARTS.includes(p as DayPart))) as DayPart[];
       setEditingEventId(null);
       setEventTitle(""); setEventEmoji("📅");
-      setEventDate(date); setEventEndDate("");
-      setEventAllDay(false); setEventStartTime(""); setEventEndTime("");
+      setEventDate(date); setEventUntilDate(""); setEventTime("");
       setSelectedParts(freeParts);   // default: book the whole free window
       setPlanContext({ date, freeParts });
       setShowAddEvent(true);
@@ -136,11 +127,11 @@ export default function CalendarClient() {
         .lte("date", end),
       supabase
         .from("events")
-        .select("id, title, start_at, end_at, emoji, created_by, all_day")
+        .select("id, title, emoji, created_by, on_date, parts, until_date, start_time")
         .eq("couple_id", coupleId)
-        .gte("start_at", start + "T00:00:00")
-        .lte("start_at", end + "T23:59:59")
-        .order("start_at"),
+        .lte("on_date", end)
+        .or(`until_date.gte.${start},on_date.gte.${start}`)
+        .order("on_date"),
     ]).then(([{ data: avail }, { data: evts }]) => {
       const rows = avail ?? [];
       const events = (evts as CalEvent[]) ?? [];
@@ -176,19 +167,24 @@ export default function CalendarClient() {
   function freeParts(userId: string, dateStr: string): DayPart[] {
     return PARTS.filter((p) => isFree(userId, dateStr, p));
   }
+  function getEvents(dateStr: string): CalEvent[] {
+    return events.filter((e) => {
+      const end = e.until_date ?? e.on_date;
+      return dateStr >= e.on_date && dateStr <= end;
+    });
+  }
+  // A part is booked if any event covers it. Multi-day events occupy every part
+  // of each day they span; single-day events occupy just their chosen parts.
+  function isBooked(dateStr: string, part: DayPart): boolean {
+    return getEvents(dateStr).some((e) =>
+      (!!e.until_date && e.until_date > e.on_date) || e.parts.includes(part));
+  }
+  // Free together = both marked free AND no event has booked that part.
   function bothFree(dateStr: string, part: DayPart): boolean {
-    return isFree(me.id, dateStr, part) && !!partner && isFree(partner.id, dateStr, part);
+    return isFree(me.id, dateStr, part) && !!partner && isFree(partner.id, dateStr, part) && !isBooked(dateStr, part);
   }
   function dayHasOverlap(dateStr: string): boolean {
     return PARTS.some((p) => bothFree(dateStr, p));
-  }
-
-  function getEvents(dateStr: string): CalEvent[] {
-    return events.filter((e) => {
-      const start = localDateOf(e.start_at);
-      const end = e.end_at ? localDateOf(e.end_at) : start;
-      return dateStr >= start && dateStr <= end;
-    });
   }
 
   function daysUntil(dateStr: string): number {
@@ -244,55 +240,38 @@ export default function CalendarClient() {
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     setEditingEventId(null);
     setEventTitle(""); setEventEmoji("📅");
-    setEventDate(today);
-    setEventEndDate("");
-    setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
+    setEventDate(today); setEventUntilDate(""); setEventTime("");
+    setSelectedParts([]);
+    setPlanContext(null);
     setShowAddEvent(true);
   });
 
   function handleSaveEvent() {
-    if (!eventTitle.trim() || !eventDate) return;
-    if (planContext && selectedParts.length === 0) return;
+    // Only a strictly-later "until" date counts as multi-day (which books whole days).
+    const multiDay = !!eventUntilDate && eventUntilDate > eventDate;
+    if (!eventTitle.trim() || !eventDate || (selectedParts.length === 0 && !multiDay)) return;
     const title = eventTitle.trim();
-    // In plan mode there's no all-day toggle — a time makes it timed, no time = all-day.
-    const allDay = planContext ? !eventStartTime : eventAllDay;
-    // All-day: store a naive local noon so .slice/date display stays tz-stable.
-    // Timed: store a real UTC instant (via toISOString from the viewer's local
-    // time) so it renders correctly in each partner's own timezone.
-    let startAt: string;
-    let endAt: string | null;
-    if (allDay) {
-      startAt = eventDate + "T12:00:00";
-      endAt = eventEndDate ? eventEndDate + "T12:00:00" : null;
-    } else {
-      startAt = new Date(`${eventDate}T${eventStartTime || "12:00"}`).toISOString();
-      endAt = eventEndTime
-        ? new Date(`${eventEndDate || eventDate}T${eventEndTime}`).toISOString()
-        : (eventEndDate ? eventEndDate + "T12:00:00" : null);
-    }
+    const onDate = eventDate;
+    const untilDate = multiDay ? eventUntilDate : null;
+    // Multi-day events occupy whole days; single-day ones use the chosen parts.
+    const parts: DayPart[] = untilDate ? [...PARTS] : selectedParts;
+    const startTime = eventTime || null;
+    // Booking is derived (a part with an event no longer shows as free together),
+    // so there's nothing to clear — adding the event is enough.
     if (editingEventId) {
       const id = editingEventId;
       setEvents((prev) => prev
-        .map((e) => e.id === id ? { ...e, title, start_at: startAt, end_at: endAt, emoji: eventEmoji, all_day: allDay } : e)
-        .sort((a, b) => a.start_at.localeCompare(b.start_at)));
-      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji, allDay }); });
+        .map((e) => e.id === id ? { ...e, title, emoji: eventEmoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime } : e)
+        .sort((a, b) => a.on_date.localeCompare(b.on_date)));
+      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji: eventEmoji }); });
     } else {
-      const optimistic: CalEvent = { id: crypto.randomUUID(), title, start_at: startAt, end_at: endAt, emoji: eventEmoji, created_by: me.id, all_day: allDay };
-      setEvents((prev) => [...prev, optimistic].sort((a, b) => a.start_at.localeCompare(b.start_at)));
+      const optimistic: CalEvent = { id: crypto.randomUUID(), title, emoji: eventEmoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime, created_by: me.id };
+      setEvents((prev) => [...prev, optimistic].sort((a, b) => a.on_date.localeCompare(b.on_date)));
       markActivity("calendar");
-      track("event_created", { multi_day: !!eventEndDate, all_day: allDay });
-      startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji, allDay }); });
+      track("event_created", { multi_day: !!untilDate, parts: parts.length });
+      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji: eventEmoji }); });
     }
-    // Planning a free window books it: clear that date+part for both partners so
-    // they no longer show as free then.
-    if (planContext) {
-      const date = planContext.date;
-      const parts = selectedParts;
-      setRows((prev) => prev.filter((r) => !(r.date === date && parts.includes(r.part))));
-      startTransition(() => { for (const p of parts) clearCoupleAvailabilityPart(coupleId, date, p); });
-    }
-    setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");
-    setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
+    setEventTitle(""); setEventUntilDate(""); setEventEmoji("📅"); setEventTime("");
     setPlanContext(null); setSelectedParts([]); setEditingEventId(null); setShowAddEvent(false);
   }
 
@@ -301,11 +280,11 @@ export default function CalendarClient() {
     setEditingEventId(evt.id);
     setEventTitle(evt.title);
     setEventEmoji(evt.emoji);
-    setEventDate(localDateOf(evt.start_at));
-    setEventEndDate(evt.end_at ? localDateOf(evt.end_at) : "");
-    setEventAllDay(evt.all_day);
-    setEventStartTime(evt.all_day ? "18:00" : timeInputOf(evt.start_at));
-    setEventEndTime(evt.all_day || !evt.end_at ? "" : timeInputOf(evt.end_at));
+    setEventDate(evt.on_date);
+    setEventUntilDate(evt.until_date ?? "");
+    setEventTime(evt.start_time ?? "");
+    setSelectedParts(evt.parts);
+    setPlanContext(null);
     setShowAddEvent(true);
   }
 
@@ -506,12 +485,11 @@ export default function CalendarClient() {
             <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
             <div className="space-y-2">
               {events.map((evt) => {
-                const d = new Date(evt.start_at);
+                const d = new Date(evt.on_date + "T12:00:00");
                 const o = resolveOwner(evt.created_by);
-                const startDate = localDateOf(evt.start_at);
                 // Every event counts down — show the days-until badge for any event
                 // that hasn't started yet (today / tmrw / N days).
-                const badge = startDate >= todayStr ? countdownLabel(startDate) : null;
+                const badge = evt.on_date >= todayStr ? countdownLabel(evt.on_date) : null;
                 return (
                   <div
                     key={evt.id}
@@ -525,9 +503,10 @@ export default function CalendarClient() {
                       <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                        {evt.all_day
-                          ? (evt.end_at && ` – ${new Date(evt.end_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`)
-                          : ` · ${fmtTime(evt.start_at)}${evt.end_at ? `–${fmtTime(evt.end_at)}` : ""}`}
+                        {evt.until_date && evt.until_date > evt.on_date
+                          ? ` – ${new Date(evt.until_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                          : ` · ${partsLabel(evt.parts)}`}
+                        {evt.start_time && ` · ${fmtTimeLabel(evt.start_time)}`}
                       </p>
                     </div>
                     {badge && (
@@ -621,8 +600,8 @@ export default function CalendarClient() {
                       <div key={evt.id} className="flex items-center gap-2.5 rounded-xl bg-secondary/60 px-3 py-2">
                         <span className="text-base flex-shrink-0">{evt.emoji}</span>
                         <span className="text-sm text-foreground flex-1 truncate">{evt.title}</span>
-                        <span className="text-[11px] text-muted-foreground tabular-nums flex-shrink-0">
-                          {evt.all_day ? "all day" : fmtTime(evt.start_at)}
+                        <span className="text-[11px] text-muted-foreground flex-shrink-0">
+                          {evt.start_time ? fmtTimeLabel(evt.start_time) : partsLabel(evt.parts)}
                         </span>
                       </div>
                     ))}
@@ -640,38 +619,11 @@ export default function CalendarClient() {
         onClose={() => { setShowAddEvent(false); setEditingEventId(null); setPlanContext(null); setSelectedParts([]); }}
         title={editingEventId ? "edit event" : planContext ? "plan your free time" : "new event"}
         footer={
-          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate || (!!planContext && selectedParts.length === 0)} className="w-full h-12 rounded-2xl text-[15px]">
+          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate || (selectedParts.length === 0 && !(eventUntilDate && eventUntilDate > eventDate))} className="w-full h-12 rounded-2xl text-[15px]">
             {editingEventId ? "save" : planContext ? "book it" : "add event"}
           </Button>
         }
       >
-        {planContext && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">block out</p>
-            <div className="flex gap-1.5 flex-wrap">
-              {planContext.freeParts.map((p) => {
-                const single = planContext.freeParts.length === 1;
-                const on = selectedParts.includes(p);
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    disabled={single}
-                    onClick={() => setSelectedParts((prev) => on ? prev.filter((x) => x !== p) : [...prev, p])}
-                    className={cn("px-3.5 h-9 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
-                  >
-                    {PART_META[p].label}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-sage mt-1.5">
-              {planContext.freeParts.length === 1
-                ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
-                : "tap the parts you're booking — they'll no longer show as free"}
-            </p>
-          </div>
-        )}
         <Input
           value={eventTitle}
           onChange={(e) => setEventTitle(e.target.value)}
@@ -695,57 +647,52 @@ export default function CalendarClient() {
             ))}
           </div>
         </div>
-        {/* All-day toggle (hidden when planning a free window) */}
-        {!planContext && (
-        <button
-          type="button"
-          onClick={() => setEventAllDay((v) => !v)}
-          aria-pressed={eventAllDay}
-          className={cn(
-            "flex items-center justify-between w-full rounded-2xl px-4 h-12 transition-colors",
-            eventAllDay ? "bg-foreground text-background" : "bg-secondary text-foreground"
-          )}
-        >
-          <span className="text-sm font-medium">all day</span>
-          <span className={cn("relative w-9 h-5 rounded-full transition-colors", eventAllDay ? "bg-background/30" : "bg-foreground/15")}>
-            <span className={cn(
-              "absolute top-0.5 w-4 h-4 rounded-full transition-all",
-              eventAllDay ? "left-[1.15rem] bg-background" : "left-0.5 bg-foreground/50"
-            )} />
-          </span>
-        </button>
-        )}
-
-        {/* Time — timed events, and the optional "be specific" time when planning */}
-        {!eventAllDay && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time {planContext && <span className="normal-case font-normal opacity-50">(optional)</span>}</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="relative rounded-2xl overflow-hidden">
-                <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                  <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">from</p>
-                  <p className="text-sm font-medium text-foreground">{eventStartTime || "select"}</p>
-                </div>
-                <input type="time" value={eventStartTime} onChange={(e) => setEventStartTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-              </div>
-              <div className="relative rounded-2xl overflow-hidden">
-                <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                  <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">to <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                  <p className={cn("text-sm font-medium", eventEndTime ? "text-foreground" : "text-muted-foreground/40")}>{eventEndTime || "select"}</p>
-                </div>
-                <input type="time" value={eventEndTime} onChange={(e) => setEventEndTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-              </div>
-            </div>
+        {/* Day-parts — the only time unit. In plan mode, limited to the free parts. */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">{planContext ? "block out" : "when"}</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {(planContext ? planContext.freeParts : PARTS).map((p) => {
+              const single = !!planContext && planContext.freeParts.length === 1;
+              const on = selectedParts.includes(p);
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  disabled={single}
+                  onClick={() => setSelectedParts((prev) => on ? prev.filter((x) => x !== p) : [...prev, p])}
+                  className={cn("px-3.5 h-9 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
+                >
+                  {PART_META[p].label}
+                </button>
+              );
+            })}
+            {!planContext && (
+              <button
+                type="button"
+                onClick={() => setSelectedParts((prev) => prev.length >= 4 ? [] : [...PARTS])}
+                className={cn("px-3.5 h-9 rounded-xl text-xs font-medium transition-colors", selectedParts.length >= 4 ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
+              >
+                all day
+              </button>
+            )}
           </div>
-        )}
+          {planContext && (
+            <p className="text-[11px] text-sage mt-1.5">
+              {planContext.freeParts.length === 1
+                ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
+                : "tap the parts you're booking — they'll no longer show as free"}
+            </p>
+          )}
+        </div>
 
+        {/* Date — single day, or a span via "until" (hidden when planning) */}
         {!planContext && (
         <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">date</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="relative rounded-2xl overflow-hidden">
               <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">on</p>
                 <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
                   {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
                 </p>
@@ -754,16 +701,30 @@ export default function CalendarClient() {
             </div>
             <div className="relative rounded-2xl overflow-hidden">
               <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                <p className={cn("text-sm font-medium", eventEndDate ? "text-foreground" : "text-muted-foreground/40")}>
-                  {eventEndDate ? new Date(eventEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
+                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">until <span className="normal-case font-normal opacity-50">(optional)</span></p>
+                <p className={cn("text-sm font-medium", eventUntilDate ? "text-foreground" : "text-muted-foreground/40")}>
+                  {eventUntilDate ? new Date(eventUntilDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
                 </p>
               </div>
-              <input type="date" value={eventEndDate} min={eventDate} onChange={(e) => setEventEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+              <input type="date" value={eventUntilDate} min={eventDate} onChange={(e) => setEventUntilDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
           </div>
+          {eventUntilDate && eventUntilDate > eventDate && (
+            <p className="text-[11px] text-muted-foreground/50 mt-1.5">a multi-day event books every part of each day</p>
+          )}
         </div>
         )}
+
+        {/* Optional exact time — a label only; the day-part is what books the slot */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time <span className="normal-case font-normal opacity-50">(optional)</span></p>
+          <div className="relative rounded-2xl overflow-hidden w-1/2">
+            <div className="bg-secondary px-3.5 pt-2.5 pb-3">
+              <p className={cn("text-sm font-medium", eventTime ? "text-foreground" : "text-muted-foreground/40")}>{eventTime ? fmtTimeLabel(eventTime) : "select"}</p>
+            </div>
+            <input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+          </div>
+        </div>
       </BottomSheet>
 
       {/* Event action prompt — creator only */}

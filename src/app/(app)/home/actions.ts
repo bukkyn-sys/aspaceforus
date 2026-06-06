@@ -37,9 +37,11 @@ export async function setStartedAt(coupleId: string, userId: string, date: strin
   await supabase.rpc("update_couple_started_at", { p_couple_id: coupleId, p_user_id: uid, p_date: date });
 }
 
-// Countdowns and events are one concept now: an "event". The home quick-add
-// creates an all-day event (date + optional end date). Anchored at local noon so
-// it lands on the right calendar day in every timezone, matching the calendar.
+// Countdowns and events are one concept now: a day-parts "event". The home
+// quick-add creates an all-day event (all four parts) on a date + optional
+// end date.
+const ALL_PARTS = ["morning", "afternoon", "evening", "night"];
+
 export async function addCountdown(data: {
   coupleId: string;
   userId: string;
@@ -54,10 +56,10 @@ export async function addCountdown(data: {
     couple_id: data.coupleId,
     created_by: uid,
     title: data.title,
-    start_at: data.targetDate + "T12:00:00",
-    end_at: data.endDate ? data.endDate + "T12:00:00" : null,
+    on_date: data.targetDate,
+    parts: ALL_PARTS,
+    until_date: data.endDate || null,
     emoji: data.emoji,
-    all_day: true,
   });
 }
 
@@ -77,10 +79,10 @@ export async function updateCountdown(data: {
     .from("events")
     .update({
       title: data.title,
-      start_at: data.targetDate + "T12:00:00",
-      end_at: data.endDate ? data.endDate + "T12:00:00" : null,
+      on_date: data.targetDate,
+      parts: ALL_PARTS,
+      until_date: data.endDate || null,
       emoji: data.emoji,
-      all_day: true,
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId);
@@ -95,4 +97,29 @@ export async function deleteCountdown(id: string, coupleId: string, userId: stri
     .delete()
     .eq("id", id)
     .eq("couple_id", coupleId);
+}
+
+// ── Shared note — per-author lines ───────────────────────────────────────────
+export async function addNoteLine(coupleId: string, body: string, sortOrder: number) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  const { data } = await supabase
+    .from("note_items")
+    .insert({ couple_id: coupleId, created_by: uid, body, sort_order: sortOrder })
+    .select("id")
+    .single();
+  return data?.id as string | undefined;
+}
+
+export async function updateNoteLine(id: string, coupleId: string, body: string) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  // Shared note: either partner may edit any line in their couple.
+  await supabase.from("note_items").update({ body }).eq("id", id).eq("couple_id", coupleId);
+}
+
+export async function deleteNoteLine(id: string, coupleId: string) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.from("note_items").delete().eq("id", id).eq("couple_id", coupleId);
 }

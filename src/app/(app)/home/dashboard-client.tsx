@@ -6,11 +6,10 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown, setDashboardLayout } from "./actions";
-import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
+import { setMood, setStartedAt, addCountdown, updateCountdown, deleteCountdown, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine } from "./actions";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -41,6 +40,7 @@ const COUNTDOWN_TYPES = [
 ];
 
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
+interface NoteLine { id: string; body: string; created_by: string; sort_order: number; }
 interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
 interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; }
 interface PriorityTodo { list_id: string; title: string; emoji: string; remaining: number; items: PriorityTodoItem[]; }
@@ -87,7 +87,7 @@ interface DashboardData {
   myMoodAt: string | null;
   partnerMood: number | null;
   partnerMoodAt: string | null;
-  sharedNote: string;
+  noteItems: NoteLine[];
   startedAt: string | null;
   bannerUrl: string | null;
   bannerFocus: number;
@@ -112,13 +112,14 @@ interface HomeData {
     dashboard_layout: DashModule[] | null;
   } | null;
   countdowns: Countdown[];
-  events: { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string }[];
+  events: { id: string; title: string; on_date: string; until_date: string | null; parts: string[]; start_time: string | null; emoji: string; created_by: string }[];
   free_days: { date: string; parts: string[] }[];
   balance: number;
   pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
   partner_action: { text: string; at: string } | null;
   daily?: DailyData;
   priority_todo?: PriorityTodo | null;
+  note_items: NoteLine[];
 }
 
 function timeUntil(dateStr: string) {
@@ -184,7 +185,7 @@ export default function DashboardClient() {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false }, priorityTodo: null, dashboardLayout: [],
+      noteItems: [], startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false }, priorityTodo: null, dashboardLayout: [],
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -204,6 +205,10 @@ export default function DashboardClient() {
   const [cdDate, setCdDate] = useState("");
   const [cdEndDate, setCdEndDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("✈️");
+
+  // Shared-note lines
+  const [noteDraft, setNoteDraft] = useState("");
+  const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(null);
 
   useRegisterFab(() => {
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
@@ -228,8 +233,6 @@ export default function DashboardClient() {
     if (!loading) setCache(`dash:${coupleId}`, { data, hasPartner });
   }, [data, hasPartner, loading, coupleId]);
 
-  const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const noteFocusedRef = useRef(false);
   const loadRef = useRef<(() => void) | null>(null);
   const dailyRefetch = useRef<(() => void) | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -255,7 +258,7 @@ export default function DashboardClient() {
         myMoodAt: h.me?.mood_updated_at ?? null,
         partnerMood: partner?.current_mood ?? null,
         partnerMoodAt: partner?.mood_updated_at ?? null,
-        sharedNote: h.couple?.shared_note ?? "",
+        noteItems: h.note_items ?? [],
         startedAt: h.couple?.started_at ?? null,
         bannerUrl: h.couple?.banner_url ?? null,
         bannerFocus: h.couple?.banner_focus ?? 50,
@@ -298,12 +301,7 @@ export default function DashboardClient() {
     // Realtime: note/started_at via postgres_changes, moods via broadcast.
     const channel = supabase.channel(`dash-${coupleId}`)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${coupleId}` },
-        (p) => setData((prev) => ({
-          ...prev,
-          startedAt: p.new.started_at ?? null,
-          // Don't clobber the textarea while the user is actively editing it.
-          sharedNote: noteFocusedRef.current ? prev.sharedNote : (p.new.shared_note ?? ""),
-        })))
+        (p) => setData((prev) => ({ ...prev, startedAt: p.new.started_at ?? null })))
       .on("broadcast", { event: "mood" },
         ({ payload }: { payload: { user_id: string; mood: number; at: string } }) => {
           if (payload.user_id === me.id) setData((prev) => ({ ...prev, myMood: payload.mood, myMoodAt: payload.at }));
@@ -327,6 +325,7 @@ export default function DashboardClient() {
       .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_todos",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "note_items",      filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .subscribe();
 
     channelRef.current = channel;
@@ -341,13 +340,34 @@ export default function DashboardClient() {
     startTransition(() => { setMood(me.id, mood, coupleId); });
   }
 
-  function handleNote(val: string) {
-    setData((prev) => ({ ...prev, sharedNote: val }));
-    if (noteTimer.current) clearTimeout(noteTimer.current);
-    noteTimer.current = setTimeout(() => {
-      track("note_updated");
-      startTransition(() => { updateNote(coupleId, me.id, val); });
-    }, 600);
+  function handleAddNote() {
+    const body = noteDraft.trim();
+    if (!body) return;
+    const tempId = crypto.randomUUID();
+    const sort = (data.noteItems.at(-1)?.sort_order ?? 0) + 1;
+    setData((prev) => ({ ...prev, noteItems: [...prev.noteItems, { id: tempId, body, created_by: me.id, sort_order: sort }] }));
+    setNoteDraft("");
+    track("note_updated");
+    startTransition(async () => {
+      const realId = await addNoteLine(coupleId, body, sort);
+      if (realId) setData((prev) => ({ ...prev, noteItems: prev.noteItems.map((n) => n.id === tempId ? { ...n, id: realId } : n) }));
+    });
+  }
+
+  function handleSaveNoteEdit() {
+    if (!editingNote) return;
+    const id = editingNote.id;
+    const body = editingNote.body.trim();
+    setEditingNote(null);
+    if (!body) { handleDeleteNote(id); return; }
+    setData((prev) => ({ ...prev, noteItems: prev.noteItems.map((n) => n.id === id ? { ...n, body } : n) }));
+    startTransition(() => { updateNoteLine(id, coupleId, body); });
+  }
+
+  function handleDeleteNote(id: string) {
+    setEditingNote(null);
+    setData((prev) => ({ ...prev, noteItems: prev.noteItems.filter((n) => n.id !== id) }));
+    startTransition(() => { deleteNoteLine(id, coupleId); });
   }
 
   function openStartedPicker() {
@@ -377,13 +397,10 @@ export default function DashboardClient() {
       startTransition(() => { updateCountdown({ id, coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
     } else {
       const cd: Countdown = { id: crypto.randomUUID(), title, target_date: cdDate, end_date: endDate, emoji: cdEmoji, created_by: me.id };
-      // Every free-together day the countdown now spans is blocked, not free —
-      // clear them all from availability + the free-days list (dates are ISO,
-      // so string comparison is chronological).
+      // A home event books all parts of the days it spans. Blocking is derived
+      // (the event itself removes those parts from "free together"), so we just
+      // drop the now-booked days from the optimistic free list for instant feedback.
       const rangeEnd = endDate ?? cdDate;
-      const blockedDates = Array.from(new Set(
-        data.freeWindows.filter((w) => w.date >= cdDate && w.date <= rangeEnd).map((w) => w.date)
-      ));
       setData((prev) => ({
         ...prev,
         countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
@@ -393,7 +410,6 @@ export default function DashboardClient() {
       track("countdown_created", { multi_day: !!endDate });
       startTransition(() => {
         addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
-        for (const d of blockedDates) setAvailabilityDay(coupleId, me.id, d, false);
       });
     }
     setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
@@ -636,16 +652,56 @@ export default function DashboardClient() {
         }}
       >
         <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE2B8" }} />
-        <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2">shared note</p>
-        <textarea
-          value={data.sharedNote}
-          onChange={(e) => handleNote(e.target.value)}
-          onFocus={() => { noteFocusedRef.current = true; }}
-          onBlur={() => { noteFocusedRef.current = false; }}
-          placeholder="jot something for both of you to see…"
-          className="w-full text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent resize-none outline-none leading-relaxed min-h-[80px]"
-          rows={3}
-        />
+        <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2.5">shared note</p>
+
+        {data.noteItems.length === 0 && !editingNote && (
+          <p className="text-sm text-amber-900/30 mb-1.5">jot a few things for both of you to see…</p>
+        )}
+
+        <div className="space-y-0.5">
+          {data.noteItems.map((n) => {
+            const hex = getAccent(n.created_by === me.id ? me.accent_color : (partner?.accent_color ?? null)).hex;
+            if (editingNote?.id === n.id) {
+              return (
+                <div key={n.id} className="flex items-center gap-1.5">
+                  <input
+                    value={editingNote.body}
+                    onChange={(e) => setEditingNote({ id: n.id, body: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveNoteEdit(); }}
+                    autoFocus
+                    className="flex-1 text-sm bg-amber-100/50 rounded-lg px-2 py-1 outline-none font-semibold"
+                    style={{ color: hex }}
+                  />
+                  <button onClick={handleSaveNoteEdit} className="w-7 h-7 flex items-center justify-center text-amber-700/70 active:scale-95" aria-label="save"><Check className="w-4 h-4" /></button>
+                  <button onClick={() => handleDeleteNote(n.id)} className="w-7 h-7 flex items-center justify-center text-terracotta/70 active:scale-95" aria-label="delete"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={n.id}
+                onClick={() => setEditingNote({ id: n.id, body: n.body })}
+                className="block w-full text-left text-sm font-semibold leading-relaxed break-words active:opacity-70"
+                style={{ color: hex }}
+              >
+                {n.body}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-1.5 mt-2">
+          <input
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
+            placeholder="add a line…"
+            className="flex-1 text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent outline-none"
+          />
+          {noteDraft.trim() && (
+            <button onClick={handleAddNote} className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-200/50 text-amber-800/80 active:scale-95" aria-label="add line"><Plus className="w-4 h-4" /></button>
+          )}
+        </div>
       </div>
       </div>
 

@@ -53,14 +53,18 @@ export async function setAvailabilityDay(
   });
 }
 
+// Events are day-parts now: a date + one or more parts (morning/afternoon/
+// evening/night). untilDate spans a multi-day event (all parts each day);
+// startTime is an optional cosmetic label only (no free/busy logic).
 export async function addEvent(data: {
   coupleId: string;
   userId: string;
   title: string;
-  startAt: string;
-  endAt?: string | null;
+  onDate: string;
+  parts: DayPart[];
+  untilDate?: string | null;
+  startTime?: string | null;
   emoji?: string;
-  allDay?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -68,10 +72,11 @@ export async function addEvent(data: {
     couple_id: data.coupleId,
     created_by: uid,
     title: data.title,
-    start_at: data.startAt,
-    end_at: data.endAt ?? null,
+    on_date: data.onDate,
+    parts: data.parts,
+    until_date: data.untilDate || null,
+    start_time: data.startTime || null,
     emoji: data.emoji ?? "📅",
-    all_day: data.allDay ?? false,
   });
 }
 
@@ -80,10 +85,11 @@ export async function updateEvent(data: {
   coupleId: string;
   userId: string;
   title: string;
-  startAt: string;
-  endAt?: string | null;
+  onDate: string;
+  parts: DayPart[];
+  untilDate?: string | null;
+  startTime?: string | null;
   emoji?: string;
-  allDay?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -93,10 +99,11 @@ export async function updateEvent(data: {
     .from("events")
     .update({
       title: data.title,
-      start_at: data.startAt,
-      end_at: data.endAt ?? null,
+      on_date: data.onDate,
+      parts: data.parts,
+      until_date: data.untilDate || null,
+      start_time: data.startTime || null,
       emoji: data.emoji ?? "📅",
-      all_day: data.allDay ?? false,
     })
     .eq("id", data.id)
     .eq("couple_id", data.coupleId);
