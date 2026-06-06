@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/bottom-nav";
 import PushSubscribe from "@/components/push-subscribe";
-import PullToRefresh from "@/components/pull-to-refresh";
 import PageTransition from "@/components/page-transition";
 import Toaster from "@/components/toaster";
 import OfflineBanner from "@/components/offline-banner";
@@ -89,7 +88,6 @@ export default async function AppLayout({
         <NotificationProvider>
           <div className="min-h-dvh bg-background flex flex-col">
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
-            <PullToRefresh />
             <Toaster />
             <OfflineBanner />
             <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">

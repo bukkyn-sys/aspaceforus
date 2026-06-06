@@ -37,8 +37,10 @@ const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth()
  */
 function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (d: Date) => void; render: (d: Date) => ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const midRef = useRef<HTMLDivElement>(null);
   const lock = useRef(false);
   const timer = useRef<number | undefined>(undefined);
+  const [height, setHeight] = useState<number | undefined>(undefined);
 
   // Centre on the middle pane instantly on mount and whenever the month changes.
   useLayoutEffect(() => {
@@ -48,6 +50,17 @@ function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (
     el.scrollLeft = el.clientWidth;
     const t = window.setTimeout(() => { lock.current = false; }, 120);
     return () => window.clearTimeout(t);
+  }, [current]);
+
+  // Size the viewport to the current (centre) month so a busier neighbour
+  // doesn't leave a tall gap, and the page scrolls naturally.
+  useEffect(() => {
+    const pane = midRef.current;
+    if (!pane) return;
+    const ro = new ResizeObserver(() => setHeight(pane.offsetHeight));
+    ro.observe(pane);
+    setHeight(pane.offsetHeight);
+    return () => ro.disconnect();
   }, [current]);
 
   function onScroll() {
@@ -74,10 +87,15 @@ function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (
         scrollSnapType: "x mandatory",
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
+        height: height ? `${height}px` : undefined,
       }}
     >
       {[-1, 0, 1].map((off) => (
-        <div key={off} style={{ flex: "0 0 100%", minWidth: "100%", scrollSnapAlign: "start", alignSelf: "flex-start" }}>
+        <div
+          key={off}
+          ref={off === 0 ? midRef : undefined}
+          style={{ flex: "0 0 100%", minWidth: "100%", scrollSnapAlign: "start", alignSelf: "flex-start" }}
+        >
           {render(addMonths(current, off))}
         </div>
       ))}
@@ -341,7 +359,14 @@ export default function CalendarClient() {
     ];
     while (monthCells.length % 7 !== 0) monthCells.push(null);
 
+    // Only this month's events (the data window spans 3 months for the swipe peek).
+    const mm = String(m + 1).padStart(2, "0");
+    const monthStart = `${y}-${mm}-01`;
+    const monthEnd = `${y}-${mm}-${String(dim).padStart(2, "0")}`;
+    const monthEvents = events.filter((e) => e.on_date <= monthEnd && (e.until_date ?? e.on_date) >= monthStart);
+
     return (
+      <div className="pb-2">
       <div className="grid grid-cols-7 gap-y-2 px-2">
         {monthCells.map((day, i) => {
           if (!day) return <div key={i} />;
@@ -418,6 +443,88 @@ export default function CalendarClient() {
           );
         })}
       </div>
+
+      {/* ── Legend ─────────────────────────────────────────── */}
+      <div className="px-5 mt-4 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: myAccent.hex }} />
+          <span className="text-xs text-muted-foreground/60">you free</span>
+        </div>
+        {partner && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
+            <span className="text-xs text-muted-foreground/60">{partnerName} free</span>
+          </div>
+        )}
+        {partner && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-[var(--free-cell)]" />
+            <span className="text-xs text-muted-foreground/60">both free</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] leading-none">📅</span>
+          <span className="text-xs text-muted-foreground/60">event</span>
+        </div>
+      </div>
+      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to set your free times</p>
+
+      {/* ── Events this month ──────────────────────────────── */}
+      <div className="px-5 mt-8 min-h-[40vh]">
+        {!loading && monthEvents.length === 0 && (
+          <div className="flex flex-col items-center py-6 gap-2">
+            <p className="text-sm text-muted-foreground">no events this month</p>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
+              tap the
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
+                <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
+              </span>
+              to add an event
+            </div>
+          </div>
+        )}
+
+        {!loading && monthEvents.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
+            <div className="space-y-2">
+              {monthEvents.map((evt) => {
+                const d = new Date(evt.on_date + "T12:00:00");
+                const o = resolveOwner(evt.attendee ?? null);
+                const badge = evt.on_date >= todayStr ? countdownLabel(evt.on_date) : null;
+                return (
+                  <div
+                    key={evt.id}
+                    {...clickable(() => setActionEvent(evt))}
+                    className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
+                    style={ownerCardStyle(o)}
+                  >
+                    <span className="text-xl flex-shrink-0">{evt.emoji}</span>
+                    <OwnerAvatars people={o.people} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                        {evt.until_date && evt.until_date > evt.on_date
+                          ? ` – ${new Date(evt.until_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
+                          : ` · ${partsLabel(evt.parts)}`}
+                        {evt.start_time && ` · ${fmtTimeLabel(evt.start_time)}`}
+                      </p>
+                    </div>
+                    {badge && (
+                      <div className="text-right flex-shrink-0 min-w-[2.5rem]">
+                        <p className="text-sm font-semibold text-foreground">{badge.top}</p>
+                        {badge.bottom && <p className="text-[10px] text-muted-foreground">{badge.bottom}</p>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+      </div>
     );
   }
 
@@ -460,91 +567,8 @@ export default function CalendarClient() {
         ))}
       </div>
 
-      {/* ── Grid — swipe left/right to change month (live, finger-tracked) ── */}
+      {/* ── Grid + legend + events — swipe anywhere here to change month ── */}
       <MonthSwiper current={current} onChange={setCurrent} render={renderMonth} />
-
-      {/* ── Always-visible compact legend ──────────────────── */}
-      <div className="px-5 mt-4 flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: myAccent.hex }} />
-          <span className="text-xs text-muted-foreground/60">you free</span>
-        </div>
-        {partner && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: partnerAccent.hex, opacity: 0.65 }} />
-            <span className="text-xs text-muted-foreground/60">{partnerName} free</span>
-          </div>
-        )}
-        {partner && (
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-[var(--free-cell)]" />
-            <span className="text-xs text-muted-foreground/60">both free</span>
-          </div>
-        )}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] leading-none">📅</span>
-          <span className="text-xs text-muted-foreground/60">event</span>
-        </div>
-      </div>
-      <p className="px-5 mt-1.5 text-[11px] text-muted-foreground/45">tap a day to set your free times</p>
-
-      {/* ── Events this month ──────────────────────────────── */}
-      <div className="px-5 mt-8">
-        {!loading && events.length === 0 && (
-          <div className="flex flex-col items-center py-6 gap-2">
-            <p className="text-sm text-muted-foreground">no events this month</p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground/60">
-              tap the
-              <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-foreground">
-                <Plus className="w-3 h-3 text-background" strokeWidth={2.5} />
-              </span>
-              to add an event
-            </div>
-          </div>
-        )}
-
-        {!loading && events.length > 0 && (
-          <div>
-            <p className="text-xs text-muted-foreground/50 font-medium tracking-wide mb-3">events this month</p>
-            <div className="space-y-2">
-              {events.map((evt) => {
-                const d = new Date(evt.on_date + "T12:00:00");
-                const o = resolveOwner(evt.attendee ?? null);
-                // Every event counts down — show the days-until badge for any event
-                // that hasn't started yet (today / tmrw / N days).
-                const badge = evt.on_date >= todayStr ? countdownLabel(evt.on_date) : null;
-                return (
-                  <div
-                    key={evt.id}
-                    {...clickable(() => setActionEvent(evt))}
-                    className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
-                    style={ownerCardStyle(o)}
-                  >
-                    <span className="text-xl flex-shrink-0">{evt.emoji}</span>
-                    <OwnerAvatars people={o.people} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{evt.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                        {evt.until_date && evt.until_date > evt.on_date
-                          ? ` – ${new Date(evt.until_date + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
-                          : ` · ${partsLabel(evt.parts)}`}
-                        {evt.start_time && ` · ${fmtTimeLabel(evt.start_time)}`}
-                      </p>
-                    </div>
-                    {badge && (
-                      <div className="text-right flex-shrink-0 min-w-[2.5rem]">
-                        <p className="text-sm font-semibold text-foreground">{badge.top}</p>
-                        {badge.bottom && <p className="text-[10px] text-muted-foreground">{badge.bottom}</p>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Day view — set your free parts + see the day's events */}
       <BottomSheet
