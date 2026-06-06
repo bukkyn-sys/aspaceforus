@@ -1,0 +1,18 @@
+name: todo-reminders
+
+# Once a day in the morning (UTC), push reminders for to-dos that are due/overdue
+# and flagged "remind". De-duped server-side (once/day/item). Requires CRON_SECRET.
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: send to-do reminders
+        # Hit the canonical www host directly (apex redirect drops the auth header).
+        run: |
+          curl -fsS -X POST "https://www.aspaceforus.app/api/cron/todo-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

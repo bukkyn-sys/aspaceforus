@@ -25,7 +25,7 @@ interface Todo {
   id: string; list_id: string; title: string; notes: string | null;
   done: boolean; done_at: string | null; done_by: string | null;
   due_date: string | null; assignee: string | null; created_by: string; created_at: string;
-  parent_id: string | null; recurrence: string;
+  parent_id: string | null; recurrence: string; remind: boolean;
 }
 
 const RECUR_LABEL: Record<string, string> = { none: "no repeat", daily: "daily", weekly: "weekly", monthly: "monthly" };
@@ -84,6 +84,7 @@ export default function VaultTodos() {
   const [itemDue, setItemDue] = useState("");
   const [itemAssignee, setItemAssignee] = useState<string | null>(null);
   const [itemRecurrence, setItemRecurrence] = useState("none");
+  const [itemRemind, setItemRemind] = useState(false);
   const [subtaskDraft, setSubtaskDraft] = useState("");
 
   // ── Loads ──────────────────────────────────────────────────────────────────
@@ -181,11 +182,11 @@ export default function VaultTodos() {
   function openList(l: TodoList) { setActiveList(l); setView("items"); setShowDone(false); }
   function backToLists() { setView("lists"); setActiveList(null); }
 
-  function openAddItem() { setEditingItem(null); setItemTitle(""); setItemNotes(""); setItemDue(""); setItemAssignee(null); setItemRecurrence("none"); setSubtaskDraft(""); setShowItem(true); }
+  function openAddItem() { setEditingItem(null); setItemTitle(""); setItemNotes(""); setItemDue(""); setItemAssignee(null); setItemRecurrence("none"); setItemRemind(false); setSubtaskDraft(""); setShowItem(true); }
   function openEditItem(t: Todo) {
     setEditingItem(t);
     setItemTitle(t.title); setItemNotes(t.notes ?? ""); setItemDue(t.due_date ?? ""); setItemAssignee(t.assignee);
-    setItemRecurrence(t.recurrence ?? "none"); setSubtaskDraft("");
+    setItemRecurrence(t.recurrence ?? "none"); setItemRemind(t.remind ?? false); setSubtaskDraft("");
     setShowItem(true);
   }
 
@@ -196,18 +197,18 @@ export default function VaultTodos() {
     const notes = itemNotes.trim() || null;
     if (editingItem) {
       const id = editingItem.id;
-      setTodos((prev) => prev.map((t) => t.id === id ? { ...t, title, notes, due_date: due, assignee: itemAssignee, recurrence: itemRecurrence } : t));
-      startTransition(() => { updateTodo({ id, coupleId, title, notes, dueDate: due, assignee: itemAssignee, recurrence: itemRecurrence }); });
+      setTodos((prev) => prev.map((t) => t.id === id ? { ...t, title, notes, due_date: due, assignee: itemAssignee, recurrence: itemRecurrence, remind: itemRemind } : t));
+      startTransition(() => { updateTodo({ id, coupleId, title, notes, dueDate: due, assignee: itemAssignee, recurrence: itemRecurrence, remind: itemRemind }); });
     } else {
       const tempId = crypto.randomUUID();
       const optimistic: Todo = {
         id: tempId, list_id: activeList.id, title, notes, done: false, done_at: null, done_by: null,
         due_date: due, assignee: itemAssignee, created_by: me.id, created_at: new Date().toISOString(),
-        parent_id: null, recurrence: itemRecurrence,
+        parent_id: null, recurrence: itemRecurrence, remind: itemRemind,
       };
       setTodos((prev) => [...prev, optimistic]);
       track("todo_added");
-      addTodo({ coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined, recurrence: itemRecurrence })
+      addTodo({ coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined, recurrence: itemRecurrence, remind: itemRemind })
         .then((realId) => { if (realId) setTodos((prev) => prev.map((t) => t.id === tempId ? { ...t, id: realId } : t)); });
     }
     setShowItem(false); setEditingItem(null);
@@ -239,7 +240,7 @@ export default function VaultTodos() {
     const optimistic: Todo = {
       id: tempId, list_id: activeList.id, title: t, notes: null, done: false, done_at: null, done_by: null,
       due_date: null, assignee: null, created_by: me.id, created_at: new Date().toISOString(),
-      parent_id: editingItem.id, recurrence: "none",
+      parent_id: editingItem.id, recurrence: "none", remind: false,
     };
     setTodos((prev) => [...prev, optimistic]);
     addTodo({ coupleId, listId: activeList.id, title: t, parentId: editingItem.id })
@@ -436,6 +437,15 @@ export default function VaultTodos() {
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">due date <span className="font-normal opacity-50">(optional)</span></p>
           <DateField value={itemDue} onChange={setItemDue} placeholder="no due date" />
           {itemDue && <button onClick={() => setItemDue("")} className="text-xs text-muted-foreground/50 mt-1.5">clear date</button>}
+          {itemDue && (
+            <button type="button" onClick={() => setItemRemind((v) => !v)}
+              className={cn("flex items-center justify-between w-full rounded-xl px-3.5 h-10 mt-2 transition-colors", itemRemind ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>
+              <span className="text-xs font-medium">remind us when it&apos;s due</span>
+              <span className={cn("relative w-8 h-[18px] rounded-full transition-colors", itemRemind ? "bg-background/30" : "bg-foreground/15")}>
+                <span className={cn("absolute top-0.5 w-3.5 h-3.5 rounded-full transition-all", itemRemind ? "left-[18px] bg-background" : "left-0.5 bg-foreground/50")} />
+              </span>
+            </button>
+          )}
         </div>
         <div>
           <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">for</p>

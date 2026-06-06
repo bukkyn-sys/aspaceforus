@@ -51,6 +51,7 @@ export async function addTodo(data: {
   assignee?: string;
   recurrence?: string;
   parentId?: string;
+  remind?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -66,6 +67,7 @@ export async function addTodo(data: {
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",
+      remind: data.remind || false,
     })
     .select("id")
     .single();
@@ -84,6 +86,7 @@ export async function updateTodo(data: {
   dueDate?: string | null;
   assignee?: string | null;
   recurrence?: string;
+  remind?: boolean;
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
@@ -95,6 +98,7 @@ export async function updateTodo(data: {
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",
+      remind: data.remind || false,
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)
