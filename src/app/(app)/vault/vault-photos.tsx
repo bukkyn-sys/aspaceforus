@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
@@ -95,9 +96,13 @@ export default function VaultPhotos() {
       supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id,favorite")
         .eq("couple_id", coupleId).is("archived_at", null).order("created_at", { ascending: false }),
       supabase.from("vault_albums").select("id,name,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
-    ]).then(([{ data: ph }, { data: al }]) => {
+    ]).then(([{ data: ph, error: phErr }, { data: al }]) => {
+      setLoading(false);
+      // A query error (e.g. a column from a not-yet-run migration) must NOT wipe
+      // already-loaded photos or the cache — that's what made photos "vanish".
+      if (phErr) { console.error("vault photos load failed", phErr); return; }
       const next = (ph as Photo[]) ?? [];
-      setPhotos(next); setAlbums((al as Album[]) ?? []); setLoading(false); setCache(`vphotos:${coupleId}`, next);
+      setPhotos(next); setAlbums((al as Album[]) ?? []); setCache(`vphotos:${coupleId}`, next);
     });
   }, [coupleId, rtick, supabase]);
 
@@ -398,10 +403,26 @@ function Lightbox({
   const [confirmDel, setConfirmDel] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(photo.caption ?? "");
+  const [burst, setBurst] = useState(false);
+  const lastTap = useRef(0);
   // Private bucket — sign the URL (blob: object URLs pass through unchanged).
   const signed = useSignedUrl(src);
 
   useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); }, [photo.id, photo.caption]);
+
+  // Double-tap the photo to favourite it (Instagram-style) — only ever loves,
+  // never un-loves, and always shows the heart burst.
+  function onImageTap() {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      lastTap.current = 0;
+      if (!photo.favorite) onFavorite();
+      setBurst(true);
+      window.setTimeout(() => setBurst(false), 750);
+    } else {
+      lastTap.current = now;
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-black/92 flex flex-col" style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}>
@@ -434,8 +455,22 @@ function Lightbox({
       <div className="flex-1 min-h-0 relative flex items-center justify-center px-2">
         {signed
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={signed} alt={photo.caption ?? ""} className="max-w-full max-h-full object-contain rounded-lg" />
+          ? <img src={signed} alt={photo.caption ?? ""} onClick={onImageTap} className="max-w-full max-h-full object-contain rounded-lg cursor-pointer select-none" draggable={false} />
           : <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" aria-label="loading" />}
+        <AnimatePresence>
+          {burst && (
+            <motion.div
+              key="burst"
+              initial={{ scale: 0.3, opacity: 0 }}
+              animate={{ scale: [0.3, 1.15, 1], opacity: [0, 1, 1] }}
+              exit={{ scale: 1.3, opacity: 0 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            >
+              <Heart className="w-24 h-24 text-white fill-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" />
+            </motion.div>
+          )}
+        </AnimatePresence>
         {hasPrev && (
           <button onClick={onPrev} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="previous">
             <ChevronLeft className="w-5 h-5" />

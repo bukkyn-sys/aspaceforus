@@ -113,8 +113,8 @@ export default function DailyHistoryClient() {
 
 function Row({ name, url, hex, answer }: { name: string; url: string | null; hex: string; answer: string }) {
   return (
-    <div className="flex gap-2.5">
-      <div className="w-6 h-6 rounded-full overflow-hidden bg-secondary flex-shrink-0 mt-0.5"
+    <div className="flex items-center gap-2.5">
+      <div className="w-6 h-6 rounded-full overflow-hidden bg-secondary flex-shrink-0"
         style={{ boxShadow: `0 0 0 2px ${hex}` }}>
         {url
           ? <SignedImg src={url} className="w-full h-full object-cover" />
