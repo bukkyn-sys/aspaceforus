@@ -65,7 +65,7 @@ interface DashboardData {
   countdowns: Countdown[];
   inviteCode: string | null;
   partnerAction: { text: string; at: string } | null;
-  freeWindows: { date: string; part: string }[];
+  freeWindows: { date: string; parts: string[] }[];
   balance: number;   // + means partner owes you, − means you owe partner
   pots: PotMini[];
   daily: DailyData;
@@ -82,7 +82,7 @@ interface HomeData {
   } | null;
   countdowns: Countdown[];
   events: { id: string; title: string; start_at: string; end_at: string | null; emoji: string; created_by: string }[];
-  free_days: { date: string; part: string }[];
+  free_days: { date: string; parts: string[] }[];
   balance: number;
   pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
   partner_action: { text: string; at: string } | null;
@@ -624,15 +624,15 @@ export default function DashboardClient() {
                 const d = new Date(w.date + "T12:00:00");
                 const diff = Math.round((d.getTime() - Date.now()) / 86400000);
                 return (
-                  <div key={`${w.date}-${w.part}`} className="flex items-center justify-between">
+                  <div key={w.date} className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">
-                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.part}</span>
+                        {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.parts.join(", ")}</span>
                       </p>
                       <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>
                     </div>
                     <Link
-                      href={`/calendar?plan=${w.date}:${w.part}`}
+                      href={`/calendar?plan=${w.date}:${w.parts[0] ?? "afternoon"}`}
                       className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-foreground active:scale-95 transition-transform flex-shrink-0"
                     >
                       <Plus className="w-3 h-3" strokeWidth={2.5} /> plan
