@@ -624,9 +624,9 @@ export default function DashboardClient() {
                 const d = new Date(w.date + "T12:00:00");
                 const diff = Math.round((d.getTime() - Date.now()) / 86400000);
                 return (
-                  <div key={w.date} className="flex items-center justify-between">
+                  <div key={w.date} className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                      <p className="text-sm font-medium text-foreground leading-snug">
                         {d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })} <span className="text-sage">{w.parts.join(", ")}</span>
                       </p>
                       <p className="text-xs font-medium text-sage">in {diff} day{diff !== 1 ? "s" : ""}</p>

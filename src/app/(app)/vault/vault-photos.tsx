@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus } from "lucide-react";
-import { addPhoto, updatePhotoCaption, deletePhoto, createAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
+import { addPhoto, updatePhotoCaption, deletePhoto, createAlbum, renameAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
 
 interface Photo {
   id: string;
@@ -80,7 +80,8 @@ export default function VaultPhotos() {
   const [activeAlbum, setActiveAlbum] = useState<string | null>(null); // null = all
   const [showNewAlbum, setShowNewAlbum] = useState(false);
   const [albumName, setAlbumName] = useState("");
-  const [confirmDelAlbum, setConfirmDelAlbum] = useState<Album | null>(null);
+  const [editAlbum, setEditAlbum] = useState<Album | null>(null);
+  const [editAlbumName, setEditAlbumName] = useState("");
   const [movingPhoto, setMovingPhoto] = useState<Photo | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
@@ -164,11 +165,21 @@ export default function VaultPhotos() {
     setShowNewAlbum(false); setAlbumName("");
   }
 
+  function handleRenameAlbum() {
+    if (!editAlbum) return;
+    const name = editAlbumName.trim();
+    if (!name) return;
+    const id = editAlbum.id;
+    setAlbums((prev) => prev.map((a) => a.id === id ? { ...a, name } : a));
+    setEditAlbum(null);
+    renameAlbum(id, coupleId, name);
+  }
+
   function handleDeleteAlbum(a: Album) {
     setAlbums((prev) => prev.filter((x) => x.id !== a.id));
     setPhotos((prev) => prev.map((p) => p.album_id === a.id ? { ...p, album_id: null } : p));
     if (activeAlbum === a.id) setActiveAlbum(null);
-    setConfirmDelAlbum(null);
+    setEditAlbum(null);
     deleteAlbum(a.id, coupleId);
   }
 
@@ -205,7 +216,7 @@ export default function VaultPhotos() {
         <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
           <AlbumChip active={activeAlbum === null} label="all" onClick={() => setActiveAlbum(null)} />
           {albums.map((a) => (
-            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} onLong={() => setConfirmDelAlbum(a)} />
+            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} onLong={() => { setEditAlbum(a); setEditAlbumName(a.name); }} />
           ))}
           <button onClick={() => { setAlbumName(""); setShowNewAlbum(true); }} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             <Plus className="w-3.5 h-3.5" /> album
@@ -280,18 +291,25 @@ export default function VaultPhotos() {
         )}
       </BottomSheet>
 
-      {/* Delete album */}
-      <Dialog open={confirmDelAlbum !== null} onClose={() => setConfirmDelAlbum(null)}>
-        {confirmDelAlbum && (
+      {/* Edit album — rename or delete */}
+      <Dialog open={editAlbum !== null} onClose={() => setEditAlbum(null)}>
+        {editAlbum && (
           <>
-            <p className="font-semibold text-foreground text-center truncate">{confirmDelAlbum.name}</p>
-            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">delete this album? the photos stay — they just go back to the wall.</p>
+            <p className="text-sm font-medium text-foreground text-center mb-3">edit album</p>
+            <Input
+              value={editAlbumName}
+              onChange={(e) => setEditAlbumName(e.target.value)}
+              placeholder="album name"
+              className="h-11 rounded-xl bg-card border-border/60 mb-3"
+            />
             <div className="space-y-2">
-              <Button variant="outline" onClick={() => handleDeleteAlbum(confirmDelAlbum)} className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light">
+              <Button onClick={handleRenameAlbum} disabled={!editAlbumName.trim()} className="w-full h-11 rounded-xl">save</Button>
+              <Button variant="outline" onClick={() => handleDeleteAlbum(editAlbum)} className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light">
                 <Trash2 className="w-4 h-4 mr-1.5" /> delete album
               </Button>
-              <button onClick={() => setConfirmDelAlbum(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+              <button onClick={() => setEditAlbum(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
             </div>
+            <p className="text-[11px] text-muted-foreground/50 text-center mt-3">deleting keeps the photos — they go back to the wall.</p>
           </>
         )}
       </Dialog>
