@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef, type PointerEvent as RPointerEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
@@ -14,10 +14,10 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin, Repeat } from "lucide-react";
+import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin, Repeat, GripVertical } from "lucide-react";
 import {
   createTodoList, renameTodoList, deleteTodoList,
-  addTodo, updateTodo, setTodoDone, deleteTodo, clearCompleted, setPriorityTodoList,
+  addTodo, updateTodo, setTodoDone, deleteTodo, clearCompleted, setPriorityTodoList, reorderTodos,
 } from "./todo-actions";
 
 interface TodoList { id: string; title: string; emoji: string; created_by: string; created_at: string; total: number; done: number; }
@@ -25,7 +25,7 @@ interface Todo {
   id: string; list_id: string; title: string; notes: string | null;
   done: boolean; done_at: string | null; done_by: string | null;
   due_date: string | null; assignee: string | null; created_by: string; created_at: string;
-  parent_id: string | null; recurrence: string; remind: boolean;
+  parent_id: string | null; recurrence: string; remind: boolean; position: number;
 }
 
 const RECUR_LABEL: Record<string, string> = { none: "no repeat", daily: "daily", weekly: "weekly", monthly: "monthly" };
@@ -66,6 +66,10 @@ export default function VaultTodos() {
   const [rtick, setRtick] = useState(0);
   const [showDone, setShowDone] = useState(false);
   const [priorityListId, setPriorityListId] = useState<string | null>(null);
+  // Drag-reorder (undone items)
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [order, setOrder] = useState<string[] | null>(null);
+  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Sheets
   const [showNewList, setShowNewList] = useState(false);
@@ -201,10 +205,11 @@ export default function VaultTodos() {
       startTransition(() => { updateTodo({ id, coupleId, title, notes, dueDate: due, assignee: itemAssignee, recurrence: itemRecurrence, remind: itemRemind }); });
     } else {
       const tempId = crypto.randomUUID();
+      const maxPos = todos.reduce((m, t) => Math.max(m, t.position ?? 0), 0);
       const optimistic: Todo = {
         id: tempId, list_id: activeList.id, title, notes, done: false, done_at: null, done_by: null,
         due_date: due, assignee: itemAssignee, created_by: me.id, created_at: new Date().toISOString(),
-        parent_id: null, recurrence: itemRecurrence, remind: itemRemind,
+        parent_id: null, recurrence: itemRecurrence, remind: itemRemind, position: maxPos + 1,
       };
       setTodos((prev) => [...prev, optimistic]);
       track("todo_added");
@@ -240,7 +245,7 @@ export default function VaultTodos() {
     const optimistic: Todo = {
       id: tempId, list_id: activeList.id, title: t, notes: null, done: false, done_at: null, done_by: null,
       due_date: null, assignee: null, created_by: me.id, created_at: new Date().toISOString(),
-      parent_id: editingItem.id, recurrence: "none", remind: false,
+      parent_id: editingItem.id, recurrence: "none", remind: false, position: 0,
     };
     setTodos((prev) => [...prev, optimistic]);
     addTodo({ coupleId, listId: activeList.id, title: t, parentId: editingItem.id })
@@ -265,9 +270,46 @@ export default function VaultTodos() {
   }
 
   const topLevel = todos.filter((t) => !t.parent_id);
-  const undone = topLevel.filter((t) => !t.done);
+  const undoneSorted = topLevel.filter((t) => !t.done)
+    .sort((a, b) => (a.position - b.position) || a.created_at.localeCompare(b.created_at));
+  // During a drag, render the live `order`; otherwise the sorted list.
+  const undone = order
+    ? (order.map((id) => undoneSorted.find((t) => t.id === id)).filter(Boolean) as Todo[])
+    : undoneSorted;
   const doneItems = topLevel.filter((t) => t.done).sort((a, b) => (b.done_at ?? "").localeCompare(a.done_at ?? ""));
   const subsOf = (id: string) => todos.filter((s) => s.parent_id === id);
+
+  function onDragStart(e: RPointerEvent<HTMLButtonElement>, id: string) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragId(id);
+    setOrder(undoneSorted.map((t) => t.id));
+  }
+  function onDragMove(e: RPointerEvent<HTMLButtonElement>) {
+    if (!dragId || !order) return;
+    const y = e.clientY;
+    let target = order.length - 1;
+    for (let i = 0; i < order.length; i++) {
+      const el = rowRefs.current.get(order[i]);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (y < r.top + r.height / 2) { target = i; break; }
+    }
+    const cur = order.indexOf(dragId);
+    if (cur < 0 || cur === target) return;
+    const next = [...order];
+    next.splice(cur, 1);
+    next.splice(target, 0, dragId);
+    setOrder(next);
+  }
+  function onDragEnd() {
+    if (dragId && order) {
+      const ids = order;
+      setTodos((prev) => prev.map((t) => { const i = ids.indexOf(t.id); return i >= 0 ? { ...t, position: i } : t; }));
+      startTransition(() => { reorderTodos(coupleId, ids); });
+    }
+    setDragId(null); setOrder(null);
+  }
 
   // ── LISTS VIEW ───────────────────────────────────────────────────────────────
   if (view === "lists") {
@@ -391,7 +433,13 @@ export default function VaultTodos() {
           {undone.map((t) => {
             const subs = subsOf(t.id);
             return <TodoRow key={t.id} t={t} onToggle={toggle} onTap={openEditItem} people={assigneePeople(t.assignee)}
-              recurring={t.recurrence !== "none"} subProgress={subs.length ? { done: subs.filter((s) => s.done).length, total: subs.length } : undefined} />;
+              recurring={t.recurrence !== "none"} subProgress={subs.length ? { done: subs.filter((s) => s.done).length, total: subs.length } : undefined}
+              dragging={dragId === t.id}
+              onHandleDown={(e) => onDragStart(e, t.id)}
+              onHandleMove={onDragMove}
+              onHandleUp={onDragEnd}
+              rowRef={(el) => { if (el) rowRefs.current.set(t.id, el); else rowRefs.current.delete(t.id); }}
+            />;
           })}
 
           {doneItems.length > 0 && (
@@ -498,7 +546,7 @@ export default function VaultTodos() {
   );
 }
 
-function TodoRow({ t, onToggle, onTap, people, doneByName, recurring, subProgress }: {
+function TodoRow({ t, onToggle, onTap, people, doneByName, recurring, subProgress, dragging, onHandleDown, onHandleMove, onHandleUp, rowRef }: {
   t: Todo;
   onToggle: (t: Todo) => void;
   onTap: (t: Todo) => void;
@@ -506,10 +554,15 @@ function TodoRow({ t, onToggle, onTap, people, doneByName, recurring, subProgres
   doneByName?: string | null;
   recurring?: boolean;
   subProgress?: { done: number; total: number };
+  dragging?: boolean;
+  onHandleDown?: (e: RPointerEvent<HTMLButtonElement>) => void;
+  onHandleMove?: (e: RPointerEvent<HTMLButtonElement>) => void;
+  onHandleUp?: () => void;
+  rowRef?: (el: HTMLDivElement | null) => void;
 }) {
   const due = dueMeta(t.due_date);
   return (
-    <div className="flex items-start gap-3 py-2.5">
+    <div ref={rowRef} className={cn("flex items-start gap-3 py-2.5 px-1 rounded-xl transition-shadow", dragging && "bg-card shadow-md relative z-10")}>
       <button
         onClick={() => onToggle(t)}
         aria-pressed={t.done}
@@ -542,6 +595,19 @@ function TodoRow({ t, onToggle, onTap, people, doneByName, recurring, subProgres
           </div>
         )}
       </button>
+      {onHandleDown && (
+        <button
+          onPointerDown={onHandleDown}
+          onPointerMove={onHandleMove}
+          onPointerUp={onHandleUp}
+          onPointerCancel={onHandleUp}
+          style={{ touchAction: "none" }}
+          aria-label="drag to reorder"
+          className="flex-shrink-0 mt-0.5 -mr-1 p-1 text-muted-foreground/30 hover:text-muted-foreground/60 cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }

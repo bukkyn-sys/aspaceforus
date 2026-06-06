@@ -155,6 +155,15 @@ export async function setPriorityTodoList(coupleId: string, listId: string | nul
   await supabase.rpc("set_priority_todo_list", { p_couple_id: coupleId, p_list_id: listId });
 }
 
+// Persist a manual order — position = index for each id, in order.
+export async function reorderTodos(coupleId: string, orderedIds: string[]) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await Promise.all(orderedIds.map((id, i) =>
+    supabase.from("vault_todos").update({ position: i }).eq("id", id).eq("couple_id", coupleId)
+  ));
+}
+
 export async function clearCompleted(listId: string, coupleId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
