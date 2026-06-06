@@ -10,6 +10,7 @@ import { track } from "@/lib/analytics";
 import { toast } from "@/lib/toast";
 import { validateImage } from "@/lib/validate-image";
 import { SignedImg } from "@/components/signed-img";
+import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check } from "lucide-react";
@@ -226,6 +227,8 @@ function Lightbox({
   const [confirmDel, setConfirmDel] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(photo.caption ?? "");
+  // Private bucket — sign the URL (blob: object URLs pass through unchanged).
+  const signed = useSignedUrl(src);
 
   useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); }, [photo.id, photo.caption]);
 
@@ -237,7 +240,7 @@ function Lightbox({
           <X className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
-          <a href={src} download className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="download">
+          <a href={signed ?? src} download target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="download">
             <Download className="w-4 h-4" />
           </a>
           {canEdit && (
@@ -250,8 +253,10 @@ function Lightbox({
 
       {/* Image */}
       <div className="flex-1 min-h-0 relative flex items-center justify-center px-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={photo.caption ?? ""} className="max-w-full max-h-full object-contain rounded-lg" />
+        {signed
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={signed} alt={photo.caption ?? ""} className="max-w-full max-h-full object-contain rounded-lg" />
+          : <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" aria-label="loading" />}
         {hasPrev && (
           <button onClick={onPrev} className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="previous">
             <ChevronLeft className="w-5 h-5" />
