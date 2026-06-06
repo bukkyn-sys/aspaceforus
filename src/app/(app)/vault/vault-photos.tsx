@@ -216,11 +216,19 @@ export default function VaultPhotos() {
         <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
           <AlbumChip active={activeAlbum === null} label="all" onClick={() => setActiveAlbum(null)} />
           {albums.map((a) => (
-            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} onLong={() => { setEditAlbum(a); setEditAlbumName(a.name); }} />
+            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} />
           ))}
           <button onClick={() => { setAlbumName(""); setShowNewAlbum(true); }} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             <Plus className="w-3.5 h-3.5" /> album
           </button>
+          {activeAlbum && (
+            <button
+              onClick={() => { const a = albums.find((x) => x.id === activeAlbum); if (a) { setEditAlbum(a); setEditAlbumName(a.name); } }}
+              className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" /> edit
+            </button>
+          )}
         </div>
       )}
 
@@ -326,11 +334,10 @@ function MoveOption({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function AlbumChip({ active, label, onClick, onLong }: { active: boolean; label: string; onClick: () => void; onLong?: () => void }) {
+function AlbumChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      onContextMenu={onLong ? (e) => { e.preventDefault(); onLong(); } : undefined}
       className={`flex-shrink-0 px-3.5 h-8 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${active ? "bg-foreground text-background" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
     >
       {label}

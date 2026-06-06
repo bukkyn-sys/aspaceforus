@@ -440,11 +440,31 @@ export default function DashboardClient() {
   // ── Modular layout (CSS order + grid col-span; cards themselves are unchanged) ─
   const layout = normalizeLayout(data.dashboardLayout);
   const modIndex = new Map(layout.map((m, i) => [m.id, i]));
-  const modSize = new Map(layout.map((m) => [m.id, m.size]));
+  // Which modules actually render right now (so pairing/gaps reflect reality).
+  function visible(id: string): boolean {
+    if (id === "mood" || id === "note") return true;       // always shown
+    if (loading) return false;                              // the rest are gated on load
+    if (id === "free") return hasPartner;
+    if (id === "todo") return !!(data.priorityTodo && data.priorityTodo.items.length);
+    return true;                                            // daily, countdowns, accounts
+  }
+  // Pair consecutive halves among the VISIBLE modules; a half that can't pair
+  // (followed by a full, or last) renders full — no awkward half-row gaps.
+  const visibleOrdered = layout.filter((m) => visible(m.id));
+  const effSize = new Map<string, DashSize>();
+  for (let i = 0; i < visibleOrdered.length; i++) {
+    const m = visibleOrdered[i];
+    if (m.size === "half" && visibleOrdered[i + 1]?.size === "half") {
+      effSize.set(m.id, "half"); effSize.set(visibleOrdered[i + 1].id, "half"); i++;
+    } else {
+      effSize.set(m.id, "full");
+    }
+  }
   function mod(id: string) {
     return {
       style: { order: modIndex.get(id) ?? 99 },
-      className: modSize.get(id) === "half" ? "col-span-1 min-w-0" : "col-span-2",
+      // h-full + [&>*]:h-full so two side-by-side halves stretch to equal height.
+      className: (effSize.get(id) === "half" ? "col-span-1 min-w-0" : "col-span-2") + " h-full [&>*]:h-full",
     };
   }
   function openLayoutEditor() { setLayoutDraft(normalizeLayout(data.dashboardLayout)); setShowLayoutEditor(true); }
@@ -508,7 +528,7 @@ export default function DashboardClient() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 items-start mt-4">
+      <div className="grid grid-cols-2 gap-4 items-stretch mt-4">
       {/* Mood card */}
       <div {...mod("mood")}>
       <div className="card p-4">
