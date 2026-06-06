@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 // One look across every form (matching the to-do sheet): left-aligned section
 // labels, and controls that fill the FULL width of the sheet in tidy even rows.
 
-/** Left-aligned section label that sits above a control. */
+/** Centered section label that sits above a control. */
 export function FieldLabel({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p className={cn("text-xs font-medium text-muted-foreground tracking-wide mb-2", className)}>
+    <p className={cn("text-xs font-medium text-muted-foreground tracking-wide text-center mb-2", className)}>
       {children}
     </p>
   );

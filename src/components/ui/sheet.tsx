@@ -61,11 +61,9 @@ export function BottomSheet({
             <div className="flex justify-center pt-3 flex-shrink-0">
               <div className="w-9 h-1 rounded-full bg-border/60" />
             </div>
-            <div className="relative flex items-center justify-center px-6 pt-2 pb-2 flex-shrink-0">
-              <p className="font-semibold text-foreground text-center">{title}</p>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                <SheetClose onClick={onClose} />
-              </div>
+            <div className="flex items-center justify-between px-6 pt-2 pb-2 flex-shrink-0">
+              <p className="font-semibold text-foreground">{title}</p>
+              <SheetClose onClick={onClose} />
             </div>
             <div
               className="flex-1 overflow-y-auto px-6 pt-2 space-y-4"
