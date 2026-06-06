@@ -23,14 +23,10 @@ import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { track } from "@/lib/analytics";
 import { useOwnerIdentity } from "@/lib/owner-identity";
-import { FabGate } from "@/contexts/fab-context";
-import { SwipePager } from "@/components/swipe-pager";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 import { validateImage } from "@/lib/validate-image";
-import VaultTodos from "./vault-todos";
-import VaultPhotos from "./vault-photos";
 
 // Only allow http/https links — blocks javascript:/data:/etc. (stored XSS).
 function safeExternalUrl(url: string | null | undefined): string | null {
@@ -273,7 +269,7 @@ function OwnerButtons({
   );
 }
 
-function VaultLists() {
+export function VaultLists() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markSeen, markActivity } = useNotifications();
   const setAction = useFabSetter();
@@ -1083,90 +1079,12 @@ function VaultLists() {
   );
 }
 
-// ── Vault shell: three sections (Photos · To-dos · Lists) ────────────────────
-// "Lists" is the existing vault (VaultLists). Photos and To-dos are placeholders
-// until their phases land. The active section persists via ?tab= and the FAB is
-// owned by whichever section is mounted (Lists registers its add action; the
-// placeholders register none, so the FAB is disabled there).
-
-type VaultTab = "photos" | "todos" | "lists";
-const VAULT_TABS: { id: VaultTab; label: string }[] = [
+// The three vault sections are flattened into the main app pager (AppShell), so
+// they swipe seamlessly into the neighbouring tabs (calendar / ledger). This just
+// exports their order + labels; the screens are VaultPhotos / VaultTodos / VaultLists.
+export type VaultTab = "photos" | "todos" | "lists";
+export const VAULT_TABS: { id: VaultTab; label: string }[] = [
   { id: "photos", label: "photos" },
   { id: "todos",  label: "to-dos" },
   { id: "lists",  label: "lists" },
 ];
-
-export default function VaultClient() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const scrolled = useScrolled();
-  const { markSeen } = useNotifications();
-
-  const param = searchParams.get("tab") as VaultTab | null;
-  const [tab, setTab] = useState<VaultTab>(
-    param && VAULT_TABS.some((t) => t.id === param) ? param : "lists"
-  );
-
-  useEffect(() => { markSeen("vault"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Open to the most recently used tab when no explicit ?tab= is given.
-  useEffect(() => {
-    if (param) return;
-    const stored = (typeof window !== "undefined" ? localStorage.getItem("us_vault_tab") : null) as VaultTab | null;
-    if (stored && VAULT_TABS.some((t) => t.id === stored)) setTab(stored);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // React to ?tab= changing (e.g. a notification deep-link) while vault stays
-  // mounted in the tab shell.
-  useEffect(() => {
-    if (param && VAULT_TABS.some((t) => t.id === param) && param !== tab) setTab(param);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [param]);
-
-  function select(t: VaultTab) {
-    setTab(t);
-    if (typeof window !== "undefined") localStorage.setItem("us_vault_tab", t);
-    router.replace(`/vault?tab=${t}`, { scroll: false });
-  }
-
-  const tabIndex = VAULT_TABS.findIndex((t) => t.id === tab);
-
-  return (
-    <div className="max-w-lg mx-auto">
-      <div className={cn(
-        "hdr-float sticky top-0 z-30 bg-background px-4 pt-10 pb-2.5 border-b transition-[border-color,box-shadow]",
-        scrolled ? "border-border/60 shadow-soft" : "border-transparent"
-      )}>
-        <h1 className="font-heading text-3xl text-foreground tracking-tight mb-3">vault.</h1>
-        <div className="flex gap-1 bg-secondary/60 rounded-full p-1">
-          {VAULT_TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => select(t.id)}
-              aria-pressed={tab === t.id}
-              className={cn(
-                "flex-1 py-1.5 rounded-full text-xs font-medium transition-colors",
-                tab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <SwipePager
-        index={tabIndex < 0 ? 2 : tabIndex}
-        count={VAULT_TABS.length}
-        containEdges={false}
-        onIndexChange={(i) => select(VAULT_TABS[i].id)}
-        renderPane={(i, active) => (
-          <FabGate active={active}>
-            {i === 0 ? <VaultPhotos /> : i === 1 ? <VaultTodos /> : <VaultLists />}
-          </FabGate>
-        )}
-      />
-    </div>
-  );
-}

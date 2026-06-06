@@ -23,6 +23,7 @@ export function SwipePager({
   mountWindow = 1,
   className,
   containEdges = true,
+  onProgress,
 }: {
   index: number;
   count: number;
@@ -33,6 +34,9 @@ export function SwipePager({
   // When false, edge overscroll chains to a parent pager (so e.g. swiping past
   // the first/last vault sub-tab moves to the neighbouring app tab).
   containEdges?: boolean;
+  // Live fractional scroll position (0..count-1) — for indicators that track the
+  // finger. Fires on every scroll frame (use imperatively to avoid re-renders).
+  onProgress?: (p: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const paneRefs = useRef(new Map<number, HTMLDivElement>());
@@ -79,15 +83,17 @@ export function SwipePager({
   // Derive the index from the settled scroll position.
   const onScroll = useCallback(() => {
     const el = ref.current;
-    if (!el || lock.current) return;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (w && onProgress) onProgress(el.scrollLeft / w); // always report (even during programmatic scroll)
+    if (lock.current) return;
     window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
-      const w = el.clientWidth;
       if (!w) return;
       const i = Math.round(el.scrollLeft / w);
       if (i !== idxRef.current && i >= 0 && i < count) onIndexChange(i);
     }, 80);
-  }, [onIndexChange, count]);
+  }, [onIndexChange, onProgress, count]);
 
   // Match the container height to the active pane (and track its changes).
   useEffect(() => {
