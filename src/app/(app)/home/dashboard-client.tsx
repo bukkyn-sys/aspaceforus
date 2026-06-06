@@ -10,7 +10,10 @@ import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, delet
 import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, ChevronUp, ChevronDown } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -467,14 +470,15 @@ export default function DashboardClient() {
       className: (effSize.get(id) === "half" ? "col-span-1 min-w-0" : "col-span-2") + " h-full [&>*]:h-full",
     };
   }
+  const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   function openLayoutEditor() { setLayoutDraft(normalizeLayout(data.dashboardLayout)); setShowLayoutEditor(true); }
-  function moveModule(i: number, dir: -1 | 1) {
+  function onLayoutDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
     setLayoutDraft((prev) => {
-      const next = [...prev];
-      const j = i + dir;
-      if (j < 0 || j >= next.length) return prev;
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
+      const oldI = prev.findIndex((m) => m.id === active.id);
+      const newI = prev.findIndex((m) => m.id === over.id);
+      return oldI < 0 || newI < 0 ? prev : arrayMove(prev, oldI, newI);
     });
   }
   function toggleSize(id: string) {
@@ -941,28 +945,49 @@ export default function DashboardClient() {
         title="edit layout"
         footer={<Button onClick={saveLayout} className="w-full h-11 rounded-xl">done</Button>}
       >
-        <p className="text-xs text-muted-foreground/60 mb-1">reorder your home — set a module to half-width and two will sit side by side.</p>
-        <div className="space-y-1.5">
-          {layoutDraft.map((m, i) => (
-            <div key={m.id} className="flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2.5">
-              <span className="text-sm text-foreground flex-1 truncate">{MODULE_LABEL[m.id] ?? m.id}</span>
-              {HALF_CAPABLE.has(m.id) && (
-                <button
-                  onClick={() => toggleSize(m.id)}
-                  className={cn("text-[11px] font-medium px-2 py-1 rounded-md transition-colors", m.size === "half" ? "bg-foreground text-background" : "bg-card text-muted-foreground")}
-                >
-                  {m.size === "half" ? "half" : "full"}
-                </button>
-              )}
-              <div className="flex items-center gap-0.5">
-                <button onClick={() => moveModule(i, -1)} disabled={i === 0} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30 hover:bg-card transition-colors" aria-label="move up"><ChevronUp className="w-4 h-4" /></button>
-                <button onClick={() => moveModule(i, 1)} disabled={i === layoutDraft.length - 1} className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30 hover:bg-card transition-colors" aria-label="move down"><ChevronDown className="w-4 h-4" /></button>
-              </div>
+        <p className="text-xs text-muted-foreground/60 mb-3">drag the tiles to reorder your home. tap a tile&apos;s size to make it half-width — two halves sit side by side.</p>
+        <DndContext sensors={layoutSensors} collisionDetection={closestCenter} onDragEnd={onLayoutDragEnd}>
+          <SortableContext items={layoutDraft.map((m) => m.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 gap-2">
+              {layoutDraft.map((m) => (
+                <LayoutTile key={m.id} m={m} onToggleSize={() => toggleSize(m.id)} />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       </BottomSheet>
       </div>
+    </div>
+  );
+}
+
+// A draggable skeleton tile in the layout editor — mirrors the page (full = wide,
+// half = narrow) so the couple can picture the result while they rearrange.
+function LayoutTile({ m, onToggleSize }: { m: DashModule; onToggleSize: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: m.id });
+  const half = m.size === "half";
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "rounded-2xl bg-secondary border border-border/50 px-3 py-5 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing select-none touch-none",
+        half ? "col-span-1" : "col-span-2",
+        isDragging && "opacity-70 shadow-lg z-10"
+      )}
+    >
+      <span className="text-sm font-medium text-foreground truncate">{MODULE_LABEL[m.id] ?? m.id}</span>
+      {HALF_CAPABLE.has(m.id) && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onToggleSize(); }}
+          className={cn("text-[11px] font-medium px-2 py-1 rounded-md flex-shrink-0 transition-colors", half ? "bg-foreground text-background" : "bg-card text-muted-foreground")}
+        >
+          {half ? "half" : "full"}
+        </button>
+      )}
     </div>
   );
 }
