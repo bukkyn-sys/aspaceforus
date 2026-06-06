@@ -65,7 +65,8 @@ export default function VaultTodos() {
   const [listsLoading, setListsLoading] = useState(() => getCache<TodoList[]>(`vtodo:${coupleId}`) === undefined);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [rtick, setRtick] = useState(0);
-  const [showDone, setShowDone] = useState(false);
+  // Completed items stay visible by default — seeing progress is motivating.
+  const [showDone, setShowDone] = useState(true);
   const [priorityListId, setPriorityListId] = useState<string | null>(null);
   // Drag-reorder (undone items)
   const [dragId, setDragId] = useState<string | null>(null);

@@ -6,7 +6,10 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { setMood, setStartedAt, addCountdown, updateCountdown, deleteCountdown, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine } from "./actions";
+import { setMood, setStartedAt, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine } from "./actions";
+import { addEvent, updateEvent, deleteEvent } from "@/app/(app)/calendar/actions";
+import { EventSheet, type EventDraft } from "@/components/event-sheet";
+import type { DayPart } from "@/lib/day-parts";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
 import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check } from "lucide-react";
@@ -14,7 +17,6 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
 import { track } from "@/lib/analytics";
@@ -28,18 +30,7 @@ import DailyCard, { type DailyData } from "./daily-card";
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
 
-const COUNTDOWN_TYPES = [
-  { label: "holiday",     emoji: "✈️" },
-  { label: "date night",  emoji: "🍽️" },
-  { label: "anniversary", emoji: "❤️" },
-  { label: "concert",     emoji: "🎵" },
-  { label: "birthday",    emoji: "🎂" },
-  { label: "moving",      emoji: "🏠" },
-  { label: "wedding",     emoji: "💍" },
-  { label: "other",       emoji: "🗓️" },
-];
-
-interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
+interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; parts?: string[]; start_time?: string | null; attendee?: string | null; }
 interface NoteLine { id: string; body: string; created_by: string; sort_order: number; }
 interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
 interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; }
@@ -191,8 +182,8 @@ export default function DashboardClient() {
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [loading, setLoading] = useState(() => getCache<DashCache>(`dash:${coupleId}`) === undefined);
-  const [showCountdownSheet, setShowCountdownSheet] = useState(false);
-  const [editingCountdownId, setEditingCountdownId] = useState<string | null>(null);
+  const [showEventSheet, setShowEventSheet] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Countdown | null>(null);
   const [actionCountdown, setActionCountdown] = useState<Countdown | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateDraft, setDateDraft] = useState("");
@@ -200,21 +191,15 @@ export default function DashboardClient() {
   const [layoutDraft, setLayoutDraft] = useState<DashModule[]>([]);
   const [, startTransition] = useTransition();
 
-  // Countdown form
-  const [cdTitle, setCdTitle] = useState("");
-  const [cdDate, setCdDate] = useState("");
-  const [cdEndDate, setCdEndDate] = useState("");
-  const [cdEmoji, setCdEmoji] = useState("✈️");
-
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");
   const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(null);
 
-  useRegisterFab(() => {
-    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
-    setEditingCountdownId(null);
-    setShowCountdownSheet(true);
-  });
+  function openNewEvent() {
+    setEditingEvent(null);
+    setShowEventSheet(true);
+  }
+  useRegisterFab(openNewEvent);
 
   // Note debounce ref
   useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -382,52 +367,46 @@ export default function DashboardClient() {
     startTransition(() => { setStartedAt(coupleId, me.id, date); });
   }
 
-  function handleSaveCountdown() {
-    if (!cdTitle.trim() || !cdDate) return;
-    const title = cdTitle.trim();
-    const endDate = cdEndDate || null;
-    if (editingCountdownId) {
-      const id = editingCountdownId;
+  // The events module uses the SAME form as the calendar (EventSheet).
+  function handleSaveEvent(draft: EventDraft) {
+    const { title, emoji, onDate, parts, untilDate, startTime, attendee } = draft;
+    const endDate = untilDate || null;
+    if (editingEvent) {
+      const id = editingEvent.id;
       setData((prev) => ({
         ...prev,
         countdowns: prev.countdowns
-          .map((c) => c.id === id ? { ...c, title, target_date: cdDate, end_date: endDate, emoji: cdEmoji } : c)
+          .map((c) => c.id === id ? { ...c, title, target_date: onDate, end_date: endDate, emoji, parts, start_time: startTime, attendee } : c)
           .sort((a, b) => a.target_date.localeCompare(b.target_date)),
       }));
-      startTransition(() => { updateCountdown({ id, coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji }); });
+      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, onDate, parts: parts as DayPart[], untilDate: endDate, startTime, emoji, attendee }); });
     } else {
-      const cd: Countdown = { id: crypto.randomUUID(), title, target_date: cdDate, end_date: endDate, emoji: cdEmoji, created_by: me.id };
-      // A home event books all parts of the days it spans. Blocking is derived
-      // (the event itself removes those parts from "free together"), so we just
-      // drop the now-booked days from the optimistic free list for instant feedback.
-      const rangeEnd = endDate ?? cdDate;
+      const cd: Countdown = { id: crypto.randomUUID(), title, target_date: onDate, end_date: endDate, emoji, created_by: me.id, parts, start_time: startTime, attendee };
+      // Blocking is derived (the event removes those parts from "free together"),
+      // so just drop the now-booked days from the optimistic free list.
+      const rangeEnd = endDate ?? onDate;
       setData((prev) => ({
         ...prev,
         countdowns: [...prev.countdowns, cd].sort((a, b) => a.target_date.localeCompare(b.target_date)),
-        freeWindows: prev.freeWindows.filter((w) => !(w.date >= cdDate && w.date <= rangeEnd)),
+        freeWindows: prev.freeWindows.filter((w) => !(w.date >= onDate && w.date <= rangeEnd)),
       }));
       markActivity("home");
-      track("countdown_created", { multi_day: !!endDate });
-      startTransition(() => {
-        addCountdown({ coupleId, userId: me.id, title, targetDate: cdDate, endDate, emoji: cdEmoji });
-      });
+      track("event_created", { multi_day: !!endDate, parts: parts.length });
+      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts: parts as DayPart[], untilDate: endDate, startTime, emoji, attendee }); });
     }
-    setCdTitle(""); setCdDate(""); setCdEndDate(""); setCdEmoji("✈️");
-    setEditingCountdownId(null); setShowCountdownSheet(false);
+    setEditingEvent(null); setShowEventSheet(false);
   }
 
   function openEditCountdown(cd: Countdown) {
     setActionCountdown(null);
-    setEditingCountdownId(cd.id);
-    setCdTitle(cd.title); setCdDate(cd.target_date); setCdEndDate(cd.end_date ?? "");
-    setCdEmoji(cd.emoji);
-    setShowCountdownSheet(true);
+    setEditingEvent(cd);
+    setShowEventSheet(true);
   }
 
   function handleDeleteCountdown(id: string) {
     setData((prev) => ({ ...prev, countdowns: prev.countdowns.filter((c) => c.id !== id) }));
     setActionCountdown(null);
-    startTransition(() => { deleteCountdown(id, coupleId, me.id); });
+    startTransition(() => { deleteEvent(id, coupleId, me.id); });
   }
 
   // Check off a pinned to-do straight from Home — optimistic remove + persist.
@@ -654,7 +633,7 @@ export default function DashboardClient() {
         <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-sm" style={{ backgroundColor: "#EFE2B8" }} />
         <p className="text-xs text-amber-600/60 font-medium tracking-wide mb-2.5">shared note</p>
 
-        {data.noteItems.length === 0 && !editingNote && (
+        {data.noteItems.length === 0 && !editingNote && !noteDraft && (
           <p className="text-sm text-amber-900/30 mb-1.5">jot a few things for both of you to see…</p>
         )}
 
@@ -710,7 +689,7 @@ export default function DashboardClient() {
         <div {...mod("countdowns")}>
         {data.countdowns.length === 0 ? (
           <button
-            onClick={() => setShowCountdownSheet(true)}
+            onClick={openNewEvent}
             className="w-full rounded-3xl border border-dashed border-border/60 p-8 text-center transition-colors hover:border-border bg-secondary/40"
           >
             <Plane className="w-5 h-5 mx-auto mb-2 text-muted-foreground/30" strokeWidth={1.5} />
@@ -894,74 +873,16 @@ export default function DashboardClient() {
         <DateField value={dateDraft} onChange={setDateDraft} max={today} placeholder="select a date" />
       </BottomSheet>
 
-      {/* Add / edit countdown sheet */}
-      <BottomSheet
-        open={showCountdownSheet}
-        onClose={() => { setShowCountdownSheet(false); setEditingCountdownId(null); }}
-        title={editingCountdownId ? "edit event" : "new event"}
-        footer={
-          <Button onClick={handleSaveCountdown} disabled={!cdTitle.trim() || !cdDate} className="w-full h-12 rounded-2xl text-[15px]">
-            {editingCountdownId ? "save" : "add event"}
-          </Button>
-        }
-      >
-        {/* Type — single scrollable row */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">type</p>
-          <div className="flex gap-2 overflow-x-auto py-0.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
-            {COUNTDOWN_TYPES.map((t) => (
-              <button
-                key={t.label}
-                onClick={() => {
-                  setCdEmoji(t.emoji);
-                  const isDefault = !cdTitle || COUNTDOWN_TYPES.some((ct) => ct.label === cdTitle);
-                  if (isDefault) setCdTitle(t.label);
-                }}
-                className={cn(
-                  "flex-shrink-0 w-[68px] flex flex-col items-center gap-1.5 py-3 rounded-2xl text-[11px] font-medium transition-all",
-                  cdEmoji === t.emoji
-                    ? "bg-foreground text-background"
-                    : "bg-secondary text-muted-foreground"
-                )}
-              >
-                <span className="text-xl leading-none">{t.emoji}</span>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Title */}
-        <Input
-          value={cdTitle}
-          onChange={(e) => setCdTitle(e.target.value)}
-          placeholder="give it a name"
-          className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
-        />
-        {/* Dates */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">dates</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="relative rounded-2xl overflow-hidden">
-              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">starts</p>
-                <p className={cn("text-sm font-medium", cdDate ? "text-foreground" : "text-muted-foreground/40")}>
-                  {cdDate ? new Date(cdDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                </p>
-              </div>
-              <input type="date" value={cdDate} min={today} onChange={(e) => setCdDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-            </div>
-            <div className="relative rounded-2xl overflow-hidden">
-              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">ends <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                <p className={cn("text-sm font-medium", cdEndDate ? "text-foreground" : "text-muted-foreground/40")}>
-                  {cdEndDate ? new Date(cdEndDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                </p>
-              </div>
-              <input type="date" value={cdEndDate} min={cdDate || today} onChange={(e) => setCdEndDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-            </div>
-          </div>
-        </div>
-      </BottomSheet>
+      {/* Add / edit event sheet — the SAME form as the calendar page */}
+      <EventSheet
+        open={showEventSheet}
+        onClose={() => { setShowEventSheet(false); setEditingEvent(null); }}
+        onSubmit={handleSaveEvent}
+        editing={!!editingEvent}
+        initial={editingEvent
+          ? { title: editingEvent.title, emoji: editingEvent.emoji, onDate: editingEvent.target_date, untilDate: editingEvent.end_date ?? null, parts: (editingEvent.parts as DayPart[] | undefined) ?? undefined, startTime: editingEvent.start_time ?? null, attendee: editingEvent.attendee ?? null }
+          : { onDate: today }}
+      />
 
       {/* Countdown action prompt — creator only */}
       <Dialog open={actionCountdown !== null} onClose={() => setActionCountdown(null)}>

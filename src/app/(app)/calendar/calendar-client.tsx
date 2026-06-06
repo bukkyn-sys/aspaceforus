@@ -6,11 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { setAvailability, setAvailabilityDay, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
+import { PARTS, PART_META, fmtTimeLabel, partsLabel } from "@/lib/day-parts";
+import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
@@ -20,34 +21,11 @@ import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
 interface Row { user_id: string; date: string; part: DayPart; }
-interface CalEvent { id: string; title: string; emoji: string; on_date: string; parts: DayPart[]; until_date: string | null; start_time: string | null; created_by: string; }
-
-const PARTS: DayPart[] = ["morning", "afternoon", "evening", "night"];
-const PART_META: Record<DayPart, { label: string; time: string }> = {
-  morning:   { label: "morning",   time: "5–12" },
-  afternoon: { label: "afternoon", time: "12–17" },
-  evening:   { label: "evening",   time: "17–22" },
-  night:     { label: "night",     time: "22–5" },
-};
-const EVENT_EMOJIS = ["📅", "🍽️", "🎬", "🏃", "🎂", "🎵", "💍", "✈️", "🏠", "🎉"];
+interface CalEvent { id: string; title: string; emoji: string; on_date: string; parts: DayPart[]; until_date: string | null; start_time: string | null; created_by: string; attendee: string | null; }
 
 type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-
-// "19:00" → "7pm" / "7:30pm". start_time is an optional cosmetic label only.
-function fmtTimeLabel(hhmm: string): string {
-  const [hs, ms] = hhmm.split(":");
-  let h = parseInt(hs, 10); const m = parseInt(ms ?? "0", 10);
-  if (Number.isNaN(h)) return hhmm;
-  const ap = h >= 12 ? "pm" : "am"; h = h % 12 || 12;
-  return m === 0 ? `${h}${ap}` : `${h}:${pad2(m)}${ap}`;
-}
-// Pretty day-parts label: "all day" when all four, else "morning · evening".
-function partsLabel(parts: DayPart[]): string {
-  if (parts.length >= 4) return "all day";
-  return PARTS.filter((p) => parts.includes(p)).map((p) => PART_META[p].label).join(" · ");
-}
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
@@ -61,15 +39,10 @@ export default function CalendarClient() {
   const [rtick, setRtick] = useState(0);
   const [dayView, setDayView] = useState<string | null>(null);
   const [planContext, setPlanContext] = useState<{ date: string; freeParts: DayPart[] } | null>(null);
-  const [selectedParts, setSelectedParts] = useState<DayPart[]>([]);
   const [showAddEvent, setShowAddEvent] = useState(false);
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editEvent, setEditEvent] = useState<CalEvent | null>(null);
+  const [composeDate, setComposeDate] = useState("");   // default date for a new event
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
-  const [eventTitle, setEventTitle] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [eventUntilDate, setEventUntilDate] = useState("");
-  const [eventEmoji, setEventEmoji] = useState("📅");
-  const [eventTime, setEventTime] = useState("");
   const [, startTransition] = useTransition();
 
   const scrolled = useScrolled();
@@ -89,10 +62,8 @@ export default function CalendarClient() {
       const d = new Date(date + "T12:00:00");
       setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
       const freeParts = ((partsParam?.split(",") ?? []).filter((p) => PARTS.includes(p as DayPart))) as DayPart[];
-      setEditingEventId(null);
-      setEventTitle(""); setEventEmoji("📅");
-      setEventDate(date); setEventUntilDate(""); setEventTime("");
-      setSelectedParts(freeParts);   // default: book the whole free window
+      setEditEvent(null);
+      setComposeDate(date);
       setPlanContext({ date, freeParts });
       setShowAddEvent(true);
     } else if (day) {
@@ -127,7 +98,7 @@ export default function CalendarClient() {
         .lte("date", end),
       supabase
         .from("events")
-        .select("id, title, emoji, created_by, on_date, parts, until_date, start_time")
+        .select("id, title, emoji, created_by, attendee, on_date, parts, until_date, start_time")
         .eq("couple_id", coupleId)
         .lte("on_date", end)
         .or(`until_date.gte.${start},on_date.gte.${start}`)
@@ -238,52 +209,39 @@ export default function CalendarClient() {
   useRegisterFab(() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    setEditingEventId(null);
-    setEventTitle(""); setEventEmoji("📅");
-    setEventDate(today); setEventUntilDate(""); setEventTime("");
-    setSelectedParts([]);
+    setEditEvent(null);
+    setComposeDate(today);
     setPlanContext(null);
     setShowAddEvent(true);
   });
 
-  function handleSaveEvent() {
-    // Only a strictly-later "until" date counts as multi-day (which books whole days).
-    const multiDay = !!eventUntilDate && eventUntilDate > eventDate;
-    if (!eventTitle.trim() || !eventDate || (selectedParts.length === 0 && !multiDay)) return;
-    const title = eventTitle.trim();
-    const onDate = eventDate;
-    const untilDate = multiDay ? eventUntilDate : null;
-    // Multi-day events occupy whole days; single-day ones use the chosen parts.
-    const parts: DayPart[] = untilDate ? [...PARTS] : selectedParts;
-    const startTime = eventTime || null;
-    // Booking is derived (a part with an event no longer shows as free together),
-    // so there's nothing to clear — adding the event is enough.
-    if (editingEventId) {
-      const id = editingEventId;
+  function closeEventSheet() {
+    setShowAddEvent(false); setEditEvent(null); setPlanContext(null);
+  }
+
+  // Booking is derived (a part with an event no longer shows as free together),
+  // so there's nothing to clear — saving the event is enough.
+  function handleSaveEvent(draft: EventDraft) {
+    const { title, emoji, onDate, parts, untilDate, startTime, attendee } = draft;
+    if (editEvent) {
+      const id = editEvent.id;
       setEvents((prev) => prev
-        .map((e) => e.id === id ? { ...e, title, emoji: eventEmoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime } : e)
+        .map((e) => e.id === id ? { ...e, title, emoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime, attendee } : e)
         .sort((a, b) => a.on_date.localeCompare(b.on_date)));
-      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji: eventEmoji }); });
+      startTransition(() => { updateEvent({ id, coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji, attendee }); });
     } else {
-      const optimistic: CalEvent = { id: crypto.randomUUID(), title, emoji: eventEmoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime, created_by: me.id };
+      const optimistic: CalEvent = { id: crypto.randomUUID(), title, emoji, on_date: onDate, parts, until_date: untilDate, start_time: startTime, created_by: me.id, attendee };
       setEvents((prev) => [...prev, optimistic].sort((a, b) => a.on_date.localeCompare(b.on_date)));
       markActivity("calendar");
       track("event_created", { multi_day: !!untilDate, parts: parts.length });
-      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji: eventEmoji }); });
+      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji, attendee }); });
     }
-    setEventTitle(""); setEventUntilDate(""); setEventEmoji("📅"); setEventTime("");
-    setPlanContext(null); setSelectedParts([]); setEditingEventId(null); setShowAddEvent(false);
+    closeEventSheet();
   }
 
   function openEditEvent(evt: CalEvent) {
     setActionEvent(null);
-    setEditingEventId(evt.id);
-    setEventTitle(evt.title);
-    setEventEmoji(evt.emoji);
-    setEventDate(evt.on_date);
-    setEventUntilDate(evt.until_date ?? "");
-    setEventTime(evt.start_time ?? "");
-    setSelectedParts(evt.parts);
+    setEditEvent(evt);
     setPlanContext(null);
     setShowAddEvent(true);
   }
@@ -486,7 +444,7 @@ export default function CalendarClient() {
             <div className="space-y-2">
               {events.map((evt) => {
                 const d = new Date(evt.on_date + "T12:00:00");
-                const o = resolveOwner(evt.created_by);
+                const o = resolveOwner(evt.attendee ?? null);
                 // Every event counts down — show the days-until badge for any event
                 // that hasn't started yet (today / tmrw / N days).
                 const badge = evt.on_date >= todayStr ? countdownLabel(evt.on_date) : null;
@@ -613,119 +571,17 @@ export default function CalendarClient() {
         })()}
       </BottomSheet>
 
-      {/* Add / edit event sheet */}
-      <BottomSheet
+      {/* Add / edit event sheet — shared with Home */}
+      <EventSheet
         open={showAddEvent}
-        onClose={() => { setShowAddEvent(false); setEditingEventId(null); setPlanContext(null); setSelectedParts([]); }}
-        title={editingEventId ? "edit event" : planContext ? "plan your free time" : "new event"}
-        footer={
-          <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate || (selectedParts.length === 0 && !(eventUntilDate && eventUntilDate > eventDate))} className="w-full h-12 rounded-2xl text-[15px]">
-            {editingEventId ? "save" : planContext ? "book it" : "add event"}
-          </Button>
-        }
-      >
-        <Input
-          value={eventTitle}
-          onChange={(e) => setEventTitle(e.target.value)}
-          placeholder="what's happening?"
-          className="h-12 rounded-2xl bg-secondary border-0 text-[15px]"
-        />
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">emoji</p>
-          <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-            {EVENT_EMOJIS.map((e) => (
-              <button
-                key={e}
-                onClick={() => setEventEmoji(e)}
-                className={cn(
-                  "w-11 h-11 rounded-2xl text-xl flex items-center justify-center flex-shrink-0 transition-all",
-                  eventEmoji === e ? "bg-foreground" : "bg-secondary"
-                )}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* Day-parts — the only time unit. In plan mode, limited to the free parts. */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2">{planContext ? "block out" : "when"}</p>
-          <div className="flex gap-1.5 flex-wrap">
-            {(planContext ? planContext.freeParts : PARTS).map((p) => {
-              const single = !!planContext && planContext.freeParts.length === 1;
-              const on = selectedParts.includes(p);
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  disabled={single}
-                  onClick={() => setSelectedParts((prev) => on ? prev.filter((x) => x !== p) : [...prev, p])}
-                  className={cn("px-3.5 h-9 rounded-xl text-xs font-medium capitalize transition-colors", on ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
-                >
-                  {PART_META[p].label}
-                </button>
-              );
-            })}
-            {!planContext && (
-              <button
-                type="button"
-                onClick={() => setSelectedParts((prev) => prev.length >= 4 ? [] : [...PARTS])}
-                className={cn("px-3.5 h-9 rounded-xl text-xs font-medium transition-colors", selectedParts.length >= 4 ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}
-              >
-                all day
-              </button>
-            )}
-          </div>
-          {planContext && (
-            <p className="text-[11px] text-sage mt-1.5">
-              {planContext.freeParts.length === 1
-                ? `your free ${PART_META[planContext.freeParts[0]].label} will be booked`
-                : "tap the parts you're booking — they'll no longer show as free"}
-            </p>
-          )}
-        </div>
-
-        {/* Date — single day, or a span via "until" (hidden when planning) */}
-        {!planContext && (
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">date</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="relative rounded-2xl overflow-hidden">
-              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">on</p>
-                <p className={cn("text-sm font-medium", eventDate ? "text-foreground" : "text-muted-foreground/40")}>
-                  {eventDate ? new Date(eventDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                </p>
-              </div>
-              <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-            </div>
-            <div className="relative rounded-2xl overflow-hidden">
-              <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground tracking-wide mb-1">until <span className="normal-case font-normal opacity-50">(optional)</span></p>
-                <p className={cn("text-sm font-medium", eventUntilDate ? "text-foreground" : "text-muted-foreground/40")}>
-                  {eventUntilDate ? new Date(eventUntilDate + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "select"}
-                </p>
-              </div>
-              <input type="date" value={eventUntilDate} min={eventDate} onChange={(e) => setEventUntilDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-            </div>
-          </div>
-          {eventUntilDate && eventUntilDate > eventDate && (
-            <p className="text-[11px] text-muted-foreground/50 mt-1.5">a multi-day event books every part of each day</p>
-          )}
-        </div>
-        )}
-
-        {/* Optional exact time — a label only; the day-part is what books the slot */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">time <span className="normal-case font-normal opacity-50">(optional)</span></p>
-          <div className="relative rounded-2xl overflow-hidden w-1/2">
-            <div className="bg-secondary px-3.5 pt-2.5 pb-3">
-              <p className={cn("text-sm font-medium", eventTime ? "text-foreground" : "text-muted-foreground/40")}>{eventTime ? fmtTimeLabel(eventTime) : "select"}</p>
-            </div>
-            <input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-          </div>
-        </div>
-      </BottomSheet>
+        onClose={closeEventSheet}
+        onSubmit={handleSaveEvent}
+        editing={!!editEvent}
+        planContext={planContext}
+        initial={editEvent
+          ? { title: editEvent.title, emoji: editEvent.emoji, onDate: editEvent.on_date, parts: editEvent.parts, untilDate: editEvent.until_date, startTime: editEvent.start_time, attendee: editEvent.attendee }
+          : { onDate: composeDate }}
+      />
 
       {/* Event action prompt — creator only */}
       <Dialog open={actionEvent !== null} onClose={() => setActionEvent(null)}>
