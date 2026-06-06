@@ -40,7 +40,8 @@ export function SwipePager({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const paneRefs = useRef(new Map<number, HTMLDivElement>());
-  const lock = useRef(false); // suppress index-sync during programmatic scroll
+  const lock = useRef(false);      // suppress index-sync during programmatic scroll
+  const touching = useRef(false);  // a finger is down — never settle/commit until release
   const settleTimer = useRef<number | undefined>(undefined);
   const idxRef = useRef(index);
   idxRef.current = index;
@@ -65,8 +66,10 @@ export function SwipePager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Smooth-scroll when the index is changed externally (e.g. tapping a tab),
-  // and reset every other pane to the top so you arrive at the top of it.
+  // Move to the active index when it's changed externally (tab tap / nav / deep
+  // link), and reset every other pane to the top so you arrive at its top.
+  // Adjacent moves animate; far jumps (e.g. home → ledger) snap instantly so the
+  // panes in between don't flash past.
   useEffect(() => {
     paneRefs.current.forEach((el, i) => { if (i !== index) el.scrollTop = 0; });
     const el = ref.current;
@@ -76,30 +79,46 @@ export function SwipePager({
     const target = index * w;
     if (Math.abs(el.scrollLeft - target) < 2) return;
     lock.current = true;
-    el.scrollTo({ left: target, behavior: "smooth" });
-    const t = window.setTimeout(() => { lock.current = false; }, 380);
+    const far = Math.abs(el.scrollLeft / w - index) > 1.2;
+    el.scrollTo({ left: target, behavior: far ? "auto" : "smooth" });
+    const t = window.setTimeout(() => { lock.current = false; }, far ? 60 : 380);
     return () => window.clearTimeout(t);
   }, [index]);
 
-  // Derive the index from the settled scroll position.
-  const onScroll = useCallback(() => {
+  // Commit the index only once the scroll has SETTLED and no finger is down — so
+  // holding a half-swipe never auto-completes; you decide by letting go.
+  const scheduleSettle = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    const w = el.clientWidth;
-    if (w && onProgress) onProgress(el.scrollLeft / w); // always report (even during programmatic scroll)
-    if (lock.current) return;
     window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
+      if (touching.current) return;
+      const w = el.clientWidth;
       if (!w) return;
       const i = Math.round(el.scrollLeft / w);
       if (i !== idxRef.current && i >= 0 && i < count) onIndexChange(i);
     }, 80);
-  }, [onIndexChange, onProgress, count]);
+  }, [onIndexChange, count]);
+
+  const onScroll = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (w && onProgress) onProgress(el.scrollLeft / w); // live position (even mid-gesture)
+    if (lock.current || touching.current) return;       // don't settle while holding
+    scheduleSettle();
+  }, [onProgress, scheduleSettle]);
+
+  const onTouchStart = useCallback(() => { touching.current = true; window.clearTimeout(settleTimer.current); }, []);
+  const onTouchEnd = useCallback(() => { touching.current = false; scheduleSettle(); }, [scheduleSettle]);
 
   return (
     <div
       ref={ref}
       onScroll={onScroll}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
       className={className}
       style={{
         display: "flex",

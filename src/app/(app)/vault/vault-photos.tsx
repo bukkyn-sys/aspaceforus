@@ -452,49 +452,80 @@ function Lightbox({
 
   // ── Gestures: 1-finger swipe → prev/next; 2-finger pinch → zoom (springs back) ──
   const imgRef = useRef<HTMLImageElement>(null);
-  const g = useRef({ mode: "none" as "none" | "swipe" | "pinch", x0: 0, d0: 1, dx: 0, moved: false });
+  const g = useRef({ mode: "none" as "none" | "swipe" | "pinch", x0: 0, y0: 0, d0: 1, dx: 0, dy: 0, axis: "" as "" | "x" | "y", moved: false });
 
-  function setImgT(transform: string, animate: boolean) {
+  function applyImg(transform: string, opacity: string, animate: boolean) {
     const el = imgRef.current; if (!el) return;
-    el.style.transition = animate ? "transform .25s ease" : "none";
+    el.style.transition = animate ? "transform .25s ease, opacity .25s ease" : "none";
     el.style.transform = transform;
+    el.style.opacity = opacity;
+  }
+  function resetImg() {
+    const el = imgRef.current; if (!el) return;
+    el.style.transformOrigin = "center";
+    applyImg("translateX(0px)", "1", false);
   }
   function touchDist(t: RTouchEvent<HTMLDivElement>["touches"]) {
     return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
   }
   function onTouchStart(e: RTouchEvent<HTMLDivElement>) {
     g.current.moved = false;
-    if (e.touches.length >= 2) { g.current.mode = "pinch"; g.current.d0 = touchDist(e.touches); }
-    else { g.current.mode = "swipe"; g.current.x0 = e.touches[0].clientX; g.current.dx = 0; }
+    if (e.touches.length >= 2) {
+      g.current.mode = "pinch"; g.current.d0 = touchDist(e.touches);
+      // Zoom from the point between the fingers, not the centre.
+      const el = imgRef.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        const my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+        el.style.transformOrigin = `${(mx / r.width) * 100}% ${(my / r.height) * 100}%`;
+      }
+    } else {
+      g.current.mode = "swipe"; g.current.x0 = e.touches[0].clientX; g.current.y0 = e.touches[0].clientY;
+      g.current.dx = 0; g.current.dy = 0; g.current.axis = "";
+    }
   }
   function onTouchMove(e: RTouchEvent<HTMLDivElement>) {
     if (g.current.mode === "pinch" && e.touches.length >= 2) {
       const s = Math.max(1, Math.min(4, touchDist(e.touches) / g.current.d0));
       g.current.moved = true;
-      setImgT(`scale(${s})`, false);
+      applyImg(`scale(${s})`, "1", false);
     } else if (g.current.mode === "swipe" && e.touches.length === 1) {
       const dx = e.touches[0].clientX - g.current.x0;
-      g.current.dx = dx;
-      if (Math.abs(dx) > 6) g.current.moved = true;
-      setImgT(`translateX(${dx}px)`, false);
+      const dy = e.touches[0].clientY - g.current.y0;
+      g.current.dx = dx; g.current.dy = dy;
+      if (!g.current.axis && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        g.current.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        g.current.moved = true;
+      }
+      if (g.current.axis === "x") applyImg(`translateX(${dx}px)`, "1", false);
+      else if (g.current.axis === "y") {
+        const fade = Math.max(0.4, 1 - Math.abs(dy) / 500);
+        applyImg(`translateY(${dy}px) scale(${Math.max(0.85, fade)})`, String(fade), false);
+      }
     }
   }
   function onTouchEnd(e: RTouchEvent<HTMLDivElement>) {
     if (e.touches.length > 0) return; // wait until all fingers are up
     if (g.current.mode === "pinch") {
-      setImgT("scale(1)", true); // spring back to normal size
+      applyImg("scale(1)", "1", true); // spring back to normal size
     } else if (g.current.mode === "swipe") {
-      const w = imgRef.current?.clientWidth ?? window.innerWidth;
-      const threshold = Math.min(90, w * 0.28);
-      const dx = g.current.dx;
-      if (dx <= -threshold && hasNext) { setImgT("translateX(0px)", false); onNext(); }
-      else if (dx >= threshold && hasPrev) { setImgT("translateX(0px)", false); onPrev(); }
-      else { setImgT("translateX(0px)", true); }
+      if (g.current.axis === "y") {
+        if (g.current.dy > 110) { onClose(); return; } // swipe down to exit
+        applyImg("translateY(0px) scale(1)", "1", true);
+      } else {
+        const w = imgRef.current?.clientWidth ?? window.innerWidth;
+        const threshold = Math.min(90, w * 0.28);
+        const dx = g.current.dx;
+        if (dx <= -threshold && hasNext) { resetImg(); onNext(); }
+        else if (dx >= threshold && hasPrev) { resetImg(); onPrev(); }
+        else { applyImg("translateX(0px)", "1", true); }
+      }
     }
     g.current.mode = "none";
   }
 
-  useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); setImgT("translateX(0px)", false); }, [photo.id, photo.caption]);
+  useEffect(() => { setConfirmDel(false); setEditing(false); setDraft(photo.caption ?? ""); resetImg(); }, [photo.id, photo.caption]);
 
   // Double-tap the photo to favourite it (Instagram-style) — only ever loves,
   // never un-loves, and always shows the heart burst.
