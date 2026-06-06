@@ -14,10 +14,10 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin } from "lucide-react";
 import {
   createTodoList, renameTodoList, deleteTodoList,
-  addTodo, updateTodo, setTodoDone, deleteTodo, clearCompleted,
+  addTodo, updateTodo, setTodoDone, deleteTodo, clearCompleted, setPriorityTodoList,
 } from "./todo-actions";
 
 interface TodoList { id: string; title: string; emoji: string; created_by: string; created_at: string; total: number; done: number; }
@@ -61,6 +61,7 @@ export default function VaultTodos() {
   const [itemsLoading, setItemsLoading] = useState(false);
   const [rtick, setRtick] = useState(0);
   const [showDone, setShowDone] = useState(false);
+  const [priorityListId, setPriorityListId] = useState<string | null>(null);
 
   // Sheets
   const [showNewList, setShowNewList] = useState(false);
@@ -86,7 +87,8 @@ export default function VaultTodos() {
     Promise.all([
       supabase.from("vault_todo_lists").select("id,title,emoji,created_by,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
       supabase.from("vault_todos").select("list_id,done").eq("couple_id", coupleId),
-    ]).then(([{ data: ls }, { data: ts }]) => {
+      supabase.from("couples").select("priority_todo_list_id").eq("id", coupleId).single(),
+    ]).then(([{ data: ls }, { data: ts }, { data: cp }]) => {
       const counts: Record<string, { total: number; done: number }> = {};
       ((ts as { list_id: string; done: boolean }[]) ?? []).forEach((t) => {
         const c = (counts[t.list_id] ??= { total: 0, done: 0 });
@@ -96,6 +98,7 @@ export default function VaultTodos() {
         ...l, total: counts[l.id]?.total ?? 0, done: counts[l.id]?.done ?? 0,
       }));
       setLists(next); setListsLoading(false); setCache(`vtodo:${coupleId}`, next);
+      setPriorityListId((cp as { priority_todo_list_id: string | null } | null)?.priority_todo_list_id ?? null);
     });
   }, [coupleId, view, rtick]);
 
@@ -161,6 +164,12 @@ export default function VaultTodos() {
     setLists((prev) => prev.filter((x) => x.id !== l.id));
     setConfirmDeleteList(null);
     startTransition(() => { deleteTodoList(l.id, coupleId); });
+  }
+
+  function togglePriority(l: TodoList) {
+    const next = priorityListId === l.id ? null : l.id;
+    setPriorityListId(next);
+    startTransition(() => { setPriorityTodoList(coupleId, next); });
   }
 
   function openList(l: TodoList) { setActiveList(l); setView("items"); setShowDone(false); }
@@ -262,6 +271,16 @@ export default function VaultTodos() {
                     )}
                   </div>
                   <div className="flex items-center pl-2 gap-1 flex-shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); togglePriority(l); }}
+                      className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+                        priorityListId === l.id ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
+                      )}
+                      aria-label={priorityListId === l.id ? "unpin from home" : "pin to home"}
+                    >
+                      <Pin className={cn("w-3.5 h-3.5", priorityListId === l.id && "fill-current")} />
+                    </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmDeleteList(l); }}
                       className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors"

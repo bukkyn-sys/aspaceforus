@@ -107,6 +107,13 @@ export async function deleteTodo(id: string, coupleId: string) {
   await supabase.from("vault_todos").delete().eq("id", id).eq("couple_id", coupleId);
 }
 
+// Pin one list to the Home dashboard (or pass null to unpin).
+export async function setPriorityTodoList(coupleId: string, listId: string | null) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("set_priority_todo_list", { p_couple_id: coupleId, p_list_id: listId });
+}
+
 export async function clearCompleted(listId: string, coupleId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;

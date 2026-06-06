@@ -8,6 +8,7 @@ import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, updateNote, setStartedAt, addCountdown, updateCountdown, deleteCountdown } from "./actions";
 import { setAvailabilityDay } from "@/app/(app)/calendar/actions";
+import { setTodoDone } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
 import { Plane, Heart, User, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,19 @@ const COUNTDOWN_TYPES = [
 
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; }
 interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
+interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; }
+interface PriorityTodo { list_id: string; title: string; emoji: string; remaining: number; items: PriorityTodoItem[]; }
+
+// Calm due styling for the pinned to-do card (mirrors the vault's).
+function todoDue(due: string | null): { label: string; tone: "muted" | "today" | "over" } | null {
+  if (!due) return null;
+  const today = localDateStr(0);
+  const tomorrow = localDateStr(1);
+  if (due < today) return { label: "overdue", tone: "over" };
+  if (due === today) return { label: "today", tone: "today" };
+  if (due === tomorrow) return { label: "tomorrow", tone: "muted" };
+  return { label: new Date(due + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }), tone: "muted" };
+}
 
 interface DashboardData {
   myMood: number | null;
@@ -55,6 +69,7 @@ interface DashboardData {
   balance: number;   // + means partner owes you, − means you owe partner
   pots: PotMini[];
   daily: DailyData;
+  priorityTodo: PriorityTodo | null;
 }
 
 // Shape returned by the get_home_data RPC (single-call Home load).
@@ -72,6 +87,7 @@ interface HomeData {
   pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
   partner_action: { text: string; at: string } | null;
   daily?: DailyData;
+  priority_todo?: PriorityTodo | null;
 }
 
 function timeUntil(dateStr: string) {
@@ -137,7 +153,7 @@ export default function DashboardClient() {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
       myMood: null, myMoodAt: null, partnerMood: null, partnerMoodAt: null,
-      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false },
+      sharedNote: "", startedAt: null, bannerUrl: null, bannerFocus: 50, countdowns: [], inviteCode: null, partnerAction: null, freeWindows: [], balance: 0, pots: [], daily: { paired: false }, priorityTodo: null,
     };
   });
   const [hasPartner, setHasPartner] = useState(() => getCache<DashCache>(`dash:${coupleId}`)?.hasPartner ?? false);
@@ -217,6 +233,7 @@ export default function DashboardClient() {
         balance: Number(h.balance ?? 0),
         pots,
         daily: h.daily ?? { paired: false },
+        priorityTodo: h.priority_todo ?? null,
       };
       const hasP = !!partner;
       setHasPartner(hasP);
@@ -285,6 +302,7 @@ export default function DashboardClient() {
       .on("postgres_changes", { event: "*", schema: "public", table: "countdowns",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "ledger_entries", filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .on("postgres_changes", { event: "*", schema: "public", table: "savings_pots",   filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "vault_todos",     filter: `couple_id=eq.${coupleId}` }, onPartnerChange)
       .subscribe();
 
     channelRef.current = channel;
@@ -370,6 +388,20 @@ export default function DashboardClient() {
     setData((prev) => ({ ...prev, countdowns: prev.countdowns.filter((c) => c.id !== id) }));
     setActionCountdown(null);
     startTransition(() => { deleteCountdown(id, coupleId, me.id); });
+  }
+
+  // Check off a pinned to-do straight from Home — optimistic remove + persist.
+  function handleTodoCheck(item: PriorityTodoItem) {
+    setData((prev) => prev.priorityTodo ? {
+      ...prev,
+      priorityTodo: {
+        ...prev.priorityTodo,
+        items: prev.priorityTodo.items.filter((i) => i.id !== item.id),
+        remaining: Math.max(0, prev.priorityTodo.remaining - 1),
+      },
+    } : prev);
+    track("todo_completed");
+    startTransition(() => { setTodoDone(item.id, coupleId, true, item.title); });
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -656,6 +688,42 @@ export default function DashboardClient() {
                 );
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Pinned to-do list — check off without leaving Home */}
+      {!loading && data.priorityTodo && data.priorityTodo.items.length > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs text-muted-foreground font-medium tracking-wide truncate">
+              <span className="mr-1">{data.priorityTodo.emoji}</span>{data.priorityTodo.title}
+            </p>
+            <Link href="/vault?tab=todos" className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors flex-shrink-0 ml-2">open list</Link>
+          </div>
+          <div className="space-y-0.5">
+            {data.priorityTodo.items.map((item) => {
+              const due = todoDue(item.due_date);
+              return (
+                <div key={item.id} className="flex items-center gap-3 py-1.5">
+                  <button
+                    onClick={() => handleTodoCheck(item)}
+                    aria-label={`mark "${item.title}" done`}
+                    className="w-[20px] h-[20px] rounded-full border-[1.5px] border-muted-foreground/30 hover:border-muted-foreground/60 flex-shrink-0 transition-colors active:scale-90"
+                  />
+                  <span className="text-sm text-foreground flex-1 truncate">{item.title}</span>
+                  {due && (
+                    <span className={cn("text-[11px] font-medium flex-shrink-0",
+                      due.tone === "over" ? "text-terracotta/80" : due.tone === "today" ? "text-sage" : "text-muted-foreground/50")}>
+                      {due.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {data.priorityTodo.remaining > data.priorityTodo.items.length && (
+            <p className="text-[11px] text-muted-foreground/50 mt-2">+{data.priorityTodo.remaining - data.priorityTodo.items.length} more on the list</p>
           )}
         </div>
       )}

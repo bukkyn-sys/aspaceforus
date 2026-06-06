@@ -1118,8 +1118,17 @@ export default function VaultClient() {
 
   useEffect(() => { markSeen("vault"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Open to the most recently used tab when no explicit ?tab= is given.
+  useEffect(() => {
+    if (param) return;
+    const stored = (typeof window !== "undefined" ? localStorage.getItem("us_vault_tab") : null) as VaultTab | null;
+    if (stored && VAULT_TABS.some((t) => t.id === stored)) setTab(stored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function select(t: VaultTab) {
     setTab(t);
+    if (typeof window !== "undefined") localStorage.setItem("us_vault_tab", t);
     router.replace(`/vault?tab=${t}`, { scroll: false });
   }
 
