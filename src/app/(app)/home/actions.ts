@@ -25,6 +25,12 @@ export async function updateNote(coupleId: string, userId: string, note: string)
   await supabase.rpc("update_shared_note", { p_couple_id: coupleId, p_user_id: uid, p_note: note });
 }
 
+export async function setDashboardLayout(coupleId: string, layout: { id: string; size: "full" | "half" }[]) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("set_dashboard_layout", { p_couple_id: coupleId, p_layout: layout });
+}
+
 export async function setStartedAt(coupleId: string, userId: string, date: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
