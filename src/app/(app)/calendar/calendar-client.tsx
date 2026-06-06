@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
-import { setAvailability, setAvailabilityDay, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
+import { setAvailability, setAvailabilityDay, clearCoupleAvailabilityPart, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
 import { deleteCountdown } from "@/app/(app)/home/actions";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
@@ -77,6 +77,7 @@ export default function CalendarClient() {
   const [loading, setLoading] = useState(true);
   const [rtick, setRtick] = useState(0);
   const [dayView, setDayView] = useState<string | null>(null);
+  const [planContext, setPlanContext] = useState<{ date: string; part: DayPart } | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
@@ -111,6 +112,7 @@ export default function CalendarClient() {
         setEventTitle(""); setEventEmoji("📅");
         setEventDate(date); setEventEndDate("");
         setEventAllDay(false); setEventStartTime(t.start); setEventEndTime(t.end);
+        setPlanContext(part ? { date, part: part as DayPart } : null);
         setShowAddEvent(true);
       }
     } else if (day) {
@@ -309,9 +311,16 @@ export default function CalendarClient() {
       track("event_created", { multi_day: !!eventEndDate, all_day: allDay });
       startTransition(() => { addEvent({ coupleId, userId: me.id, title, startAt, endAt, emoji: eventEmoji, allDay }); });
     }
+    // Planning a free window books it: clear that date+part for both partners so
+    // they no longer show as free then.
+    if (planContext) {
+      const pc = planContext;
+      setRows((prev) => prev.filter((r) => !(r.date === pc.date && r.part === pc.part)));
+      startTransition(() => { clearCoupleAvailabilityPart(coupleId, pc.date, pc.part); });
+    }
     setEventTitle(""); setEventEndDate(""); setEventEmoji("📅");
     setEventAllDay(false); setEventStartTime("18:00"); setEventEndTime("");
-    setEditingEventId(null); setShowAddEvent(false);
+    setPlanContext(null); setEditingEventId(null); setShowAddEvent(false);
   }
 
   function openEditEvent(evt: CalEvent) {
@@ -696,14 +705,19 @@ export default function CalendarClient() {
       {/* Add / edit event sheet */}
       <BottomSheet
         open={showAddEvent}
-        onClose={() => { setShowAddEvent(false); setEditingEventId(null); }}
-        title={editingEventId ? "edit event" : "new event"}
+        onClose={() => { setShowAddEvent(false); setEditingEventId(null); setPlanContext(null); }}
+        title={editingEventId ? "edit event" : planContext ? "plan your free time" : "new event"}
         footer={
           <Button onClick={handleSaveEvent} disabled={!eventTitle.trim() || !eventDate} className="w-full h-12 rounded-2xl text-[15px]">
             {editingEventId ? "save" : "add event"}
           </Button>
         }
       >
+        {planContext && (
+          <div className="rounded-xl bg-sage-light px-3.5 py-2.5">
+            <p className="text-xs text-sage leading-relaxed">booking your free <span className="font-medium">{PART_META[planContext.part].label}</span> — you&apos;ll no longer show as free then.</p>
+          </div>
+        )}
         <Input
           value={eventTitle}
           onChange={(e) => setEventTitle(e.target.value)}

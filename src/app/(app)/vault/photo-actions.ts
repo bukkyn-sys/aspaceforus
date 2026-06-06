@@ -37,6 +37,12 @@ export async function addPhoto(data: {
   return row?.id as string | undefined;
 }
 
+export async function setPhotoFavorite(id: string, coupleId: string, favorite: boolean) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.from("vault_photos").update({ favorite }).eq("id", id).eq("couple_id", coupleId);
+}
+
 export async function updatePhotoCaption(id: string, coupleId: string, caption: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;

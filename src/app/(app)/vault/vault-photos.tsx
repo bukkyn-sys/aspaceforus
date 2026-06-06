@@ -14,8 +14,9 @@ import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
-import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus } from "lucide-react";
-import { addPhoto, updatePhotoCaption, deletePhoto, createAlbum, renameAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
+import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus, Heart } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { addPhoto, updatePhotoCaption, deletePhoto, setPhotoFavorite, createAlbum, renameAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
 
 interface Photo {
   id: string;
@@ -26,6 +27,7 @@ interface Photo {
   created_by: string;
   created_at: string;
   album_id: string | null;
+  favorite: boolean;
   local?: string; // object URL for optimistic tiles still uploading
 }
 interface Album { id: string; name: string; created_at: string; }
@@ -78,6 +80,7 @@ export default function VaultPhotos() {
 
   const [albums, setAlbums] = useState<Album[]>([]);
   const [activeAlbum, setActiveAlbum] = useState<string | null>(null); // null = all
+  const [favFilter, setFavFilter] = useState(false);
   const [showNewAlbum, setShowNewAlbum] = useState(false);
   const [albumName, setAlbumName] = useState("");
   const [editAlbum, setEditAlbum] = useState<Album | null>(null);
@@ -89,7 +92,7 @@ export default function VaultPhotos() {
   // Load (photos + albums); archived photos excluded everywhere.
   useEffect(() => {
     Promise.all([
-      supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id")
+      supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id,favorite")
         .eq("couple_id", coupleId).is("archived_at", null).order("created_at", { ascending: false }),
       supabase.from("vault_albums").select("id,name,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
     ]).then(([{ data: ph }, { data: al }]) => {
@@ -140,7 +143,7 @@ export default function VaultPhotos() {
       const tempId = crypto.randomUUID();
       const local = URL.createObjectURL(blob);
       const path = `${coupleId}/${crypto.randomUUID()}.${ext.toLowerCase()}`;
-      setPhotos((prev) => [{ id: tempId, path, width, height, caption: null, created_by: me.id, created_at: new Date().toISOString(), album_id: activeAlbum, local }, ...prev]);
+      setPhotos((prev) => [{ id: tempId, path, width, height, caption: null, created_by: me.id, created_at: new Date().toISOString(), album_id: activeAlbum, favorite: false, local }, ...prev]);
 
       const { error } = await supabase.storage.from("photos").upload(path, blob, { contentType, upsert: false });
       setUploadCount((c) => c - 1);
@@ -196,7 +199,14 @@ export default function VaultPhotos() {
     movePhotoToAlbum(photo.id, coupleId, albumId);
   }
 
-  const shown = activeAlbum ? photos.filter((p) => p.album_id === activeAlbum) : photos;
+  function handleFavorite(photo: Photo) {
+    const fav = !photo.favorite;
+    setPhotos((prev) => prev.map((p) => p.id === photo.id ? { ...p, favorite: fav } : p));
+    setPhotoFavorite(photo.id, coupleId, fav);
+  }
+
+  const shown = favFilter ? photos.filter((p) => p.favorite)
+    : activeAlbum ? photos.filter((p) => p.album_id === activeAlbum) : photos;
 
   // Greedy 2-column masonry — push each photo to the currently shorter column.
   const cols: Photo[][] = [[], []];
@@ -221,14 +231,21 @@ export default function VaultPhotos() {
       {/* Album chips — all · {albums} · + (long-press an album to delete) */}
       {(albums.length > 0 || photos.length > 0) && (
         <div className="flex gap-2 overflow-x-auto pb-2.5 -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
-          <AlbumChip active={activeAlbum === null} label="all" onClick={() => setActiveAlbum(null)} />
+          <AlbumChip active={activeAlbum === null && !favFilter} label="all" onClick={() => { setActiveAlbum(null); setFavFilter(false); }} />
+          <button
+            onClick={() => { setFavFilter(true); setActiveAlbum(null); }}
+            aria-label="favourites"
+            className={cn("flex-shrink-0 inline-flex items-center justify-center w-9 h-8 rounded-full transition-colors", favFilter ? "bg-foreground text-background" : "bg-secondary text-muted-foreground hover:text-foreground")}
+          >
+            <Heart className={cn("w-3.5 h-3.5", favFilter && "fill-current")} />
+          </button>
           {albums.map((a) => (
-            <AlbumChip key={a.id} active={activeAlbum === a.id} label={a.name} onClick={() => setActiveAlbum(a.id)} />
+            <AlbumChip key={a.id} active={activeAlbum === a.id && !favFilter} label={a.name} onClick={() => { setActiveAlbum(a.id); setFavFilter(false); }} />
           ))}
           <button onClick={() => { setAlbumName(""); setShowNewAlbum(true); }} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             <Plus className="w-3.5 h-3.5" /> album
           </button>
-          {activeAlbum && (
+          {activeAlbum && !favFilter && (
             <button
               onClick={() => { const a = albums.find((x) => x.id === activeAlbum); if (a) { setEditAlbum(a); setEditAlbumName(a.name); } }}
               className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -244,11 +261,19 @@ export default function VaultPhotos() {
           {[0, 1, 2, 3].map((i) => <div key={i} className="rounded-2xl bg-secondary/50 animate-pulse" style={{ aspectRatio: i % 2 ? "3/4" : "1/1" }} />)}
         </div>
       ) : shown.length === 0 ? (
-        <button onClick={() => fileRef.current?.click()} className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
-          <ImagePlus className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">{activeAlbum ? "no photos in this album yet" : "no photos yet"}</p>
-          <p className="text-xs text-muted-foreground/40 mt-0.5">{activeAlbum ? "upload here, or move photos in from the wall" : "tap to add some — a shared wall, just the two of you"}</p>
-        </button>
+        favFilter ? (
+          <div className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center bg-secondary/40 mt-2">
+            <Heart className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" strokeWidth={1.5} />
+            <p className="text-sm text-muted-foreground">no favourites yet</p>
+            <p className="text-xs text-muted-foreground/40 mt-0.5">open a photo and tap the heart to love it</p>
+          </div>
+        ) : (
+          <button onClick={() => fileRef.current?.click()} className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
+            <ImagePlus className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" strokeWidth={1.5} />
+            <p className="text-sm text-muted-foreground">{activeAlbum ? "no photos in this album yet" : "no photos yet"}</p>
+            <p className="text-xs text-muted-foreground/40 mt-0.5">{activeAlbum ? "upload here, or move photos in from the wall" : "tap to add some — a shared wall, just the two of you"}</p>
+          </button>
+        )
       ) : (
         <div className="flex gap-2 items-start">
           {cols.map((col, ci) => (
@@ -257,10 +282,11 @@ export default function VaultPhotos() {
                 <button
                   key={p.id}
                   onClick={() => setLightboxId(p.id)}
-                  className="block w-full rounded-2xl overflow-hidden bg-secondary active:scale-[0.99] transition-transform"
+                  className="block w-full rounded-2xl overflow-hidden bg-secondary active:scale-[0.99] transition-transform relative"
                   style={{ aspectRatio: p.width && p.height ? `${p.width}/${p.height}` : "1/1" }}
                 >
                   <SignedImg src={p.local ?? photoUrl(p.path)} className="w-full h-full object-cover" />
+                  {p.favorite && <Heart className="absolute top-1.5 right-1.5 w-4 h-4 text-white fill-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />}
                 </button>
               ))}
             </div>
@@ -281,6 +307,7 @@ export default function VaultPhotos() {
           onDelete={() => removePhoto(lightbox)}
           onCaption={(c) => saveCaption(lightbox, c)}
           onMove={() => { const p = lightbox; setLightboxId(null); setMovingPhoto(p); }}
+          onFavorite={() => handleFavorite(lightbox)}
         />,
         document.body
       )}
@@ -353,7 +380,7 @@ function AlbumChip({ active, label, onClick }: { active: boolean; label: string;
 }
 
 function Lightbox({
-  photo, src, canEdit, hasPrev, hasNext, onPrev, onNext, onClose, onDelete, onCaption, onMove,
+  photo, src, canEdit, hasPrev, hasNext, onPrev, onNext, onClose, onDelete, onCaption, onMove, onFavorite,
 }: {
   photo: Photo;
   src: string;
@@ -366,6 +393,7 @@ function Lightbox({
   onDelete: () => void;
   onCaption: (c: string) => void;
   onMove: () => void;
+  onFavorite: () => void;
 }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -383,6 +411,9 @@ function Lightbox({
           <X className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2">
+          <button onClick={onFavorite} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="favourite">
+            <Heart className={cn("w-4 h-4", photo.favorite && "fill-white")} />
+          </button>
           <a href={signed ?? src} download target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white active:bg-white/20" aria-label="download">
             <Download className="w-4 h-4" />
           </a>

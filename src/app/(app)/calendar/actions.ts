@@ -29,6 +29,13 @@ export async function setAvailability(
   });
 }
 
+// Clear a date+part for BOTH partners (used when an event blocks a free window).
+export async function clearCoupleAvailabilityPart(coupleId: string, date: string, part: DayPart) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("clear_couple_availability", { p_couple_id: coupleId, p_date: date, p_part: part });
+}
+
 // Toggle a whole day (all four parts) free or clear.
 export async function setAvailabilityDay(
   coupleId: string,
