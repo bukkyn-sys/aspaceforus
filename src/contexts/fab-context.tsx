@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 
 type FabAction = (() => void) | null;
 
@@ -44,4 +44,24 @@ export function useRegisterFab(fn: () => void) {
     return () => setAction(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+}
+
+/**
+ * Scopes the FAB for a swipe pane. Several panes can be mounted at once (so a
+ * neighbour is live while you drag), but only the ACTIVE one should own the FAB.
+ * The gate remembers its pane's latest action and only forwards it to the real
+ * FAB when this pane is active (pushing it on activation).
+ */
+export function FabGate({ active, children }: { active: boolean; children: ReactNode }) {
+  const realSet = useContext(FabSetContext);
+  const stored = useRef<FabAction>(null);
+  const scopedSet = useCallback((fn: FabAction) => {
+    stored.current = fn;
+    if (active) realSet(fn);
+  }, [active, realSet]);
+  useEffect(() => {
+    if (active) realSet(stored.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+  return <FabSetContext.Provider value={scopedSet}>{children}</FabSetContext.Provider>;
 }

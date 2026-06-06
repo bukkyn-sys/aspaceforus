@@ -23,6 +23,8 @@ import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { track } from "@/lib/analytics";
 import { useOwnerIdentity, ownerCardStyle, panelOmbre } from "@/lib/owner-identity";
+import { FabGate } from "@/contexts/fab-context";
+import { SwipePager } from "@/components/swipe-pager";
 import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
@@ -1133,6 +1135,8 @@ export default function VaultClient() {
     router.replace(`/vault?tab=${t}`, { scroll: false });
   }
 
+  const tabIndex = VAULT_TABS.findIndex((t) => t.id === tab);
+
   return (
     <div className="max-w-lg mx-auto">
       <div className={cn(
@@ -1157,9 +1161,16 @@ export default function VaultClient() {
         </div>
       </div>
 
-      {tab === "lists"  && <VaultLists />}
-      {tab === "photos" && <VaultPhotos />}
-      {tab === "todos"  && <VaultTodos />}
+      <SwipePager
+        index={tabIndex < 0 ? 2 : tabIndex}
+        count={VAULT_TABS.length}
+        onIndexChange={(i) => select(VAULT_TABS[i].id)}
+        renderPane={(i, active) => (
+          <FabGate active={active}>
+            {i === 0 ? <VaultPhotos /> : i === 1 ? <VaultTodos /> : <VaultLists />}
+          </FabGate>
+        )}
+      />
     </div>
   );
 }

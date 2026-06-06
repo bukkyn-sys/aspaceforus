@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useCallback } from "react";
+import { useState, useEffect, useTransition, useCallback, useRef, useLayoutEffect, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
@@ -26,6 +26,64 @@ interface CalEvent { id: string; title: string; emoji: string; on_date: string; 
 type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
+
+const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, 1);
+
+/**
+ * Live, finger-tracked month pager (native scroll-snap). Renders [prev · current ·
+ * next], keeps the scroll centred on `current`, and on settle to a neighbour it
+ * advances `current` and silently recentres — the swiped-to month is the same one
+ * shown before and after the swap, so the recenter is seamless.
+ */
+function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (d: Date) => void; render: (d: Date) => ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const lock = useRef(false);
+  const timer = useRef<number | undefined>(undefined);
+
+  // Centre on the middle pane instantly on mount and whenever the month changes.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    lock.current = true;
+    el.scrollLeft = el.clientWidth;
+    const t = window.setTimeout(() => { lock.current = false; }, 120);
+    return () => window.clearTimeout(t);
+  }, [current]);
+
+  function onScroll() {
+    const el = ref.current;
+    if (!el || lock.current) return;
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      const w = el.clientWidth;
+      if (!w) return;
+      const i = Math.round(el.scrollLeft / w);
+      if (i === 0) onChange(addMonths(current, -1));
+      else if (i === 2) onChange(addMonths(current, 1));
+    }, 90);
+  }
+
+  return (
+    <div
+      ref={ref}
+      onScroll={onScroll}
+      style={{
+        display: "flex",
+        overflowX: "auto",
+        overflowY: "hidden",
+        scrollSnapType: "x mandatory",
+        scrollbarWidth: "none",
+        WebkitOverflowScrolling: "touch",
+      }}
+    >
+      {[-1, 0, 1].map((off) => (
+        <div key={off} style={{ flex: "0 0 100%", minWidth: "100%", scrollSnapAlign: "start", alignSelf: "flex-start" }}>
+          {render(addMonths(current, off))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
@@ -85,10 +143,12 @@ export default function CalendarClient() {
       setLoading(true);
     }
     const supabase = createClient();
-    // Use local date parts — .toISOString() shifts to UTC which causes off-by-one in non-UTC timezones
+    // Use local date parts — .toISOString() shifts to UTC which causes off-by-one in non-UTC timezones.
+    // Load a 3-month window (prev · current · next) so neighbours show real data while swiping.
     const pad = (n: number) => String(n).padStart(2, "0");
-    const start = `${year}-${pad(month + 1)}-01`;
-    const end = `${year}-${pad(month + 1)}-${pad(new Date(year, month + 1, 0).getDate())}`;
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const start = fmt(new Date(year, month - 1, 1));
+    const end = fmt(new Date(year, month + 2, 0));
     Promise.all([
       supabase
         .from("availability")
@@ -252,18 +312,10 @@ export default function CalendarClient() {
     startTransition(() => { deleteEvent(id, coupleId, me.id); });
   }
 
-  const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startOffset = (firstDay + 6) % 7;
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-  const cells: (number | null)[] = [
-    ...Array(startOffset).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
 
   const monthLabel = current.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
@@ -274,6 +326,100 @@ export default function CalendarClient() {
     const d = `${year}-${String(month + 1).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`;
     return dayHasOverlap(d);
   }).filter(Boolean).length;
+
+  // One month's 7-col grid, for any month — rendered three-up by the MonthSwiper.
+  function renderMonth(base: Date) {
+    const y = base.getFullYear();
+    const m = base.getMonth();
+    const firstDay = new Date(y, m, 1).getDay();
+    const dim = new Date(y, m + 1, 0).getDate();
+    const startOffset = (firstDay + 6) % 7;
+    const mLabel = base.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const monthCells: (number | null)[] = [
+      ...Array(startOffset).fill(null),
+      ...Array.from({ length: dim }, (_, i) => i + 1),
+    ];
+    while (monthCells.length % 7 !== 0) monthCells.push(null);
+
+    return (
+      <div className="grid grid-cols-7 gap-y-2 px-2">
+        {monthCells.map((day, i) => {
+          if (!day) return <div key={i} />;
+          const ds = `${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const isPast = ds < todayStr;
+          const isToday = ds === todayStr;
+          const overlap = dayHasOverlap(ds);
+          const dayEvents = getEvents(ds);
+          const isEventDay = dayEvents.length > 0;
+          const dayEmojis = isEventDay ? dayEvents.map((e) => e.emoji) : [];
+          const myFree = freeParts(me.id, ds);
+          const theirFree = partner ? freeParts(partner.id, ds) : [];
+          const hasAvail = myFree.length > 0 || theirFree.length > 0;
+          const availLabel = [
+            isEventDay ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}` : "",
+            myFree.length ? `, you free ${myFree.join(", ")}` : "",
+          ].join("");
+
+          return (
+            <button
+              key={i}
+              onClick={() => setDayView(ds)}
+              aria-label={`${day} ${mLabel}${availLabel}`}
+              className={cn(
+                "aspect-square w-full flex flex-col items-center justify-center gap-1 rounded-2xl relative transition-all select-none",
+                overlap && "bg-[var(--free-cell)]",
+                isPast && "opacity-30",
+              )}
+            >
+              {isToday ? (
+                <div className="w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
+                  <span className="text-[11px] font-bold text-background leading-none">{day}</span>
+                </div>
+              ) : (
+                <span className={cn(
+                  "text-xs font-semibold leading-none",
+                  overlap ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
+                )}>
+                  {day}
+                </span>
+              )}
+
+              {isEventDay && (
+                <div className="flex items-center justify-center gap-0.5 leading-none">
+                  {dayEmojis.slice(0, 2).map((em, k) => (
+                    <span key={k} className="text-[10px] leading-none">{em}</span>
+                  ))}
+                  {dayEmojis.length > 2 && (
+                    <span className="text-[8px] font-semibold text-muted-foreground/70 leading-none">+{dayEmojis.length - 2}</span>
+                  )}
+                </div>
+              )}
+
+              {hasAvail ? (
+                <div className="flex w-6 h-1 rounded-full overflow-hidden">
+                  {PARTS.map((p) => {
+                    const both = bothFree(ds, p);
+                    const mineP = isFree(me.id, ds, p);
+                    const theirsP = partner ? isFree(partner.id, ds, p) : false;
+                    const segStyle = both
+                      ? { backgroundColor: "var(--free-ink)" }
+                      : mineP
+                      ? { backgroundColor: myAccent.hex }
+                      : theirsP
+                      ? { backgroundColor: partnerAccent.hex, opacity: 0.6 }
+                      : { backgroundColor: "rgba(127,127,127,0.14)" };
+                    return <span key={p} className="flex-1 h-full" style={segStyle} />;
+                  })}
+                </div>
+              ) : (
+                <div className="h-1" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto pb-8">
@@ -314,89 +460,8 @@ export default function CalendarClient() {
         ))}
       </div>
 
-      {/* ── Grid ───────────────────────────────────────────── */}
-      {(
-        <div className="grid grid-cols-7 gap-y-2 px-2">
-          {cells.map((day, i) => {
-            if (!day) return <div key={i} />;
-            const ds = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-            const isPast = ds < todayStr;
-            const isToday = ds === todayStr;
-            const overlap = dayHasOverlap(ds);
-            const dayEvents = getEvents(ds);
-            const isEventDay = dayEvents.length > 0;
-            const dayEmojis = isEventDay ? dayEvents.map(e => e.emoji) : [];
-            const myFree = freeParts(me.id, ds);
-            const theirFree = partner ? freeParts(partner.id, ds) : [];
-            const hasAvail = myFree.length > 0 || theirFree.length > 0;
-            const availLabel = [
-              isEventDay ? `, ${dayEmojis.length > 1 ? `${dayEmojis.length} events` : "event"}` : "",
-              myFree.length ? `, you free ${myFree.join(", ")}` : "",
-            ].join("");
-
-            return (
-              <button
-                key={i}
-                onClick={() => setDayView(ds)}
-                aria-label={`${day} ${monthLabel}${availLabel}`}
-                className={cn(
-                  "aspect-square w-full flex flex-col items-center justify-center gap-1 rounded-2xl relative transition-all select-none",
-                  overlap && "bg-[var(--free-cell)]",
-                  isPast && "opacity-30",
-                )}
-              >
-                {/* Day number — today gets a filled circle */}
-                {isToday ? (
-                  <div className="w-6 h-6 rounded-full bg-foreground flex items-center justify-center">
-                    <span className="text-[11px] font-bold text-background leading-none">{day}</span>
-                  </div>
-                ) : (
-                  <span className={cn(
-                    "text-xs font-semibold leading-none",
-                    overlap ? "text-[var(--free-ink)] font-bold" : "text-foreground/75",
-                  )}>
-                    {day}
-                  </span>
-                )}
-
-                {/* Event emoji(s) */}
-                {isEventDay && (
-                  <div className="flex items-center justify-center gap-0.5 leading-none">
-                    {dayEmojis.slice(0, 2).map((em, k) => (
-                      <span key={k} className="text-[10px] leading-none">{em}</span>
-                    ))}
-                    {dayEmojis.length > 2 && (
-                      <span className="text-[8px] font-semibold text-muted-foreground/70 leading-none">+{dayEmojis.length - 2}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* 4-part availability bar (morning · afternoon · evening · night).
-                    Only shown when there's some availability, to keep empty days calm. */}
-                {hasAvail ? (
-                  <div className="flex w-6 h-1 rounded-full overflow-hidden">
-                    {PARTS.map((p) => {
-                      const both = bothFree(ds, p);
-                      const mineP = isFree(me.id, ds, p);
-                      const theirsP = partner ? isFree(partner.id, ds, p) : false;
-                      const segStyle = both
-                        ? { backgroundColor: "var(--free-ink)" }
-                        : mineP
-                        ? { backgroundColor: myAccent.hex }
-                        : theirsP
-                        ? { backgroundColor: partnerAccent.hex, opacity: 0.6 }
-                        : { backgroundColor: "rgba(127,127,127,0.14)" };
-                      return <span key={p} className="flex-1 h-full" style={segStyle} />;
-                    })}
-                  </div>
-                ) : (
-                  <div className="h-1" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* ── Grid — swipe left/right to change month (live, finger-tracked) ── */}
+      <MonthSwiper current={current} onChange={setCurrent} render={renderMonth} />
 
       {/* ── Always-visible compact legend ──────────────────── */}
       <div className="px-5 mt-4 flex items-center gap-3 flex-wrap">
