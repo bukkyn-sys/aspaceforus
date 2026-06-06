@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition, useCallback, useRef, useLayoutEffect, type ReactNode } from "react";
-import { flushSync } from "react-dom";
+import { useState, useEffect, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
@@ -15,7 +14,7 @@ import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
-import { useOwnerIdentity, ownerCardStyle, ownerTint } from "@/lib/owner-identity";
+import { useOwnerIdentity, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { track } from "@/lib/analytics";
 import { getAccent } from "@/lib/accent-colors";
@@ -27,91 +26,6 @@ interface CalEvent { id: string; title: string; emoji: string; on_date: string; 
 type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-
-const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, 1);
-
-/**
- * Live, finger-tracked month pager (native scroll-snap). Renders [prev · current ·
- * next], keeps the scroll centred on `current`, and on settle to a neighbour it
- * advances `current` and silently recentres — the swiped-to month is the same one
- * shown before and after the swap, so the recenter is seamless.
- */
-function MonthSwiper({ current, onChange, render }: { current: Date; onChange: (d: Date) => void; render: (d: Date) => ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const midRef = useRef<HTMLDivElement>(null);
-  const lock = useRef(false);
-  const timer = useRef<number | undefined>(undefined);
-  const [height, setHeight] = useState<number | undefined>(undefined);
-
-  // Centre on the middle pane instantly on mount and whenever the month changes.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    lock.current = true;
-    el.scrollLeft = el.clientWidth;
-    const t = window.setTimeout(() => { lock.current = false; }, 120);
-    return () => window.clearTimeout(t);
-  }, [current]);
-
-  // Size the viewport to the current (centre) month so a busier neighbour
-  // doesn't leave a tall gap, and the page scrolls naturally.
-  useEffect(() => {
-    const pane = midRef.current;
-    if (!pane) return;
-    const ro = new ResizeObserver(() => setHeight(pane.offsetHeight));
-    ro.observe(pane);
-    setHeight(pane.offsetHeight);
-    return () => ro.disconnect();
-  }, [current]);
-
-  function onScroll() {
-    const el = ref.current;
-    if (!el || lock.current) return;
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      const w = el.clientWidth;
-      if (!w) return;
-      const i = Math.round(el.scrollLeft / w);
-      if (i === 1) return;
-      const dir = i === 0 ? -1 : 1;
-      // Swap the month and recentre to the middle pane atomically — flushSync
-      // commits the new panes before we reset scrollLeft, so there's no flash of
-      // the wrong month between the swipe settling and the recenter.
-      lock.current = true;
-      flushSync(() => onChange(addMonths(current, dir)));
-      el.scrollLeft = el.clientWidth;
-      window.setTimeout(() => { lock.current = false; }, 120);
-    }, 90);
-  }
-
-  return (
-    <div
-      ref={ref}
-      onScroll={onScroll}
-      style={{
-        display: "flex",
-        overflowX: "auto",
-        overflowY: "hidden",
-        scrollSnapType: "x mandatory",
-        scrollBehavior: "auto",
-        overscrollBehaviorX: "contain",
-        scrollbarWidth: "none",
-        WebkitOverflowScrolling: "touch",
-        height: height ? `${height}px` : undefined,
-      }}
-    >
-      {[-1, 0, 1].map((off) => (
-        <div
-          key={off}
-          ref={off === 0 ? midRef : undefined}
-          style={{ flex: "0 0 100%", minWidth: "100%", scrollSnapAlign: "start", alignSelf: "flex-start" }}
-        >
-          {render(addMonths(current, off))}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
@@ -509,7 +423,6 @@ export default function CalendarClient() {
                     key={evt.id}
                     {...clickable(() => setActionEvent(evt))}
                     className="card-row overflow-hidden px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.99] transition-transform"
-                    style={ownerCardStyle(o)}
                   >
                     <span className="text-xl flex-shrink-0">{evt.emoji}</span>
                     <OwnerAvatars people={o.people} />
@@ -579,8 +492,8 @@ export default function CalendarClient() {
         ))}
       </div>
 
-      {/* ── Grid + legend + events — swipe anywhere here to change month ── */}
-      <MonthSwiper current={current} onChange={setCurrent} render={renderMonth} />
+      {/* ── Grid + legend + events (month changes via the arrows above) ── */}
+      {renderMonth(current)}
 
       {/* Day view — set your free parts + see the day's events */}
       <BottomSheet

@@ -18,7 +18,7 @@ import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { useOwnerIdentity, ownerCardStyle } from "@/lib/owner-identity";
+import { useOwnerIdentity } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics";
@@ -182,7 +182,6 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
     <div
       {...(mine ? clickable(() => onSelect(e)) : {})}
       className={cn("card-row overflow-hidden p-4 flex items-center gap-3", mine && "cursor-pointer active:scale-[0.99] transition-transform")}
-      style={ownerCardStyle(o)}
     >
       {cat && (
         <span className="text-xl flex-shrink-0 leading-none">{cat.emoji}</span>

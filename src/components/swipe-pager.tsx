@@ -22,6 +22,7 @@ export function SwipePager({
   renderPane,
   mountWindow = 1,
   className,
+  containEdges = true,
 }: {
   index: number;
   count: number;
@@ -29,6 +30,9 @@ export function SwipePager({
   renderPane: (i: number, active: boolean) => ReactNode;
   mountWindow?: number;
   className?: string;
+  // When false, edge overscroll chains to a parent pager (so e.g. swiping past
+  // the first/last vault sub-tab moves to the neighbouring app tab).
+  containEdges?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const paneRefs = useRef(new Map<number, HTMLDivElement>());
@@ -106,7 +110,7 @@ export function SwipePager({
         overflowY: "hidden",
         scrollSnapType: "x mandatory",
         scrollBehavior: "auto",
-        overscrollBehaviorX: "contain",
+        overscrollBehaviorX: containEdges ? "contain" : "auto",
         scrollbarWidth: "none",
         WebkitOverflowScrolling: "touch",
         height: height ? `${height}px` : undefined,

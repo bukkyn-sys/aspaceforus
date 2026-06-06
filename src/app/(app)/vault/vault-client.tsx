@@ -22,7 +22,7 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { track } from "@/lib/analytics";
-import { useOwnerIdentity, ownerCardStyle, panelOmbre } from "@/lib/owner-identity";
+import { useOwnerIdentity } from "@/lib/owner-identity";
 import { FabGate } from "@/contexts/fab-context";
 import { SwipePager } from "@/components/swipe-pager";
 import { cn, clickable } from "@/lib/utils";
@@ -87,16 +87,6 @@ const STAGE_COLOR: Record<Stage, string> = {
   planned: "bg-blue-50 text-blue-600",
   completed: "bg-sage-light text-sage",
 };
-
-// Saturated hues for the folder gradient. Pale pastels washed out to nothing once
-// mixed over the card; saturated colours mix cleanly (and stay legible in dark mode).
-const GENERAL_PANEL_COLORS = ["#8B7BB8", "#5B9BD5", "#D4A427", "#C4704F"]; // lavender, sky, amber, terracotta
-
-function folderPanelColor(folder: VaultFolder): string {
-  if (folder.kind === "date_idea") return "#C46E7A"; // rose
-  if (folder.kind === "wishlist")  return "#7C9E87"; // sage
-  return GENERAL_PANEL_COLORS[folder.sort_order % GENERAL_PANEL_COLORS.length];
-}
 
 const SORT_LABELS: Record<SortBy, string> = {
   newest: "newest",
@@ -671,7 +661,6 @@ function VaultLists() {
                 key={folder.id}
                 onClick={() => openFolder(folder)}
                 className="w-full card-row overflow-hidden flex items-center text-left active:scale-[0.99] transition-transform"
-                style={{ backgroundImage: panelOmbre(folderPanelColor(folder)), backgroundOrigin: "border-box", backgroundClip: "border-box", backgroundRepeat: "no-repeat" }}
               >
                 {/* Emoji — bare, no tile */}
                 <div className="flex-shrink-0 pl-4 py-3 text-2xl leading-none">
@@ -846,7 +835,6 @@ function VaultLists() {
                 <div key={item.id}
                   {...clickable(() => handleCardTap(item))}
                   className="card-row overflow-hidden flex items-center cursor-pointer active:scale-[0.99] transition-transform"
-                  style={ownerCardStyle(o)}
                 >
                   {/* Emoji — bare, no tile (matches the events list) */}
                   {item.item_emoji && (
@@ -1171,6 +1159,7 @@ export default function VaultClient() {
       <SwipePager
         index={tabIndex < 0 ? 2 : tabIndex}
         count={VAULT_TABS.length}
+        containEdges={false}
         onIndexChange={(i) => select(VAULT_TABS[i].id)}
         renderPane={(i, active) => (
           <FabGate active={active}>
