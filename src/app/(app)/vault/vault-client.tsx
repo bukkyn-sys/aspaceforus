@@ -14,7 +14,7 @@ import {
   updateVaultItem,
   deleteVaultItem,
 } from "./actions";
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2, Copy, Images, ListChecks } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, ArrowUpDown, Camera, Pencil, Trash2, Link2, Copy, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -27,6 +27,7 @@ import { cn, clickable } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 import { validateImage } from "@/lib/validate-image";
+import VaultTodos from "./vault-todos";
 
 // Only allow http/https links — blocks javascript:/data:/etc. (stored XSS).
 function safeExternalUrl(url: string | null | undefined): string | null {
@@ -1148,7 +1149,7 @@ export default function VaultClient() {
 
       {tab === "lists"  && <VaultLists />}
       {tab === "photos" && <VaultComingSoon icon={<Images className="w-6 h-6" />} title="photos" line="a shared photo wall, just the two of you — coming here soon." />}
-      {tab === "todos"  && <VaultComingSoon icon={<ListChecks className="w-6 h-6" />} title="to-dos" line="shared to-do lists with due dates and reminders — coming here soon." />}
+      {tab === "todos"  && <VaultTodos />}
     </div>
   );
 }
