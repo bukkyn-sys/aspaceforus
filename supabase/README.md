@@ -51,6 +51,14 @@ rewrite of `join_couple_for_user`. It supersedes `join_rate_limit.sql`'s version
 of that RPC (keeps its rate-limit + 2-person cap, adds the trial grant), so run it
 **after** `join_rate_limit.sql`. Fully idempotent; safe to re-run.
 
+Then run, in order:
+- `monetization_beta_codes.sql` — `premium_override_until` + `beta_codes` +
+  `redeem_beta_code`; `is_premium` learns about comped premium.
+- `monetization_quota_enforcement.sql` — BEFORE INSERT triggers that enforce the
+  free-tier quotas (lists/pots/photos/albums/folders) at the DB, plus premium
+  gates in `set_dashboard_layout` / `update_couple_banner`. The un-bypassable
+  backstop behind the UI gates.
+
 ## Gotchas learned the hard way
 
 - The SQL editor runs the whole script as **one transaction** — a mid-script
