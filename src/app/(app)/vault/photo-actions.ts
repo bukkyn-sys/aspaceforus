@@ -1,13 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
-
-async function getUid() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return { supabase, uid: user?.id ?? null };
-}
 
 export async function addPhoto(data: {
   coupleId: string;

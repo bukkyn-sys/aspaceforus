@@ -171,7 +171,7 @@ type DashCache = { data: DashboardData; hasPartner: boolean };
 
 export default function DashboardClient() {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
-  const { markSeen, markActivity } = useNotifications();
+  const { markActivity } = useNotifications();
   const [data, setData] = useState<DashboardData>(() => {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
@@ -202,7 +202,6 @@ export default function DashboardClient() {
   useRegisterFab(openNewEvent);
 
   // Note debounce ref
-  useEffect(() => { markSeen("home"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pull-to-refresh → refetch this screen's data.
   useEffect(() => {

@@ -1,10 +1,25 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { SheetClose } from "./sheet-close";
 import { useScrollLock } from "@/lib/use-scroll-lock";
+
+/** Esc-to-close + move focus into the panel on open and back to the trigger on close. */
+function useDialogA11y(open: boolean, onClose: () => void, panel: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.activeElement as HTMLElement | null;
+    panel.current?.focus({ preventScroll: true });
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      prev?.focus?.({ preventScroll: true });
+    };
+  }, [open, onClose, panel]);
+}
 
 // Render to document.body so sheets/dialogs are never affected by an ancestor's
 // transform (page transitions) — their fixed positioning always maps to the viewport.
@@ -37,6 +52,8 @@ export function BottomSheet({
   footer?: ReactNode;
 }) {
   useScrollLock(open);
+  const panel = useRef<HTMLDivElement>(null);
+  useDialogA11y(open, onClose, panel);
   return (
     <Portal>
     <AnimatePresence>
@@ -51,11 +68,15 @@ export function BottomSheet({
             onClick={onClose}
           />
           <motion.div
+            ref={panel}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={SHEET_SPRING}
-            className="relative w-full max-w-lg mx-auto bg-background rounded-t-3xl flex flex-col shadow-[0_-8px_40px_rgba(0,0,0,0.12)]"
+            className="relative w-full max-w-lg mx-auto bg-background rounded-t-3xl flex flex-col shadow-[0_-8px_40px_rgba(0,0,0,0.12)] outline-none"
             style={{ maxHeight: "92dvh" }}
           >
             <div className="flex justify-center pt-3 flex-shrink-0">
@@ -100,6 +121,8 @@ export function Dialog({
   children: ReactNode;
 }) {
   useScrollLock(open);
+  const panel = useRef<HTMLDivElement>(null);
+  useDialogA11y(open, onClose, panel);
   return (
     <Portal>
     <AnimatePresence>
@@ -114,11 +137,15 @@ export function Dialog({
             onClick={onClose}
           />
           <motion.div
+            ref={panel}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
             initial={{ opacity: 0, scale: 0.94, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 10 }}
             transition={DIALOG_SPRING}
-            className="relative w-full max-w-xs bg-background rounded-3xl p-6 shadow-[0_8px_40px_rgba(0,0,0,0.18)]"
+            className="relative w-full max-w-xs bg-background rounded-3xl p-6 shadow-[0_8px_40px_rgba(0,0,0,0.18)] outline-none"
           >
             {children}
           </motion.div>

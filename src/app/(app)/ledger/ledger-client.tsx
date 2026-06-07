@@ -20,6 +20,8 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity } from "@/lib/owner-identity";
 import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
+import { netBalance, isSettled } from "@/lib/ledger-math";
+import { undoableDelete } from "@/lib/toast";
 import { cn, clickable } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics";
@@ -208,7 +210,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
 
 export default function LedgerClient() {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
-  const { markSeen, markActivity } = useNotifications();
+  const { markActivity } = useNotifications();
   const setAction = useFabSetter();
   const resolveOwner = useOwnerIdentity();
   const router = useRouter();
@@ -269,7 +271,6 @@ export default function LedgerClient() {
   const defaultFolderId = folders.find((f) => f.is_default)?.id ?? folders[0]?.id ?? null;
 
 
-  useEffect(() => { markSeen("ledger"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates — partner adding expenses / contributing to pots.
   useEffect(() => {
@@ -342,16 +343,9 @@ export default function LedgerClient() {
     setSettledEntries((data as Entry[]) ?? []);
   }
 
-  // Net balance (unsettled only)
-  let youOwe = 0, theyOwe = 0;
-  for (const e of entries) {
-    const amt = parseFloat(e.amount);
-    const ratio = parseFloat(e.split_ratio ?? "0.5");
-    if (e.paid_by !== me.id) youOwe += amt * ratio;
-    else theyOwe += amt * (1 - ratio);
-  }
-  const net = theyOwe - youOwe;
-  const balanced = Math.abs(net) < 0.01;
+  // Net balance (unsettled only) — see src/lib/ledger-math.ts (tested).
+  const net = netBalance(entries, me.id);
+  const balanced = isSettled(net);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -401,9 +395,15 @@ export default function LedgerClient() {
   }
 
   function handleDeleteEntry(id: string) {
+    const entry = entries.find((e) => e.id === id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
     setActionEntry(null);
-    startTransition(() => { deleteLedgerEntry(id, coupleId, me.id); });
+    if (!entry) { startTransition(() => deleteLedgerEntry(id, coupleId, me.id)); return; }
+    undoableDelete({
+      message: "expense removed",
+      commit: () => startTransition(() => deleteLedgerEntry(id, coupleId, me.id)),
+      restore: () => setEntries((prev) => [entry, ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
+    });
   }
 
   function handleSettle() {

@@ -1,12 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-
-async function getUid() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return { supabase, uid: user?.id ?? null };
-}
+import { getUid } from "@/lib/auth-server";
 
 export type DayPart = "morning" | "afternoon" | "evening" | "night";
 

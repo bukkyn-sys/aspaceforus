@@ -8,7 +8,7 @@ import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { track } from "@/lib/analytics";
-import { toast } from "@/lib/toast";
+import { toast, undoableDelete } from "@/lib/toast";
 import { validateImage } from "@/lib/validate-image";
 import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
@@ -200,7 +200,11 @@ export default function VaultPhotos() {
   function removePhoto(p: Photo) {
     setPhotos((prev) => prev.filter((x) => x.id !== p.id));
     setLightboxId(null);
-    deletePhoto(p.id, coupleId, p.path);
+    undoableDelete({
+      message: "photo deleted",
+      commit: () => deletePhoto(p.id, coupleId, p.path),
+      restore: () => setPhotos((prev) => [p, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at))),
+    });
   }
 
   function saveCaption(p: Photo, caption: string) {

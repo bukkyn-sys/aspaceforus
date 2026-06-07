@@ -1,15 +1,9 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
 
 type VaultKind = "date_idea" | "wishlist" | "general";
-
-async function getUid() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  return { supabase, uid: user?.id ?? null };
-}
 
 export async function addVaultFolder(data: {
   coupleId: string;

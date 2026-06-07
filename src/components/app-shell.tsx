@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SwipePager } from "@/components/swipe-pager";
 import { FabGate } from "@/contexts/fab-context";
 import { useSetNavActive } from "@/contexts/nav-active";
+import { useNotifications } from "@/contexts/notification-context";
 import PageTransition from "@/components/page-transition";
 import DashboardClient from "@/app/(app)/home/dashboard-client";
 import CalendarClient from "@/app/(app)/calendar/calendar-client";
@@ -56,12 +57,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
 // Pager index 0..5 → bottom-nav section 0..3 (vault's 3 panes all map to "vault").
 function navSectionOf(p: number) { return p < 0.5 ? 0 : p < 1.5 ? 1 : p < 4.5 ? 2 : 3; }
+const SECTION_NAME = ["home", "calendar", "vault", "ledger"] as const;
 
 function AppShellInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const tabParam = useSearchParams().get("tab") as VaultTab | null;
   const setNav = useSetNavActive();
+  const { markSeen } = useNotifications();
+  const markSeenRef = useRef(markSeen);
+  markSeenRef.current = markSeen;
 
   // The index implied by the URL (-1 when the route isn't a swipe tab).
   let pathIdx = -1;
@@ -103,10 +108,15 @@ function AppShellInner({ children }: { children: ReactNode }) {
     pushNav(navSectionOf(p));
   }, [pushNav]);
 
-  // Settled / external index changes: sync the pill + nav highlight.
+  // Settled / external index changes: sync the pill + nav highlight, and only
+  // mark the ACTIVE tab seen (so a mounted neighbour doesn't clear its badge).
   useEffect(() => {
-    if (isTab) { vaultBar.current?.setProgress(index); pushNav(navSectionOf(index)); }
-    else { vaultBar.current?.setProgress(-99); pushNav(null); }
+    if (isTab) {
+      vaultBar.current?.setProgress(index);
+      const sec = navSectionOf(index);
+      pushNav(sec);
+      markSeenRef.current(SECTION_NAME[sec]);
+    } else { vaultBar.current?.setProgress(-99); pushNav(null); }
   }, [isTab, index, pushNav]);
 
   return (

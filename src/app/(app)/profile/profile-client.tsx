@@ -20,6 +20,7 @@ import ThemeToggle from "@/components/theme-toggle";
 import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
 import { cn } from "@/lib/utils";
+import { isZoomEnabled, setZoomEnabled } from "@/components/zoom-pref";
 
 interface InitialProfile {
   id: string;
@@ -331,6 +332,26 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
       {status === "unsupported" && (
         <p className="text-sm text-muted-foreground">not supported on this browser.</p>
       )}
+    </div>
+  );
+}
+
+function AccessibilitySettings() {
+  const [on, setOn] = useState(false);
+  useEffect(() => { setOn(isZoomEnabled()); }, []);
+  function toggle() { const next = !on; setOn(next); setZoomEnabled(next); }
+  return (
+    <div className="card p-4 mb-4">
+      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">accessibility</p>
+      <button onClick={toggle} aria-pressed={on} className="flex items-center justify-between w-full text-left">
+        <div>
+          <p className="text-sm text-foreground">pinch to zoom</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">allow zooming anywhere in the app</p>
+        </div>
+        <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ml-3", on ? "bg-sage" : "bg-foreground/15")}>
+          <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", on ? "left-[1.15rem]" : "left-0.5")} />
+        </span>
+      </button>
     </div>
   );
 }
@@ -695,6 +716,9 @@ export default function ProfileClient({
 
       {/* Notifications */}
       <NotificationSettings userId={profile.id} coupleId={profile.coupleId} />
+
+      {/* Accessibility */}
+      <AccessibilitySettings />
 
       {/* Leave couple */}
       <button

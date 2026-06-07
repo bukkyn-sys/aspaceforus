@@ -272,7 +272,7 @@ function OwnerButtons({
 
 export function VaultLists() {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
-  const { markSeen, markActivity } = useNotifications();
+  const { markActivity } = useNotifications();
   const setAction = useFabSetter();
   const resolveOwner = useOwnerIdentity();
   const router = useRouter();
@@ -338,7 +338,6 @@ export function VaultLists() {
     return () => setAction(null);
   }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { markSeen("vault"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [rtick, setRtick] = useState(0);
 

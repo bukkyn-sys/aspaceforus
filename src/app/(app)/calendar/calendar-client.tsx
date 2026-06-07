@@ -17,6 +17,7 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { useOwnerIdentity, ownerTint } from "@/lib/owner-identity";
 import { cn, clickable } from "@/lib/utils";
 import { track } from "@/lib/analytics";
+import { undoableDelete } from "@/lib/toast";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 
@@ -29,7 +30,7 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 
 export default function CalendarClient() {
   const { coupleId, me, partner, partnerName } = useCouple();
-  const { markSeen, markActivity } = useNotifications();
+  const { markActivity } = useNotifications();
   const resolveOwner = useOwnerIdentity();
   const searchParams = useSearchParams();
   const [current, setCurrent] = useState(() => new Date());
@@ -49,7 +50,6 @@ export default function CalendarClient() {
   const year = current.getFullYear();
   const month = current.getMonth();
 
-  useEffect(() => { markSeen("calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deep-link: ?day=YYYY-MM-DD opens that day's view; ?plan=DATE&parts=… opens the
   // add-event sheet on a free window (from Home's "plan"). Reacts to the params
@@ -88,11 +88,10 @@ export default function CalendarClient() {
     }
     const supabase = createClient();
     // Use local date parts — .toISOString() shifts to UTC which causes off-by-one in non-UTC timezones.
-    // Load a 3-month window (prev · current · next) so neighbours show real data while swiping.
     const pad = (n: number) => String(n).padStart(2, "0");
     const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const start = fmt(new Date(year, month - 1, 1));
-    const end = fmt(new Date(year, month + 2, 0));
+    const start = fmt(new Date(year, month, 1));
+    const end = fmt(new Date(year, month + 1, 0));
     Promise.all([
       supabase
         .from("availability")
@@ -251,9 +250,15 @@ export default function CalendarClient() {
   }
 
   function handleDeleteEvent(id: string) {
+    const ev = events.find((e) => e.id === id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setActionEvent(null);
-    startTransition(() => { deleteEvent(id, coupleId, me.id); });
+    if (!ev) { startTransition(() => deleteEvent(id, coupleId, me.id)); return; }
+    undoableDelete({
+      message: "event removed",
+      commit: () => startTransition(() => deleteEvent(id, coupleId, me.id)),
+      restore: () => setEvents((prev) => [...prev, ev].sort((a, b) => a.on_date.localeCompare(b.on_date))),
+    });
   }
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
