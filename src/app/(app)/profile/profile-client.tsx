@@ -374,15 +374,27 @@ function BillingSettings() {
 
   async function subscribe(plan: "monthly" | "annual") {
     setBusy(true); setErr(null);
-    const r = await startCheckout(plan);
-    if (r.url) { window.location.href = r.url; return; }
-    setErr(r.error ?? "something went wrong"); setBusy(false);
+    try {
+      const r = await startCheckout(plan);
+      if (r.url) { window.location.href = r.url; return; }
+      setErr(r.error ?? "something went wrong");
+    } catch (e) {
+      setErr((e as Error)?.message ?? "something went wrong");
+    } finally {
+      setBusy(false);
+    }
   }
   async function manage() {
     setBusy(true); setErr(null);
-    const r = await openBillingPortal();
-    if (r.url) { window.location.href = r.url; return; }
-    setErr(r.error ?? "something went wrong"); setBusy(false);
+    try {
+      const r = await openBillingPortal();
+      if (r.url) { window.location.href = r.url; return; }
+      setErr(r.error ?? "something went wrong");
+    } catch (e) {
+      setErr((e as Error)?.message ?? "something went wrong");
+    } finally {
+      setBusy(false);
+    }
   }
 
   const subscribed = state?.status === "premium_paid";

@@ -67,63 +67,73 @@ export async function getBillingState(): Promise<BillingState> {
 }
 
 export async function startCheckout(plan: PlanInterval): Promise<{ url?: string; error?: string }> {
-  const { uid } = await getUid();
-  if (!uid) return { error: "not signed in" };
-  const admin = createAdminClient();
-  const coupleId = await coupleOf(admin, uid);
-  if (!coupleId) return { error: "no space yet" };
+  try {
+    const { uid } = await getUid();
+    if (!uid) return { error: "not signed in" };
+    const admin = createAdminClient();
+    const coupleId = await coupleOf(admin, uid);
+    if (!coupleId) return { error: "no space yet" };
 
-  const { data: existing } = await admin
-    .from("subscriptions")
-    .select("stripe_customer_id, activation_state, status")
-    .eq("couple_id", coupleId);
+    const { data: existing } = await admin
+      .from("subscriptions")
+      .select("stripe_customer_id, activation_state, status")
+      .eq("couple_id", coupleId);
 
-  // Double-subscribe guard: one active paid subscription per couple.
-  if ((existing ?? []).some(isActivePaid)) return { error: "already subscribed" };
+    // Double-subscribe guard: one active paid subscription per couple.
+    if ((existing ?? []).some(isActivePaid)) return { error: "already subscribed" };
 
-  const price = priceFor(plan);
-  if (!price) return { error: "pricing not configured" };
+    const price = priceFor(plan);
+    if (!price) return { error: "pricing not configured (missing price env var)" };
 
-  // Reuse an existing Stripe customer (e.g. a lapsed sub) so we don't fork billing.
-  const reuse = (existing ?? []).find((s) => s.stripe_customer_id)?.stripe_customer_id as string | undefined;
-  const meta = { couple_id: coupleId, payer_user_id: uid, plan_kind: "single" };
-  const base = await origin();
+    // Reuse an existing Stripe customer (e.g. a lapsed sub) so we don't fork billing.
+    const reuse = (existing ?? []).find((s) => s.stripe_customer_id)?.stripe_customer_id as string | undefined;
+    const meta = { couple_id: coupleId, payer_user_id: uid, plan_kind: "single" };
+    const base = await origin();
 
-  const session = await stripe().checkout.sessions.create({
-    mode: "subscription",
-    line_items: [{ price, quantity: 1 }],
-    ...(reuse ? { customer: reuse } : {}),
-    metadata: meta,
-    subscription_data: { metadata: meta },
-    allow_promotion_codes: true,
-    success_url: `${base}/profile?billing=success`,
-    cancel_url: `${base}/profile?billing=cancel`,
-  });
+    const session = await stripe().checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price, quantity: 1 }],
+      ...(reuse ? { customer: reuse } : {}),
+      metadata: meta,
+      subscription_data: { metadata: meta },
+      allow_promotion_codes: true,
+      success_url: `${base}/profile?billing=success`,
+      cancel_url: `${base}/profile?billing=cancel`,
+    });
 
-  return session.url ? { url: session.url } : { error: "could not start checkout" };
+    return session.url ? { url: session.url } : { error: "could not start checkout" };
+  } catch (e) {
+    console.error("startCheckout failed", e);
+    return { error: (e as Error)?.message ?? "checkout failed" };
+  }
 }
 
 export async function openBillingPortal(): Promise<{ url?: string; error?: string }> {
-  const { uid } = await getUid();
-  if (!uid) return { error: "not signed in" };
-  const admin = createAdminClient();
-  const coupleId = await coupleOf(admin, uid);
-  if (!coupleId) return { error: "no space yet" };
+  try {
+    const { uid } = await getUid();
+    if (!uid) return { error: "not signed in" };
+    const admin = createAdminClient();
+    const coupleId = await coupleOf(admin, uid);
+    if (!coupleId) return { error: "no space yet" };
 
-  const { data: subs } = await admin
-    .from("subscriptions")
-    .select("stripe_customer_id")
-    .eq("couple_id", coupleId)
-    .not("stripe_customer_id", "is", null)
-    .limit(1);
+    const { data: subs } = await admin
+      .from("subscriptions")
+      .select("stripe_customer_id")
+      .eq("couple_id", coupleId)
+      .not("stripe_customer_id", "is", null)
+      .limit(1);
 
-  const customer = subs?.[0]?.stripe_customer_id as string | undefined;
-  if (!customer) return { error: "no subscription to manage" };
+    const customer = subs?.[0]?.stripe_customer_id as string | undefined;
+    if (!customer) return { error: "no subscription to manage" };
 
-  const base = await origin();
-  const session = await stripe().billingPortal.sessions.create({
-    customer,
-    return_url: `${base}/profile`,
-  });
-  return { url: session.url };
+    const base = await origin();
+    const session = await stripe().billingPortal.sessions.create({
+      customer,
+      return_url: `${base}/profile`,
+    });
+    return { url: session.url };
+  } catch (e) {
+    console.error("openBillingPortal failed", e);
+    return { error: (e as Error)?.message ?? "could not open portal" };
+  }
 }
