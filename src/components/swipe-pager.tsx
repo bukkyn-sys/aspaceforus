@@ -68,15 +68,15 @@ export function SwipePager({
     lock.current = true;
     const far = Math.abs(el.scrollLeft / w - index) > 1.2;
     if (far) {
-      // Cross-fade the jump so the panes in between don't flash past: fade out,
-      // snap instantly, fade back in.
-      el.style.transition = "opacity 140ms ease";
+      // Non-adjacent jump → full fade out, snap instantly while hidden, full fade
+      // back in (panes are preloaded, so nothing pops in). No scrolling-past.
+      el.style.transition = "opacity 200ms ease";
       el.style.opacity = "0";
       const j = window.setTimeout(() => {
         el.scrollTo({ left: target, behavior: "auto" });
         el.style.opacity = "1";
-      }, 140);
-      const t = window.setTimeout(() => { lock.current = false; el.style.transition = ""; }, 320);
+      }, 210);
+      const t = window.setTimeout(() => { lock.current = false; el.style.transition = ""; }, 430);
       return () => { window.clearTimeout(j); window.clearTimeout(t); };
     }
     el.scrollTo({ left: target, behavior: "smooth" });
@@ -131,9 +131,11 @@ export function SwipePager({
       }}
     >
       {Array.from({ length: count }, (_, i) => {
-        // Only the active tab + its immediate neighbours stay mounted; far tabs
-        // unmount so their data fetches + realtime channels tear down (scaling).
-        const mounted = Math.abs(i - index) <= mountWindow;
+        // All panes stay mounted + loaded so every swipe shows full state with no
+        // load-in. (Realtime is throttled to the active tab + neighbours by the
+        // clients themselves, which is where the scaling cost actually lives.)
+        void mountWindow;
+        const mounted = true;
         return (
           <div
             key={i}

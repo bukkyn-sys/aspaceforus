@@ -29,7 +29,7 @@ type CalCache = { rows: Row[]; events: CalEvent[] };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
-export default function CalendarClient({ active = true }: { active?: boolean }) {
+export default function CalendarClient({ live = true }: { live?: boolean }) {
   const { coupleId, me, partner, partnerName } = useCouple();
   const { markActivity } = useNotifications();
   const { premium, openPaywall } = useEntitlement();
@@ -109,9 +109,9 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
     } else {
       setLoading(true);
     }
-    // Inactive (peek) panes show the cache above but skip the network fetch —
-    // they refetch when you land on this tab (active flips true).
-    if (!active) return;
+    // Far panes show the cache above but skip the network fetch — they refetch
+    // when this tab enters the live window (active or adjacent).
+    if (!live) return;
     const supabase = createClient();
     // Use local date parts — .toISOString() shifts to UTC which causes off-by-one in non-UTC timezones.
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -140,12 +140,12 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
       setLoading(false);
       setCache(key, { rows, events });
     });
-  }, [coupleId, year, month, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, year, month, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates — partner's availability / event changes come in without refresh.
-  // Only the active tab subscribes; a backgrounded calendar drops its channel.
+  // Only the active tab + neighbours subscribe; far tabs drop their channel.
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     const supabase = createClient();
     // Skip our own INSERTs: the optimistic UI already shows them, so reloading
     // would be redundant work. Partner inserts + all edits/deletes still reload.
@@ -161,7 +161,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
-  }, [coupleId, me.id, active]);
+  }, [coupleId, me.id, live]);
 
   function isFree(userId: string, dateStr: string, part: DayPart): boolean {
     return rows.some((r) => r.user_id === userId && r.date === dateStr && r.part === part);

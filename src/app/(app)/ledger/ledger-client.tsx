@@ -209,7 +209,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
   );
 }
 
-export default function LedgerClient({ active = true }: { active?: boolean }) {
+export default function LedgerClient({ live = true }: { live?: boolean }) {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
@@ -275,9 +275,9 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
 
 
   // Live updates — partner adding expenses / contributing to pots.
-  // Only the active tab subscribes; a backgrounded ledger drops its channel.
+  // Active tab + neighbours subscribe; far tabs drop their channel.
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     const supabase = createClient();
     // Skip our own INSERTs (optimistic UI already shows them). Contributions are
     // UPDATEs to a pot, so they still reload — that's intended (amounts must sync).
@@ -293,7 +293,7 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
-  }, [coupleId, me.id, active]);
+  }, [coupleId, me.id, live]);
 
   useEffect(() => {
     setAction(() => {
@@ -308,8 +308,8 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
   }, [tab, defaultFolderId, premium, pots.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    // Peek panes keep their cached state (set in useState above); fetch only when active.
-    if (!active) return;
+    // Far panes keep their cached state (set in useState above); fetch in the live window.
+    if (!live) return;
     const supabase = createClient();
     Promise.all([
       supabase.from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", false).order("created_at", { ascending: false }),
@@ -343,7 +343,7 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
         if (p) { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }
       }
     });
-  }, [coupleId, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadHistory() {
     if (settledEntries) return;

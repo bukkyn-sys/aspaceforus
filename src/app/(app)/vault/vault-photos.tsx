@@ -68,7 +68,7 @@ async function processImage(file: File, max = 2048): Promise<{ blob: Blob; width
   }
 }
 
-export default function VaultPhotos({ active = true }: { active?: boolean }) {
+export default function VaultPhotos({ live = true }: { live?: boolean }) {
   const { coupleId, me } = useCouple();
   const setAction = useFabSetter();
   const { premium, openPaywall } = useEntitlement();
@@ -101,8 +101,8 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
 
   // Load (photos + albums); archived photos excluded everywhere.
   useEffect(() => {
-    // Peek panes keep their cached photos; fetch only when this tab is active.
-    if (!active) return;
+    // Far panes keep their cached photos; fetch in the live window.
+    if (!live) return;
     Promise.all([
       supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id,favorite")
         .eq("couple_id", coupleId).is("archived_at", null).order("created_at", { ascending: false }),
@@ -115,7 +115,7 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
       const next = (ph as Photo[]) ?? [];
       setPhotos(next); setAlbums((al as Album[]) ?? []); setCache(`vphotos:${coupleId}`, next);
     });
-  }, [coupleId, rtick, supabase, active]);
+  }, [coupleId, rtick, supabase, live]);
 
   // Batch-sign any not-yet-signed photo paths (one request) for the wall.
   useEffect(() => {
@@ -148,9 +148,9 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
     });
   }
 
-  // Realtime — partner uploads / deletes (active tab only)
+  // Realtime — partner uploads / deletes (live window only)
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChange = (p: any) => {
       if (p.eventType === "INSERT" && p.new?.created_by === me.id) return;
@@ -160,7 +160,7 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_photos", filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [coupleId, me.id, supabase, active]);
+  }, [coupleId, me.id, supabase, live]);
 
   // Free plan: 50 photos. Refs keep the FAB action reading live values.
   const PHOTO_LIMIT = 50;

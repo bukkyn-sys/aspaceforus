@@ -2,12 +2,10 @@
 
 import { Suspense, useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import { SwipePager } from "@/components/swipe-pager";
 import { FabGate } from "@/contexts/fab-context";
 import { useSetNavActive } from "@/contexts/nav-active";
 import { useNotifications } from "@/contexts/notification-context";
-import { FrozenRouter } from "@/components/page-transition";
 import DashboardClient from "@/app/(app)/home/dashboard-client";
 import CalendarClient from "@/app/(app)/calendar/calendar-client";
 import LedgerClient from "@/app/(app)/ledger/ledger-client";
@@ -22,16 +20,16 @@ import { VaultLists, VAULT_TABS, type VaultTab } from "@/app/(app)/vault/vault-c
 const VAULT_BASE = 2; // index of the first vault pane (photos)
 const COUNT = 6;
 
-// `active` = this is the visible tab → it loads its data + opens its realtime
-// channel. Inactive (mounted-for-peek) panes stay quiet until you land on them.
-function paneFor(i: number, active: boolean): ReactNode {
+// `live` = this tab is the active one or an immediate neighbour → it keeps a
+// realtime channel. All panes mount + load regardless, so swiping never waits.
+function paneFor(i: number, live: boolean): ReactNode {
   switch (i) {
-    case 0: return <DashboardClient active={active} />;
-    case 1: return <CalendarClient active={active} />;
-    case 2: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultPhotos active={active} /></div>;
-    case 3: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultTodos active={active} /></div>;
-    case 4: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultLists active={active} /></div>;
-    default: return <LedgerClient active={active} />;
+    case 0: return <DashboardClient live={live} />;
+    case 1: return <CalendarClient live={live} />;
+    case 2: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultPhotos live={live} /></div>;
+    case 3: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultTodos live={live} /></div>;
+    case 4: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultLists live={live} /></div>;
+    default: return <LedgerClient live={live} />;
   }
 }
 
@@ -122,38 +120,55 @@ function AppShellInner({ children }: { children: ReactNode }) {
     } else { vaultBar.current?.setProgress(-99); pushNav(null); }
   }, [isTab, index, pushNav]);
 
+  // Sequential cross-fade between the pager (tabs) and a routed page (settings):
+  // the current view fully fades out, THEN the next fully fades in — no overlap.
+  const target: "tab" | "page" = isTab ? "tab" : "page";
+  const [shown, setShown] = useState<"tab" | "page">(target);
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    if (target === shown) return;
+    setFading(true);
+    const t = window.setTimeout(() => { setShown(target); setFading(false); }, 210);
+    return () => window.clearTimeout(t);
+  }, [target, shown]);
+  // Keep the page's content rendered through its fade-out (children switches to
+  // the tab route the instant isTab flips, so we snapshot it while on a page).
+  const lastPage = useRef<ReactNode>(children);
+  if (!isTab) lastPage.current = children;
+
+  const pagerOpaque = shown === "tab" && !fading;
+  const pageMounted = shown === "page" || target === "page";
+  const pageOpaque = shown === "page" && !fading;
+
   return (
     <>
       <VaultTopBar ref={vaultBar} onSelect={(sub) => go(VAULT_BASE + sub)} />
 
-      {/* Pager stays mounted (tab state preserved); the non-tab page fades in
-          over it as an overlay, and fades out on the way back. */}
-      <div aria-hidden={!isTab}>
+      {/* Pager stays mounted (tab state preserved); a non-tab page fades over it. */}
+      <div
+        aria-hidden={!isTab}
+        style={{ opacity: pagerOpaque ? 1 : 0, transition: "opacity 200ms ease", pointerEvents: pagerOpaque ? undefined : "none" }}
+      >
         <SwipePager
           index={index}
           count={COUNT}
           className="h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]"
           onIndexChange={(i) => { if (i !== index) go(i); }}
           onProgress={onProgress}
-          renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i, active && isTab)}</FabGate>}
+          // `live` = active tab + its neighbours → those clients keep a realtime
+          // channel; all panes still mount + load so every swipe is full-state.
+          renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i, Math.abs(i - index) <= 1 && isTab)}</FabGate>}
         />
       </div>
 
-      <AnimatePresence initial={false}>
-        {!isTab && (
-          <motion.div
-            key="page"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: [0.33, 0, 0.2, 1] }}
-            className="fixed inset-0 z-30 bg-background overflow-y-auto overscroll-contain pb-[calc(5rem+env(safe-area-inset-bottom))]"
-            style={{ willChange: "opacity" }}
-          >
-            <FrozenRouter>{children}</FrozenRouter>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {pageMounted && (
+        <div
+          className="fixed inset-0 z-30 bg-background overflow-y-auto overscroll-contain pb-[calc(5rem+env(safe-area-inset-bottom))]"
+          style={{ opacity: pageOpaque ? 1 : 0, transition: "opacity 200ms ease", willChange: "opacity" }}
+        >
+          {lastPage.current}
+        </div>
+      )}
     </>
   );
 }

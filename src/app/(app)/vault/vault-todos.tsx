@@ -52,7 +52,7 @@ function dueMeta(due: string | null): { label: string; tone: "muted" | "today" |
   return { label: new Date(due + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }), tone: "muted" };
 }
 
-export default function VaultTodos({ active = true }: { active?: boolean }) {
+export default function VaultTodos({ live = true }: { live?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const setAction = useFabSetter();
   const { premium, openPaywall } = useEntitlement();
@@ -100,7 +100,7 @@ export default function VaultTodos({ active = true }: { active?: boolean }) {
   // ── Loads ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (view !== "lists") return;
-    if (!active) return; // peek keeps cached lists; fetch only when active
+    if (!live) return; // far panes keep cached lists; fetch in the live window
     const supabase = createClient();
     Promise.all([
       supabase.from("vault_todo_lists").select("id,title,emoji,created_by,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
@@ -118,24 +118,24 @@ export default function VaultTodos({ active = true }: { active?: boolean }) {
       setLists(next); setListsLoading(false); setCache(`vtodo:${coupleId}`, next);
       setPriorityListId((cp as { priority_todo_list_id: string | null } | null)?.priority_todo_list_id ?? null);
     });
-  }, [coupleId, view, rtick, active]);
+  }, [coupleId, view, rtick, live]);
 
   useEffect(() => {
     if (view !== "items" || !activeList) return;
     const cached = getCache<Todo[]>(`vtodoItems:${activeList.id}`);
     if (cached) { setTodos(cached); setItemsLoading(false); } else { setItemsLoading(true); }
-    if (!active) return; // peek shows cache; fetch only when active
+    if (!live) return; // far panes show cache; fetch in the live window
     const supabase = createClient();
     supabase.from("vault_todos").select("*").eq("list_id", activeList.id).order("created_at", { ascending: true })
       .then(({ data }) => {
         const next = (data as Todo[]) ?? [];
         setTodos(next); setItemsLoading(false); setCache(`vtodoItems:${activeList.id}`, next);
       });
-  }, [activeList, view, rtick, active]);
+  }, [activeList, view, rtick, live]);
 
-  // Realtime — partner changes (active tab only; skip our own inserts).
+  // Realtime — partner changes (live window only; skip our own inserts).
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChange = (p: any) => {
@@ -147,7 +147,7 @@ export default function VaultTodos({ active = true }: { active?: boolean }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_todo_lists", filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [coupleId, me.id, active]);
+  }, [coupleId, me.id, live]);
 
   // FAB — new list at lists level, add item inside a list. Re-registers when the
   // list count / premium changes so the gate reads live values.

@@ -271,7 +271,7 @@ function OwnerButtons({
   );
 }
 
-export function VaultLists({ active = true }: { active?: boolean }) {
+export function VaultLists({ live = true }: { live?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
@@ -351,9 +351,9 @@ export function VaultLists({ active = true }: { active?: boolean }) {
   const [rtick, setRtick] = useState(0);
 
   // Live updates — partner adds/changes vault items without requiring a refresh.
-  // Active tab only; a backgrounded lists pane drops its channel.
+  // Live window only; far panes drop their channel.
   useEffect(() => {
-    if (!active) return;
+    if (!live) return;
     const supabase = createClient();
     // Skip our own INSERTs (optimistic UI already shows them) to avoid a redundant refetch.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -368,11 +368,11 @@ export function VaultLists({ active = true }: { active?: boolean }) {
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
-  }, [coupleId, me.id, active]);
+  }, [coupleId, me.id, live]);
 
   // Load folders + item counts
   useEffect(() => {
-    if (!active) return; // fetch only when this tab is active
+    if (!live) return; // fetch in the live window (active or adjacent)
     const load = async () => {
       const supabase = createClient();
       const [{ data: foldersRaw }, { data: countRaw }] = await Promise.all([
@@ -419,11 +419,11 @@ export function VaultLists({ active = true }: { active?: boolean }) {
       setFoldersLoading(false);
     };
     load();
-  }, [coupleId, me.id, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, me.id, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load items when folder is opened (or partner changes something)
   useEffect(() => {
-    if (!activeFolder || !active) return;
+    if (!activeFolder || !live) return;
     setItemsLoading(true);
     const supabase = createClient();
     supabase
@@ -436,7 +436,7 @@ export function VaultLists({ active = true }: { active?: boolean }) {
         setItems((data as VaultItem[]) ?? []);
         setItemsLoading(false);
       });
-  }, [activeFolder, coupleId, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeFolder, coupleId, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
