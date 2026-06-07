@@ -102,9 +102,13 @@ export function SwipePager({
   const onScroll = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    // During a programmatic scroll (tab tap / far jump) DON'T drive the nav/pill —
+    // reporting the intermediate positions flashed the highlight back to the origin
+    // and forward again. The settle handler sets the final position directly.
+    if (lock.current) return;
     const w = el.clientWidth;
-    if (w && onProgress) onProgress(el.scrollLeft / w); // live position (even mid-gesture)
-    if (lock.current || touching.current) return;       // don't settle while holding
+    if (w && onProgress) onProgress(el.scrollLeft / w); // live finger position
+    if (touching.current) return;                       // don't settle while holding
     scheduleSettle();
   }, [onProgress, scheduleSettle]);
 

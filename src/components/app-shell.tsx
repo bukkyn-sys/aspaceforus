@@ -214,13 +214,14 @@ function VaultSection({ live, active, subIndex, onSub }: { live: boolean; active
         </div>
       </div>
 
-      {/* Nested sub-pager — edges chain to the outer pager so you can swipe out. */}
+      {/* Nested sub-pager — contained so the inner gesture is never contested by
+          the outer pager (that fight caused held sub-swipes to auto-settle/loop).
+          Leave the vault via the bottom nav. */}
       <div className="flex-1 min-h-0">
         <SwipePager
           index={subIndex}
           count={3}
           className="h-full"
-          containEdges={false}
           onIndexChange={(j) => { if (j !== subIndex) onSub(j); }}
           onProgress={setPill}
           renderPane={(j, subActive) => (
