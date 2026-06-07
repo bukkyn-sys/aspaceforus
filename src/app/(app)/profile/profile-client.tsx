@@ -402,15 +402,22 @@ function BillingSettings() {
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
 
-  // Gold gradient frame so Premium stands apart from the plain setting cards.
+  // Gold framing via inline hex — the default Tailwind amber/yellow palette isn't
+  // compiled in this project's theme, so palette classes would render nothing.
+  const GOLD = "#F59E0B";
+  const GOLD_TEXT = "#D97706";
+  const GOLD_TINT = "rgba(245,158,11,0.10)";
   return (
-    <div className="rounded-2xl p-[1.5px] mb-4 shadow-card bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-500">
+    <div className="rounded-2xl p-[1.5px] mb-4 shadow-card" style={{ backgroundImage: "linear-gradient(135deg,#FBBF24,#F59E0B,#EAB308)" }}>
       <div className="rounded-2xl bg-card p-4">
         <div className="flex items-center gap-1.5 mb-2">
-          <Sparkles className="w-4 h-4 text-amber-500" />
+          <Sparkles className="w-4 h-4" style={{ color: GOLD }} />
           <p className="text-sm font-semibold text-foreground">us. premium</p>
-          {subscribed && <span className="ml-auto text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded-full">active</span>}
-          {onTrial && <span className="ml-auto text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded-full">trial</span>}
+          {(subscribed || onTrial) && (
+            <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: GOLD_TEXT, backgroundColor: "rgba(245,158,11,0.15)" }}>
+              {subscribed ? "active" : "trial"}
+            </span>
+          )}
         </div>
 
         {state === null ? (
@@ -426,7 +433,7 @@ function BillingSettings() {
         ) : (
           <>
             {onTrial && (
-              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1.5">
+              <p className="text-xs font-medium mb-1.5" style={{ color: GOLD_TEXT }}>
                 {daysLeft(state.trialEndsAt)} days of premium left — keep it below.
               </p>
             )}
@@ -439,11 +446,12 @@ function BillingSettings() {
               <button
                 onClick={() => subscribe("annual")}
                 disabled={busy}
-                className="relative rounded-xl border-2 border-amber-400 bg-amber-50/60 dark:bg-amber-500/10 p-3 text-left transition active:scale-[0.98] disabled:opacity-60"
+                className="relative rounded-xl border-2 p-3 text-left transition active:scale-[0.98] disabled:opacity-60"
+                style={{ borderColor: GOLD, backgroundColor: GOLD_TINT }}
               >
-                <span className="absolute -top-2 left-3 text-[9px] font-bold tracking-wide text-white bg-amber-500 px-1.5 py-0.5 rounded-full">BEST VALUE</span>
+                <span className="absolute -top-2 left-3 text-[9px] font-bold tracking-wide text-white px-1.5 py-0.5 rounded-full" style={{ backgroundColor: GOLD }}>BEST VALUE</span>
                 <p className="text-base font-bold text-foreground leading-none mt-1">£19.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">save ~16% · locks founding rate</p>
+                <p className="text-[10px] text-muted-foreground mt-1">save ~16% · locks rate</p>
               </button>
 
               {/* Monthly */}
