@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
 import { track } from "@/lib/analytics";
@@ -71,6 +72,7 @@ export default function DailyCard({
   registerRefetch: (fn: () => void) => void;
 }) {
   const { me, partner, myName, partnerName } = useCouple();
+  const { premium, openPaywall } = useEntitlement();
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
@@ -146,7 +148,11 @@ export default function DailyCard({
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-muted-foreground font-medium tracking-wide">the daily</p>
-        <Link href="/daily" className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+        <Link
+          href="/daily"
+          onClick={(e) => { if (!premium) { e.preventDefault(); openPaywall("history"); } }}
+          className="text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+        >
           history
         </Link>
       </div>

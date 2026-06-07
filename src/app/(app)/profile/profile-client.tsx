@@ -13,6 +13,7 @@ import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner,
 import { getBillingState, startCheckout, openBillingPortal, type BillingState } from "./billing-actions";
 import { usePreviewFree, setPreviewFree } from "@/lib/preview-tier";
 import { PremiumBadges } from "@/components/premium-badges";
+import { useEntitlement } from "@/contexts/entitlement-context";
 
 const CURRENCIES = ["£", "$", "€"] as const;
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -520,6 +521,7 @@ export default function ProfileClient({
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   const { currency: coupleCurrency, me, partner } = useCouple();
+  const { premium, openPaywall } = useEntitlement();
   const [currency, setCurrency] = useState(coupleCurrency);
   // Partner's accent comes straight from context — no extra server fetch needed.
   const partnerAccentColor = partner?.accent_color ?? null;
@@ -749,9 +751,9 @@ export default function ProfileClient({
       <div className="card overflow-hidden mb-4">
         <p className="text-xs text-muted-foreground font-medium tracking-wide p-4 pb-3">couple</p>
 
-        {/* Banner upload */}
+        {/* Banner upload — custom banner is a premium touch */}
         <button
-          onClick={() => bannerInputRef.current?.click()}
+          onClick={() => { if (!premium) { openPaywall("themes"); return; } bannerInputRef.current?.click(); }}
           disabled={uploading === "banner"}
           className="relative w-full h-32 bg-secondary overflow-hidden group block"
         >

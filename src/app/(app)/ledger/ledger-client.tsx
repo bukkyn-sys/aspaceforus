@@ -749,7 +749,11 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
               {showHistory ? "settled history" : "active expenses"}
             </p>
             <button
-              onClick={() => { const next = !showHistory; setShowHistory(next); if (next) loadHistory(); }}
+              onClick={() => {
+                const next = !showHistory;
+                if (next && !premium) { openPaywall("history"); return; }
+                setShowHistory(next); if (next) loadHistory();
+              }}
               className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               {showHistory ? "← back to active" : "history"}
