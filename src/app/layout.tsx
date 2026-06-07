@@ -21,6 +21,34 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// iPhone portrait resolutions (CSS width/height + device-pixel-ratio). iOS only
+// shows a launch image whose media query matches the device exactly, so each one
+// needs its own entry; anything not listed falls back to the (cream) body paint.
+const APPLE_DEVICES = [
+  { cw: 440, ch: 956, r: 3 }, // 16 Pro Max
+  { cw: 402, ch: 874, r: 3 }, // 16 Pro
+  { cw: 430, ch: 932, r: 3 }, // 14/15 Pro Max, 15/16 Plus
+  { cw: 393, ch: 852, r: 3 }, // 14 Pro, 15, 16
+  { cw: 428, ch: 926, r: 3 }, // 12/13 Pro Max, 14 Plus
+  { cw: 390, ch: 844, r: 3 }, // 12, 13, 14
+  { cw: 375, ch: 812, r: 3 }, // X, XS, 11 Pro, 12/13 mini
+  { cw: 414, ch: 896, r: 3 }, // XS Max, 11 Pro Max
+  { cw: 414, ch: 896, r: 2 }, // XR, 11
+  { cw: 414, ch: 736, r: 3 }, // 6+/7+/8 Plus
+  { cw: 375, ch: 667, r: 2 }, // SE 2/3, 6/7/8
+  { cw: 320, ch: 568, r: 2 }, // SE 1
+];
+
+const startupImage = APPLE_DEVICES.flatMap(({ cw, ch, r }) => {
+  const w = cw * r;
+  const h = ch * r;
+  const base = `(device-width: ${cw}px) and (device-height: ${ch}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait)`;
+  return [
+    { url: `/startup-image/${w}x${h}`, media: `${base} and (prefers-color-scheme: light)` },
+    { url: `/startup-image/${w}x${h}d`, media: `${base} and (prefers-color-scheme: dark)` },
+  ];
+});
+
 export const metadata: Metadata = {
   title: "us.",
   description: "just the two of you",
@@ -29,6 +57,7 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "us.",
+    startupImage,
   },
 };
 
