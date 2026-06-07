@@ -118,7 +118,8 @@ export async function deleteTodo(id: string, coupleId: string) {
 export async function setPriorityTodoList(coupleId: string, listId: string | null) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.rpc("set_priority_todo_list", { p_couple_id: coupleId, p_list_id: listId });
+  // p_list_id is nullable in SQL (null = unpin) but typed non-null by codegen.
+  await supabase.rpc("set_priority_todo_list", { p_couple_id: coupleId, p_list_id: listId as string });
 }
 
 // Persist a manual order — position = index for each id, in order.

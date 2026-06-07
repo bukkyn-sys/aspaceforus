@@ -308,8 +308,10 @@ export default function LedgerClient() {
       supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency, emoji").eq("couple_id", coupleId).order("created_at", { ascending: false }),
       supabase.from("pot_folders").select("id, name, emoji, is_default, sort_order, created_by, created_at").eq("couple_id", coupleId).order("sort_order").order("created_at"),
     ]).then(async ([{ data: e }, { data: p }, { data: f }]) => {
-      const entries = (e as Entry[]) ?? [];
-      const pots = (p as Pot[]) ?? [];
+      // DB stores amounts as numeric; the UI interfaces model them as strings and
+      // parseFloat at use. Cast via unknown until the interfaces are aligned.
+      const entries = (e as unknown as Entry[]) ?? [];
+      const pots = (p as unknown as Pot[]) ?? [];
       let folders = (f as PotFolder[]) ?? [];
 
       if (folders.length === 0) {
@@ -340,7 +342,7 @@ export default function LedgerClient() {
     const { data } = await createClient()
       .from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", true)
       .order("created_at", { ascending: false }).limit(100);
-    setSettledEntries((data as Entry[]) ?? []);
+    setSettledEntries((data as unknown as Entry[]) ?? []);
   }
 
   // Net balance (unsettled only) — see src/lib/ledger-math.ts (tested).

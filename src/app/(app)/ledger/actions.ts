@@ -144,7 +144,7 @@ export async function contributeToPot(potId: string, coupleId: string, userId: s
     .single();
   if (!pot) return;
   const iAmCreator = pot.created_by === uid;
-  const current = parseFloat((iAmCreator ? pot.his_amount : pot.hers_amount) ?? "0");
+  const current = (iAmCreator ? pot.his_amount : pot.hers_amount) ?? 0;
   const next = Math.max(0, current + delta);
   await supabase
     .from("savings_pots")

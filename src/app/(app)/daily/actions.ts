@@ -35,7 +35,7 @@ export async function submitDaily(input: SubmitDailyInput) {
   const { data, error } = await supabase.rpc("submit_daily_response", {
     p_day_key: input.dayKey,
     p_body: input.body,
-    p_option: input.option,
+    p_option: input.option as string, // nullable in SQL, typed non-null by codegen
   });
   if (error) return { error: error.message };
 

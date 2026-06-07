@@ -107,8 +107,8 @@ export default function CalendarClient() {
         .or(`until_date.gte.${start},on_date.gte.${start}`)
         .order("on_date"),
     ]).then(([{ data: avail }, { data: evts }]) => {
-      const rows = avail ?? [];
-      const events = (evts as CalEvent[]) ?? [];
+      const rows = (avail ?? []) as Row[];
+      const events = (evts as unknown as CalEvent[]) ?? [];
       setRows(rows);
       setEvents(events);
       setLoading(false);

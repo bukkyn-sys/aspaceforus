@@ -91,7 +91,7 @@ export default function DailyCard({
   const refetch = useCallback(async () => {
     if (!d.paired || !d.day_key) return;
     const { data } = await supabase.rpc("get_daily", { p_day_key: d.day_key });
-    if (data && !busyRef.current) setD(data as DailyData);
+    if (data && !busyRef.current) setD(data as unknown as DailyData);
   }, [d.paired, d.day_key, supabase]);
   useEffect(() => { registerRefetch(refetch); }, [registerRefetch, refetch]);
 

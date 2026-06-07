@@ -22,7 +22,7 @@ export async function notifyPartner(
     });
     if (!data) return;
     await webpush.sendNotification(
-      data as webpush.PushSubscription,
+      data as unknown as webpush.PushSubscription,
       JSON.stringify({ title, body, url })
     );
   } catch {

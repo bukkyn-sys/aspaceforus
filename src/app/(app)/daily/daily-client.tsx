@@ -34,8 +34,8 @@ export default function DailyHistoryClient() {
   const [hasMore, setHasMore] = useState(false);
 
   const fetchPage = useCallback(async (before: string | null) => {
-    const { data } = await supabase.rpc("get_daily_history", { p_limit: PAGE, p_before: before });
-    const rows = (data ?? []) as HistoryItem[];
+    const { data } = await supabase.rpc("get_daily_history", { p_limit: PAGE, p_before: before ?? undefined });
+    const rows = (data ?? []) as unknown as HistoryItem[];
     setHasMore(rows.length === PAGE);
     return rows;
   }, [supabase]);
