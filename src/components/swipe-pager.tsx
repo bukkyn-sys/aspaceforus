@@ -3,27 +3,24 @@
 import { useRef, useEffect, useCallback, type ReactNode } from "react";
 
 /**
- * Horizontal, finger-tracked pager built on native CSS scroll-snap — so the
- * content follows the finger in real time, you can drag halfway, hold, change
- * your mind, and it momentum-snaps or springs back, all natively (Instagram feel).
- *
- * - Always renders `count` full-width columns (so scroll geometry maps cleanly to
- *   the index), but only mounts content within `index ± mountWindow` plus any pane
- *   already visited — neighbours are live for the peek; far/unseen panes stay empty.
- * - Each pane scrolls VERTICALLY on its own (fixed-height viewport), and any pane
- *   you swipe to is reset to the top — so you always land at the top of the next
- *   screen, never mid-scroll.
- * - `onIndexChange` fires once the swipe settles; tapping an indicator (parent
- *   changes `index`) smooth-scrolls to it.
+ * Finger-tracked horizontal pager driven by JS transforms (not native scroll).
+ * One rail of `count` full-width panes is translated in real time, so:
+ *  - the content follows the finger; hold a half-drag and it never auto-completes
+ *    (commit happens only on release, by distance OR flick velocity);
+ *  - `onProgress` is emitted from the SAME offset in the SAME frame as the rail,
+ *    so an external header (e.g. the vault bar) tracks it with zero drift;
+ *  - vertical scrolling stays native (touch-action: pan-y; each pane scrolls on
+ *    its own), and only horizontal drags are captured here — no nested-scroll
+ *    fights, no momentum glitches.
+ * `onIndexChange` fires when a swipe settles; changing `index` from the parent
+ * (tab tap / nav) animates there (adjacent) or fades through (far jumps).
  */
 export function SwipePager({
   index,
   count,
   onIndexChange,
   renderPane,
-  mountWindow = 1,
   className,
-  containEdges = true,
   onProgress,
 }: {
   index: number;
@@ -32,132 +29,168 @@ export function SwipePager({
   renderPane: (i: number, active: boolean) => ReactNode;
   mountWindow?: number;
   className?: string;
-  // When false, edge overscroll chains to a parent pager.
   containEdges?: boolean;
-  // Live fractional scroll position (0..count-1) — for indicators that track the
-  // finger. Fires on every scroll frame (use imperatively to avoid re-renders).
   onProgress?: (p: number) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
   const paneRefs = useRef(new Map<number, HTMLDivElement>());
-  const lock = useRef(false);      // suppress index-sync during programmatic scroll
-  const touching = useRef(false);  // a finger is down — never settle/commit until release
-  const settleTimer = useRef<number | undefined>(undefined);
   const idxRef = useRef(index);
   idxRef.current = index;
+  const widthRef = useRef(0);
+  const offsetRef = useRef(0);     // current rail translateX (px)
+  const rafRef = useRef(0);
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
 
-  // Place the horizontal scroll at the active index without animation on mount.
+  // Position the rail + emit progress from one place, so anything driven by
+  // onProgress is always in lockstep with the rail.
+  const setOffset = useCallback((off: number) => {
+    offsetRef.current = off;
+    if (rail.current) rail.current.style.transform = `translate3d(${off}px,0,0)`;
+    const w = widthRef.current || 1;
+    onProgressRef.current?.(-off / w);
+  }, []);
+
+  const cancelAnim = () => { if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; } };
+
+  // rAF tween to a target offset (so onProgress fires every frame → header tracks).
+  const animateTo = useCallback((target: number, done?: () => void) => {
+    cancelAnim();
+    const start = offsetRef.current;
+    const dist = target - start;
+    if (Math.abs(dist) < 0.5) { setOffset(target); done?.(); return; }
+    const dur = 320;
+    const t0 = performance.now();
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur);
+      setOffset(start + dist * ease(t));
+      if (t < 1) rafRef.current = requestAnimationFrame(step);
+      else { rafRef.current = 0; done?.(); }
+    };
+    rafRef.current = requestAnimationFrame(step);
+  }, [setOffset]);
+
+  // Land on an index: reset the panes you're leaving to the top, animate, commit.
+  const settleTo = useCallback((i: number) => {
+    const w = widthRef.current || 1;
+    const target = Math.max(0, Math.min(count - 1, i));
+    paneRefs.current.forEach((el, k) => { if (k !== target) el.scrollTop = 0; });
+    animateTo(-target * w, () => { if (target !== idxRef.current) onIndexChange(target); });
+  }, [animateTo, count, onIndexChange]);
+
+  // Measure width + place at the active index on mount / resize.
   useEffect(() => {
-    const el = ref.current;
-    if (el) el.scrollLeft = index * el.clientWidth;
+    const el = viewport.current;
+    if (!el) return;
+    const measure = () => {
+      widthRef.current = el.clientWidth;
+      cancelAnim();
+      setOffset(-idxRef.current * widthRef.current);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => { ro.disconnect(); cancelAnim(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move to the active index when it's changed externally (tab tap / nav / deep
-  // link), and reset every other pane to the top so you arrive at its top.
-  // Adjacent moves animate; far jumps (e.g. home → ledger) snap instantly so the
-  // panes in between don't flash past.
+  // Parent changed the index (tab tap / nav / deep link): adjacent → animate;
+  // far jump → fade through so the panes in between don't streak past.
   useEffect(() => {
-    paneRefs.current.forEach((el, i) => { if (i !== index) el.scrollTop = 0; });
-    const el = ref.current;
-    if (!el) return;
-    const w = el.clientWidth;
-    if (!w) return;
-    const target = index * w;
-    if (Math.abs(el.scrollLeft - target) < 2) return;
-    lock.current = true;
-    const far = Math.abs(el.scrollLeft / w - index) > 1.2;
-    if (far) {
-      // Non-adjacent jump → full fade out, snap instantly while hidden, full fade
-      // back in (panes are preloaded, so nothing pops in). No scrolling-past.
-      el.style.transition = "opacity 200ms ease";
-      el.style.opacity = "0";
-      const j = window.setTimeout(() => {
-        el.scrollTo({ left: target, behavior: "auto" });
-        el.style.opacity = "1";
-      }, 210);
-      const t = window.setTimeout(() => { lock.current = false; el.style.transition = ""; }, 430);
-      return () => { window.clearTimeout(j); window.clearTimeout(t); };
+    const w = widthRef.current || 1;
+    const target = -index * w;
+    if (Math.abs(offsetRef.current - target) < 1) return;
+    const far = Math.abs(offsetRef.current / w + index) > 1.2;
+    const vp = viewport.current;
+    if (far && vp) {
+      vp.style.transition = "opacity 180ms ease";
+      vp.style.opacity = "0";
+      const t1 = window.setTimeout(() => {
+        cancelAnim();
+        setOffset(target);
+        vp.style.opacity = "1";
+      }, 180);
+      const t2 = window.setTimeout(() => { vp.style.transition = ""; }, 400);
+      return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
     }
-    el.scrollTo({ left: target, behavior: "smooth" });
-    const t = window.setTimeout(() => { lock.current = false; }, 380);
-    return () => window.clearTimeout(t);
+    animateTo(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  // Commit the index only once the scroll has SETTLED and no finger is down — so
-  // holding a half-swipe never auto-completes; you decide by letting go.
-  const scheduleSettle = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => {
-      if (touching.current) return;
-      const w = el.clientWidth;
-      if (!w) return;
-      const i = Math.round(el.scrollLeft / w);
-      if (i !== idxRef.current && i >= 0 && i < count) onIndexChange(i);
-    }, 80);
-  }, [onIndexChange, count]);
+  // ── Gesture ────────────────────────────────────────────────────────────────
+  const drag = useRef<null | {
+    startX: number; startY: number; base: number;
+    axis: null | "x" | "y"; lastX: number; lastT: number; vx: number;
+  }>(null);
 
-  const onScroll = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    // During a programmatic scroll (tab tap / far jump) DON'T drive the nav/pill —
-    // reporting the intermediate positions flashed the highlight back to the origin
-    // and forward again. The settle handler sets the final position directly.
-    if (lock.current) return;
-    const w = el.clientWidth;
-    if (w && onProgress) onProgress(el.scrollLeft / w); // live finger position
-    if (touching.current) return;                       // don't settle while holding
-    scheduleSettle();
-  }, [onProgress, scheduleSettle]);
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    cancelAnim(); // grabbing mid-animation continues from where it is
+    drag.current = { startX: e.clientX, startY: e.clientY, base: offsetRef.current, axis: null, lastX: e.clientX, lastT: e.timeStamp, vx: 0 };
+  }, []);
 
-  const onTouchStart = useCallback(() => { touching.current = true; window.clearTimeout(settleTimer.current); }, []);
-  const onTouchEnd = useCallback(() => { touching.current = false; scheduleSettle(); }, [scheduleSettle]);
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (d.axis === null) {
+      if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;     // wait until the intent is clear
+      d.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (d.axis === "x") (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    }
+    if (d.axis !== "x") return;                              // vertical → leave it to native scroll
+    const dt = e.timeStamp - d.lastT;
+    if (dt > 0) d.vx = (e.clientX - d.lastX) / dt;           // px/ms
+    d.lastX = e.clientX; d.lastT = e.timeStamp;
+    const w = widthRef.current || 1;
+    let off = d.base + dx;
+    const min = -(count - 1) * w;
+    if (off > 0) off = off * 0.35;                           // rubber-band past the first
+    else if (off < min) off = min + (off - min) * 0.35;     // …and past the last
+    setOffset(off);
+  }, [count, setOffset]);
+
+  const endDrag = useCallback((e: React.PointerEvent) => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d || d.axis !== "x") return;
+    const w = widthRef.current || 1;
+    const dx = e.clientX - d.startX;
+    const cur = idxRef.current;
+    const flicked = Math.abs(d.vx) > 0.4;
+    const passed = Math.abs(dx) > w * 0.35 || flicked;
+    let target = cur;
+    if (passed) target = dx < 0 ? cur + 1 : cur - 1;
+    settleTo(target);
+  }, [settleTo]);
 
   return (
     <div
-      ref={ref}
-      onScroll={onScroll}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
+      ref={viewport}
       className={className}
-      style={{
-        display: "flex",
-        overflowX: "auto",
-        overflowY: "hidden",
-        scrollSnapType: "x mandatory",
-        scrollBehavior: "auto",
-        overscrollBehaviorX: containEdges ? "contain" : "auto",
-        scrollbarWidth: "none",
-        WebkitOverflowScrolling: "touch",
-      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      style={{ overflow: "hidden", touchAction: "pan-y", position: "relative", willChange: "opacity" }}
     >
-      {Array.from({ length: count }, (_, i) => {
-        // All panes stay mounted + loaded so every swipe shows full state with no
-        // load-in. (Realtime is throttled to the active tab + neighbours by the
-        // clients themselves, which is where the scaling cost actually lives.)
-        void mountWindow;
-        const mounted = true;
-        return (
+      <div
+        ref={rail}
+        style={{ display: "flex", height: "100%", width: `${count * 100}%`, willChange: "transform" }}
+      >
+        {Array.from({ length: count }, (_, i) => (
           <div
             key={i}
             ref={(el) => { if (el) paneRefs.current.set(i, el); else paneRefs.current.delete(i); }}
-            style={{
-              flex: "0 0 100%",
-              minWidth: "100%",
-              height: "100%",
-              overflowY: "auto",
-              WebkitOverflowScrolling: "touch",
-              scrollSnapAlign: "start",
-              scrollSnapStop: "always", // a fling can only advance one pane, never skip
-            }}
+            style={{ width: `${100 / count}%`, height: "100%", overflowY: "auto", overflowX: "hidden", WebkitOverflowScrolling: "touch" }}
           >
-            {mounted ? renderPane(i, i === index) : null}
+            {renderPane(i, i === index)}
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
