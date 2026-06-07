@@ -45,6 +45,12 @@ The remaining feature files (`daily_mechanic.sql`, `vault_*.sql`, `security_*.sq
 etc.) layer in earlier features; if starting truly fresh, prefer `db pull` over
 replaying them.
 
+**Monetization:** `monetization_phase1.sql` is the latest layer — entitlement
+plumbing (trial fields, `subscriptions` table, `is_premium`) and a trial-granting
+rewrite of `join_couple_for_user`. It supersedes `join_rate_limit.sql`'s version
+of that RPC (keeps its rate-limit + 2-person cap, adds the trial grant), so run it
+**after** `join_rate_limit.sql`. Fully idempotent; safe to re-run.
+
 ## Gotchas learned the hard way
 
 - The SQL editor runs the whole script as **one transaction** — a mid-script
