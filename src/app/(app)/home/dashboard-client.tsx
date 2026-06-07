@@ -26,6 +26,8 @@ import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
 import { SignedImg } from "@/components/signed-img";
 import DailyCard, { type DailyData } from "./daily-card";
+import { getBillingState } from "@/app/(app)/profile/billing-actions";
+import { PremiumBadges } from "@/components/premium-badges";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -190,6 +192,13 @@ export default function DashboardClient({ active = true }: { active?: boolean })
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const [layoutDraft, setLayoutDraft] = useState<DashModule[]>([]);
   const [, startTransition] = useTransition();
+
+  // Founding/beta identity badges, shown beside the profile button.
+  const [badges, setBadges] = useState<{ founding: boolean; beta: boolean }>({ founding: false, beta: false });
+  useEffect(() => {
+    if (!active) return;
+    getBillingState().then((s) => setBadges({ founding: s.paid, beta: s.comp })).catch(() => {});
+  }, [active]);
 
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");
@@ -508,18 +517,21 @@ export default function DashboardClient({ active = true }: { active?: boolean })
             </button>
           )}
         </div>
-        <Link
-          href="/profile"
-          className="w-9 h-9 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0"
-          aria-label="profile"
-          style={{ boxShadow: `0 0 0 1.5px ${myAccent.hex}` }}
-        >
-          {me.avatar_url ? (
-            <SignedImg src={me.avatar_url} className="w-full h-full object-cover" />
-          ) : (
-            <User className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
-          )}
-        </Link>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <PremiumBadges founding={badges.founding} beta={badges.beta} />
+          <Link
+            href="/profile"
+            className="w-9 h-9 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0"
+            aria-label="profile"
+            style={{ boxShadow: `0 0 0 1.5px ${myAccent.hex}` }}
+          >
+            {me.avatar_url ? (
+              <SignedImg src={me.avatar_url} className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+            )}
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 items-stretch mt-4">

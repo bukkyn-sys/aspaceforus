@@ -815,7 +815,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
               <button type="button" onClick={() => fileRef.current?.click()} className="relative w-28 h-28 rounded-full focus:outline-none group">
                 {avatarPreview ? (
                   <>
-                    <SignedImg src={avatarPreview} alt="avatar" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
+                    <SignedImg src={avatarPreview} alt="" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
                     <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera className="w-5 h-5 text-white" />
                       <span className="text-[10px] text-white font-medium">change</span>

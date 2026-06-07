@@ -25,32 +25,42 @@ function isActivePaid(s: any): boolean {
 }
 
 export type BillingState = {
-  status: "premium_paid" | "trial" | "free";
+  premium: boolean;      // effective entitlement (paid OR comp OR active trial)
+  paid: boolean;         // active paid subscription → founding member
+  comp: boolean;         // active beta/comp override → beta tester
+  onTrial: boolean;
   trialEndsAt: string | null;
   plan: PlanInterval | null;
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
 };
 
+const EMPTY_STATE: BillingState = {
+  premium: false, paid: false, comp: false, onTrial: false,
+  trialEndsAt: null, plan: null, cancelAtPeriodEnd: false, currentPeriodEnd: null,
+};
+
 export async function getBillingState(): Promise<BillingState> {
-  const empty: BillingState = { status: "free", trialEndsAt: null, plan: null, cancelAtPeriodEnd: false, currentPeriodEnd: null };
   const { uid } = await getUid();
-  if (!uid) return empty;
+  if (!uid) return EMPTY_STATE;
   const admin = createAdminClient();
   const coupleId = await coupleOf(admin, uid);
-  if (!coupleId) return empty;
+  if (!coupleId) return EMPTY_STATE;
 
   const [{ data: couple }, { data: subs }] = await Promise.all([
-    admin.from("couples").select("trial_ends_at").eq("id", coupleId).single(),
+    admin.from("couples").select("trial_ends_at, premium_override_until").eq("id", coupleId).single(),
     admin.from("subscriptions")
       .select("plan_kind, activation_state, status, current_period_end, cancel_at_period_end, price_id")
       .eq("couple_id", coupleId),
   ]);
 
+  const now = Date.now();
   const trialEndsAt = (couple?.trial_ends_at as string | null) ?? null;
-  const onTrial = !!trialEndsAt && new Date(trialEndsAt).getTime() > Date.now();
-  const rows = subs ?? [];
-  const active = rows.find(isActivePaid);
+  const overrideUntil = (couple?.premium_override_until as string | null) ?? null;
+  const onTrial = !!trialEndsAt && new Date(trialEndsAt).getTime() > now;
+  const comp = !!overrideUntil && new Date(overrideUntil).getTime() > now;
+  const active = (subs ?? []).find(isActivePaid);
+  const paid = !!active;
 
   const plan: PlanInterval | null =
     active?.price_id === PRICE_ANNUAL() ? "annual"
@@ -58,7 +68,10 @@ export async function getBillingState(): Promise<BillingState> {
     : null;
 
   return {
-    status: active ? "premium_paid" : onTrial ? "trial" : "free",
+    premium: paid || comp || onTrial,
+    paid,
+    comp,
+    onTrial,
     trialEndsAt,
     plan,
     cancelAtPeriodEnd: !!active?.cancel_at_period_end,

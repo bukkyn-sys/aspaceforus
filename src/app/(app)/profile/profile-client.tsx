@@ -11,6 +11,8 @@ import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
 import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple } from "./actions";
 import { getBillingState, startCheckout, openBillingPortal, type BillingState } from "./billing-actions";
+import { usePreviewFree, setPreviewFree } from "@/lib/preview-tier";
+import { PremiumBadges } from "@/components/premium-badges";
 
 const CURRENCIES = ["£", "$", "€"] as const;
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -363,12 +365,12 @@ function daysLeft(iso: string | null): number {
   return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
 }
 
-// Premium status + subscribe/manage. Minimal Phase-2 surface — Phase 3 adds the
-// full founding upgrade screen + contextual paywalls.
+// Premium status + subscribe/manage, with a beta-only "preview as free" switch.
 function BillingSettings() {
   const [state, setState] = useState<BillingState | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const previewFree = usePreviewFree();
 
   useEffect(() => { getBillingState().then(setState); }, []);
 
@@ -397,8 +399,11 @@ function BillingSettings() {
     }
   }
 
-  const subscribed = state?.status === "premium_paid";
-  const onTrial = state?.status === "trial";
+  // Beta testers can preview the free tier; everything below respects it.
+  const isBeta = !!state?.comp;
+  const paid = !!state?.paid && !previewFree;
+  const comp = isBeta && !previewFree;
+  const onTrial = !!state?.onTrial && !previewFree;
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
 
@@ -413,30 +418,32 @@ function BillingSettings() {
         <div className="flex items-center gap-1.5 mb-2">
           <Sparkles className="w-4 h-4" style={{ color: GOLD }} />
           <p className="text-sm font-semibold text-foreground">us. premium</p>
-          {(subscribed || onTrial) && (
-            <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: GOLD_TEXT, backgroundColor: "rgba(245,158,11,0.15)" }}>
-              {subscribed ? "active" : "trial"}
-            </span>
-          )}
+          <span className="ml-auto">
+            <PremiumBadges founding={state?.paid} beta={state?.comp} />
+          </span>
         </div>
 
         {state === null ? (
           <p className="text-sm text-muted-foreground/60">…</p>
-        ) : subscribed ? (
+        ) : paid ? (
           <>
-            <p className="text-sm text-foreground">{state.plan === "annual" ? "annual plan" : "monthly plan"}</p>
+            <p className="text-sm text-foreground">{state.plan === "annual" ? "annual plan" : "monthly plan"} · active</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {state.cancelAtPeriodEnd ? "ends" : "renews"} {fmt(state.currentPeriodEnd)}
             </p>
             <Button onClick={manage} disabled={busy} variant="outline" className="mt-3 w-full">manage subscription</Button>
           </>
+        ) : comp ? (
+          <p className="text-sm text-foreground">premium unlocked — beta access is on us. ✨</p>
         ) : (
           <>
-            {onTrial && (
+            {onTrial ? (
               <p className="text-xs font-medium mb-1.5" style={{ color: GOLD_TEXT }}>
                 {daysLeft(state.trialEndsAt)} days of premium left — keep it below.
               </p>
-            )}
+            ) : previewFree ? (
+              <p className="text-xs font-medium mb-1.5 text-muted-foreground">previewing the free plan.</p>
+            ) : null}
             <p className="text-xs text-muted-foreground leading-relaxed mb-3">
               unlimited photos, plan any month ahead, full history, themes &amp; more — for the two of you.
             </p>
@@ -467,6 +474,24 @@ function BillingSettings() {
             <p className="text-[10px] text-muted-foreground/60 mt-2">one plan covers both of you · monthly may rise as we grow</p>
           </>
         )}
+
+        {/* Beta-only: preview what free users see. */}
+        {isBeta && (
+          <button
+            onClick={() => setPreviewFree(!previewFree)}
+            aria-pressed={previewFree}
+            className="mt-3 pt-3 border-t border-border/40 flex items-center justify-between w-full text-left"
+          >
+            <div>
+              <p className="text-xs text-foreground">preview as free</p>
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5">beta tester — see what free users get</p>
+            </div>
+            <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ml-3", previewFree ? "bg-sage" : "bg-foreground/15")}>
+              <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", previewFree ? "left-[1.15rem]" : "left-0.5")} />
+            </span>
+          </button>
+        )}
+
         {err && <p className="text-xs text-terracotta mt-2">{err}</p>}
       </div>
     </div>
