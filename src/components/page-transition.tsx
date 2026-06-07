@@ -11,7 +11,7 @@ import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.sha
  * blank) because the router context has already advanced — so there'd be nothing
  * to fade out. We snapshot the context on first render and hold it frozen.
  */
-function FrozenRouter({ children }: { children: ReactNode }) {
+export function FrozenRouter({ children }: { children: ReactNode }) {
   const context = useContext(LayoutRouterContext ?? ({} as never));
   const frozen = useRef(context).current;
   if (!frozen) return <>{children}</>;

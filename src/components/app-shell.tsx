@@ -2,11 +2,12 @@
 
 import { Suspense, useRef, useState, useEffect, useCallback, useImperativeHandle, forwardRef, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { SwipePager } from "@/components/swipe-pager";
 import { FabGate } from "@/contexts/fab-context";
 import { useSetNavActive } from "@/contexts/nav-active";
 import { useNotifications } from "@/contexts/notification-context";
-import PageTransition from "@/components/page-transition";
+import { FrozenRouter } from "@/components/page-transition";
 import DashboardClient from "@/app/(app)/home/dashboard-client";
 import CalendarClient from "@/app/(app)/calendar/calendar-client";
 import LedgerClient from "@/app/(app)/ledger/ledger-client";
@@ -125,7 +126,9 @@ function AppShellInner({ children }: { children: ReactNode }) {
     <>
       <VaultTopBar ref={vaultBar} onSelect={(sub) => go(VAULT_BASE + sub)} />
 
-      <div style={{ display: isTab ? undefined : "none" }} aria-hidden={!isTab}>
+      {/* Pager stays mounted (tab state preserved); the non-tab page fades in
+          over it as an overlay, and fades out on the way back. */}
+      <div aria-hidden={!isTab}>
         <SwipePager
           index={index}
           count={COUNT}
@@ -136,7 +139,21 @@ function AppShellInner({ children }: { children: ReactNode }) {
         />
       </div>
 
-      {!isTab && <PageTransition>{children}</PageTransition>}
+      <AnimatePresence initial={false}>
+        {!isTab && (
+          <motion.div
+            key="page"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.33, 0, 0.2, 1] }}
+            className="fixed inset-0 z-30 bg-background overflow-y-auto overscroll-contain pb-[calc(5rem+env(safe-area-inset-bottom))]"
+            style={{ willChange: "opacity" }}
+          >
+            <FrozenRouter>{children}</FrozenRouter>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

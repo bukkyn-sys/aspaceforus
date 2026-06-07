@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { useFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { useNavActive } from "@/contexts/nav-active";
+import { useCouple } from "@/contexts/couple-context";
+import { getAccent } from "@/lib/accent-colors";
 
 const navItems = [
   { href: "/home",     icon: Home,         label: "home",     section: "home" },
@@ -20,6 +22,8 @@ export default function BottomNav() {
   const { action } = useFab();
   const { badges } = useNotifications();
   const navActive = useNavActive();
+  const { me } = useCouple();
+  const accent = getAccent(me.accent_color);
   // Live highlight from the swipe (switches at the half-way point); falls back to
   // the pathname on non-tab routes.
   const isActive = (href: string, i: number) => (navActive != null ? navActive === i : pathname === href);
@@ -44,12 +48,13 @@ export default function BottomNav() {
             disabled={!action}
             aria-disabled={!action}
             className={cn(
-              "w-12 h-12 rounded-2xl bg-foreground text-background",
+              "w-12 h-12 rounded-2xl text-white",
               "flex items-center justify-center",
               "shadow-[0_4px_20px_rgb(0,0,0,0.18)]",
               "active:scale-95 transition-transform",
               !action && "opacity-40"
             )}
+            style={{ backgroundColor: accent.hex }}
             aria-label="add"
           >
             <Plus className="w-5 h-5" strokeWidth={2} />
