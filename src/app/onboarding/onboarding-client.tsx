@@ -813,18 +813,22 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
           <SetupShell index={1} total={4} onBack={() => setStep("name")} title="add a photo" subtitle="optional — it helps your space feel like yours. you can change it later." footer={<><Button onClick={() => setStep("colour")} className={accentBtnCls} style={brandBg}>continue</Button>{!avatarPreview && <button onClick={() => setStep("colour")} className="w-full text-xs text-muted-foreground/60 hover:text-muted-foreground">skip for now</button>}</>}>
             <div className="flex justify-center">
               <button type="button" onClick={() => fileRef.current?.click()} className="relative w-28 h-28 rounded-full focus:outline-none group">
-                {avatarPreview ? (
-                  <>
-                    <SignedImg src={avatarPreview} alt="" className="w-28 h-28 rounded-full object-cover" style={{ boxShadow: `0 0 0 3px ${brandHex}` }} />
-                    <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-5 h-5 text-white" />
-                      <span className="text-[10px] text-white font-medium">change</span>
+                <SignedImg
+                  src={avatarPreview}
+                  alt=""
+                  className="w-28 h-28 rounded-full object-cover"
+                  style={{ boxShadow: `0 0 0 3px ${brandHex}` }}
+                  fallback={
+                    <div className="w-28 h-28 rounded-full border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 bg-secondary group-hover:bg-secondary/80 transition-colors">
+                      <Camera className="w-7 h-7 text-muted-foreground" />
+                      <span className="text-[11px] text-muted-foreground font-medium">add photo</span>
                     </div>
-                  </>
-                ) : (
-                  <div className="w-28 h-28 rounded-full border-2 border-dashed border-border flex flex-col items-center justify-center gap-1.5 bg-secondary group-hover:bg-secondary/80 transition-colors">
-                    <Camera className="w-7 h-7 text-muted-foreground" />
-                    <span className="text-[11px] text-muted-foreground font-medium">add photo</span>
+                  }
+                />
+                {avatarPreview && (
+                  <div className="absolute inset-0 rounded-full bg-black/35 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <Camera className="w-5 h-5 text-white" />
+                    <span className="text-[10px] text-white font-medium">change</span>
                   </div>
                 )}
               </button>

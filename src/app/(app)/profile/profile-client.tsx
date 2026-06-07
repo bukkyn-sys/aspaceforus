@@ -642,13 +642,16 @@ export default function ProfileClient({
           disabled={uploading === "avatar"}
           className="relative w-24 h-24 rounded-full overflow-hidden bg-secondary mb-3 group"
         >
-          {profile.avatarUrl ? (
-            <SignedImg src={profile.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-muted-foreground">
-              {profile.displayName?.[0]?.toUpperCase() ?? "?"}
-            </div>
-          )}
+          <SignedImg
+            src={profile.avatarUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            fallback={
+              <div className="w-full h-full flex items-center justify-center text-2xl font-semibold text-muted-foreground">
+                {profile.displayName?.[0]?.toUpperCase() ?? "?"}
+              </div>
+            }
+          />
           <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <Camera className="w-5 h-5 text-white" />
           </div>

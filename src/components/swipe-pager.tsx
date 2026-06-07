@@ -67,8 +67,20 @@ export function SwipePager({
     if (Math.abs(el.scrollLeft - target) < 2) return;
     lock.current = true;
     const far = Math.abs(el.scrollLeft / w - index) > 1.2;
-    el.scrollTo({ left: target, behavior: far ? "auto" : "smooth" });
-    const t = window.setTimeout(() => { lock.current = false; }, far ? 60 : 380);
+    if (far) {
+      // Cross-fade the jump so the panes in between don't flash past: fade out,
+      // snap instantly, fade back in.
+      el.style.transition = "opacity 140ms ease";
+      el.style.opacity = "0";
+      const j = window.setTimeout(() => {
+        el.scrollTo({ left: target, behavior: "auto" });
+        el.style.opacity = "1";
+      }, 140);
+      const t = window.setTimeout(() => { lock.current = false; el.style.transition = ""; }, 320);
+      return () => { window.clearTimeout(j); window.clearTimeout(t); };
+    }
+    el.scrollTo({ left: target, behavior: "smooth" });
+    const t = window.setTimeout(() => { lock.current = false; }, 380);
     return () => window.clearTimeout(t);
   }, [index]);
 
