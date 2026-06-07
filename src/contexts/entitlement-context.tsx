@@ -47,7 +47,11 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => { getBillingState().then(setState).catch(() => {}); }, []);
   useEffect(() => { refresh(); }, [refresh]);
 
-  const premium = (state?.premium ?? false) && !previewFree;
+  // While entitlement is still loading, assume premium so entitled users (beta /
+  // trial / paid — the vast majority) never flash the free experience or a
+  // paywall. The server-side triggers backstop the brief window for real free
+  // users. Once loaded, honour the real status (and the beta preview toggle).
+  const premium = state === null ? true : (state.premium && !previewFree);
   const openPaywall = useCallback((r: PaywallReason = "generic") => setReason(r), []);
 
   async function subscribe(plan: "monthly" | "annual") {

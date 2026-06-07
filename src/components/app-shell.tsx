@@ -185,13 +185,16 @@ const VaultTopBar = forwardRef<VaultBarHandle, { onSelect: (sub: number) => void
     setProgress(p: number) {
       const sub = p - VAULT_BASE;                 // 0..2 within the vault range
       const clamped = Math.max(0, Math.min(2, sub));
-      // Opacity: full inside the vault range, fading over the half-pane on each side.
-      let op = 1;
-      if (p <= VAULT_BASE) op = Math.max(0, Math.min(1, (p - (VAULT_BASE - 0.6)) / 0.6));
-      else if (p >= 4) op = Math.max(0, Math.min(1, (4.6 - p) / 0.6));
+      // Slide the whole header WITH the swipe (no fade): it tracks the vault panes
+      // as one piece — off to the right before photos, locked across the vault,
+      // off to the left after lists. Matches how the calendar header swipes in.
+      let tx = 0;
+      if (p < VAULT_BASE) tx = (VAULT_BASE - p) * 100;   // entering from calendar → slide in from right
+      else if (p > 4) tx = (4 - p) * 100;                // leaving to ledger → slide out to left
+      tx = Math.max(-100, Math.min(100, tx));
       if (root.current) {
-        root.current.style.opacity = String(op);
-        root.current.style.pointerEvents = op > 0.5 ? "auto" : "none";
+        root.current.style.transform = `translateX(${tx}%)`;
+        root.current.style.pointerEvents = Math.abs(tx) < 50 ? "auto" : "none";
       }
       if (indicator.current) indicator.current.style.transform = `translateX(${clamped * 100}%)`;
       const near = Math.round(clamped);
@@ -205,7 +208,7 @@ const VaultTopBar = forwardRef<VaultBarHandle, { onSelect: (sub: number) => void
     <div
       ref={root}
       className="fixed top-0 left-0 right-0 z-40 bg-background px-4 pt-10 pb-2.5 border-b border-border/30"
-      style={{ opacity: 0, pointerEvents: "none" }}
+      style={{ transform: "translateX(100%)", pointerEvents: "none" }}
     >
       <div className="max-w-lg mx-auto">
         <h1 className="font-heading text-3xl text-foreground tracking-tight mb-3">vault.</h1>
