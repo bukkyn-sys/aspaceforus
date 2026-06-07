@@ -9,6 +9,7 @@ import { CoupleProvider } from "@/contexts/couple-context";
 import { FabProvider } from "@/contexts/fab-context";
 import { NotificationProvider } from "@/contexts/notification-context";
 import { NavActiveProvider } from "@/contexts/nav-active";
+import { EntitlementProvider } from "@/contexts/entitlement-context";
 import { PostHogProvider } from "@/components/posthog-provider";
 import type { CoupleContextValue, UserProfile } from "@/contexts/couple-context";
 
@@ -88,6 +89,7 @@ export default async function AppLayout({
         <PostHogProvider>
         <NotificationProvider>
           <NavActiveProvider>
+          <EntitlementProvider>
           <div className="min-h-dvh bg-background flex flex-col">
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
             <Toaster />
@@ -104,6 +106,7 @@ export default async function AppLayout({
               <span className="font-heading text-5xl text-foreground tracking-tight">us.</span>
             </div>
           </div>
+          </EntitlementProvider>
           </NavActiveProvider>
         </NotificationProvider>
         </PostHogProvider>

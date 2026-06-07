@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { track } from "@/lib/analytics";
 import { toast, undoableDelete } from "@/lib/toast";
@@ -70,6 +71,7 @@ async function processImage(file: File, max = 2048): Promise<{ blob: Blob; width
 export default function VaultPhotos({ active = true }: { active?: boolean }) {
   const { coupleId, me } = useCouple();
   const setAction = useFabSetter();
+  const { premium, openPaywall } = useEntitlement();
   const supabase = useRef(createClient()).current;
 
   const [photos, setPhotos] = useState<Photo[]>(() => getCache<Photo[]>(`vphotos:${coupleId}`) ?? []);
@@ -160,9 +162,18 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
     return () => { supabase.removeChannel(ch); };
   }, [coupleId, me.id, supabase, active]);
 
-  // FAB → open the picker
+  // Free plan: 50 photos. Refs keep the FAB action reading live values.
+  const PHOTO_LIMIT = 50;
+  const photosRef = useRef(photos); photosRef.current = photos;
+  const premiumRef = useRef(premium); premiumRef.current = premium;
+  function requestAddPhoto() {
+    if (!premiumRef.current && photosRef.current.length >= PHOTO_LIMIT) { openPaywall("photos"); return; }
+    fileRef.current?.click();
+  }
+
+  // FAB → open the picker (gated by the free photo limit)
   useEffect(() => {
-    setAction(() => fileRef.current?.click());
+    setAction(() => requestAddPhoto());
     return () => setAction(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -318,7 +329,7 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
             <p className="text-xs text-muted-foreground/40 mt-0.5">open a photo and tap the heart to love it</p>
           </div>
         ) : (
-          <button onClick={() => fileRef.current?.click()} className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
+          <button onClick={requestAddPhoto} className="w-full rounded-3xl border border-dashed border-border/60 p-10 text-center hover:border-border bg-secondary/40 transition-colors mt-2">
             <ImagePlus className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" strokeWidth={1.5} />
             <p className="text-sm text-muted-foreground">{activeAlbum ? "no photos in this album yet" : "no photos yet"}</p>
             <p className="text-xs text-muted-foreground/40 mt-0.5">{activeAlbum ? "upload here, or move photos in from the wall" : "tap to add some — a shared wall, just the two of you"}</p>

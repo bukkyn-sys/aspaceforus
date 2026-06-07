@@ -10,6 +10,7 @@ import { PARTS, PART_META, fmtTimeLabel, partsLabel } from "@/lib/day-parts";
 import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
 import { useRegisterFab } from "@/contexts/fab-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -31,6 +32,17 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 export default function CalendarClient({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, partnerName } = useCouple();
   const { markActivity } = useNotifications();
+  const { premium, openPaywall } = useEntitlement();
+
+  // Free plan can view any month but only plan in the current one.
+  function plannableMonth(dateStr: string): boolean {
+    if (premium) return true;
+    const now = new Date();
+    const [y, m] = dateStr.split("-").map(Number); // m is 1-based
+    const future = y > now.getFullYear() || (y === now.getFullYear() && m - 1 > now.getMonth());
+    if (future) { openPaywall("calendar"); return false; }
+    return true;
+  }
   const resolveOwner = useOwnerIdentity();
   const searchParams = useSearchParams();
   const [current, setCurrent] = useState(() => new Date());
@@ -191,6 +203,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
 
   // Toggle a single part free/not for me on a given day (optimistic + persist).
   function handlePart(dateStr: string, part: DayPart) {
+    if (!plannableMonth(dateStr)) return;
     const free = !isFree(me.id, dateStr, part);
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr && r.part === part));
@@ -204,6 +217,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
 
   // Free or clear a whole day (all four parts) for me.
   function handleAllDay(dateStr: string, free: boolean) {
+    if (!plannableMonth(dateStr)) return;
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
       const newRows = free ? [...filtered, ...PARTS.map((p) => ({ user_id: me.id, date: dateStr, part: p }))] : filtered;
@@ -231,6 +245,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
   // so there's nothing to clear — saving the event is enough.
   function handleSaveEvent(draft: EventDraft) {
     const { title, emoji, onDate, parts, untilDate, startTime, attendee } = draft;
+    if (!plannableMonth(onDate)) { closeEventSheet(); return; }
     if (editEvent) {
       const id = editEvent.id;
       setEvents((prev) => prev

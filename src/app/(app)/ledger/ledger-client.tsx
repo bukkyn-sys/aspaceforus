@@ -11,6 +11,7 @@ import {
 } from "./actions";
 import { Check, Trash2, Pencil, Repeat } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -212,6 +213,7 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
+  const { premium, openPaywall } = useEntitlement();
   const resolveOwner = useOwnerIdentity();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -296,12 +298,14 @@ export default function LedgerClient({ active = true }: { active?: boolean }) {
   useEffect(() => {
     setAction(() => {
       if (tab === "entries") { resetEntryForm(); setEditingEntryId(null); setShowAdd(true); return; }
+      // Free plan: one savings pot.
+      if (!premium && pots.length >= 1) { openPaywall("pots"); return; }
       resetPotForm(); setEditingPotId(null);
       setPotFolderId(defaultFolderId);
       setShowPot(true);
     });
     return () => setAction(null);
-  }, [tab, defaultFolderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, defaultFolderId, premium, pots.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Peek panes keep their cached state (set in useState above); fetch only when active.

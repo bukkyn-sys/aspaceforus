@@ -1,4 +1,4 @@
-﻿const CACHE = "us-v74";
+﻿const CACHE = "us-v75";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => {

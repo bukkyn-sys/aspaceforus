@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition, useRef, type PointerEvent as RPoint
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ function dueMeta(due: string | null): { label: string; tone: "muted" | "today" |
 export default function VaultTodos({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const setAction = useFabSetter();
+  const { premium, openPaywall } = useEntitlement();
   const [, startTransition] = useTransition();
 
   const myAccent = getAccent(me.accent_color);
@@ -147,15 +149,20 @@ export default function VaultTodos({ active = true }: { active?: boolean }) {
     return () => { supabase.removeChannel(ch); };
   }, [coupleId, me.id, active]);
 
-  // FAB — new list at lists level, add item inside a list.
+  // FAB — new list at lists level, add item inside a list. Re-registers when the
+  // list count / premium changes so the gate reads live values.
   useEffect(() => {
     setAction(view === "lists" ? () => openNewList() : () => openAddItem());
     return () => setAction(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, activeList]);
+  }, [view, activeList, premium, lists.length]);
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  function openNewList() { setEditingList(null); setListTitle(""); setListEmoji("✅"); setShowNewList(true); }
+  function openNewList() {
+    // Free plan: 2 lists.
+    if (!premium && lists.length >= 2) { openPaywall("lists"); return; }
+    setEditingList(null); setListTitle(""); setListEmoji("✅"); setShowNewList(true);
+  }
   function openEditList(l: TodoList) { setEditingList(l); setListTitle(l.title); setListEmoji(l.emoji); setShowNewList(true); }
 
   function handleSaveList() {

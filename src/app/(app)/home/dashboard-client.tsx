@@ -26,8 +26,8 @@ import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
 import { SignedImg } from "@/components/signed-img";
 import DailyCard, { type DailyData } from "./daily-card";
-import { getBillingState } from "@/app/(app)/profile/billing-actions";
 import { PremiumBadges } from "@/components/premium-badges";
+import { useEntitlement } from "@/contexts/entitlement-context";
 
 const MOODS = ["😞", "😕", "😐", "🙂", "😄"];
 const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
@@ -194,11 +194,7 @@ export default function DashboardClient({ active = true }: { active?: boolean })
   const [, startTransition] = useTransition();
 
   // Founding/beta identity badges, shown beside the profile button.
-  const [badges, setBadges] = useState<{ founding: boolean; beta: boolean }>({ founding: false, beta: false });
-  useEffect(() => {
-    if (!active) return;
-    getBillingState().then((s) => setBadges({ founding: s.paid, beta: s.comp })).catch(() => {});
-  }, [active]);
+  const { paid: founding, comp: beta } = useEntitlement();
 
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");
@@ -518,7 +514,7 @@ export default function DashboardClient({ active = true }: { active?: boolean })
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <PremiumBadges founding={badges.founding} beta={badges.beta} />
+          <PremiumBadges founding={founding} beta={beta} />
           <Link
             href="/profile"
             className="w-9 h-9 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0"

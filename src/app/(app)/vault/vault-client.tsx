@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
+import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
 import {
   addVaultFolder,
@@ -274,6 +275,7 @@ export function VaultLists({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
+  const { premium, openPaywall } = useEntitlement();
   const resolveOwner = useOwnerIdentity();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -332,11 +334,16 @@ export function VaultLists({ active = true }: { active?: boolean }) {
   const partnerAccent = getAccent(partner?.accent_color);
 
 
-  // FAB wires to the correct action per view
+  // FAB wires to the correct action per view. Free spaces keep the two starter
+  // folders, so creating a new folder is premium; adding items stays free.
   useEffect(() => {
-    setAction(view === "folders" ? () => setShowNewFolder(true) : () => setShowAdd(true));
+    setAction(
+      view === "folders"
+        ? () => { if (!premium) { openPaywall("folders"); return; } setShowNewFolder(true); }
+        : () => setShowAdd(true)
+    );
     return () => setAction(null);
-  }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, premium]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const [rtick, setRtick] = useState(0);
