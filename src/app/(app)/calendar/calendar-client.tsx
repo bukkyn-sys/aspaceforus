@@ -43,6 +43,17 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
     if (future) { openPaywall("calendar"); return false; }
     return true;
   }
+
+  // Free plan is limited to the current month — navigating away prompts upgrade.
+  function goToMonth(target: Date) {
+    if (!premium) {
+      const now = new Date();
+      if (target.getFullYear() !== now.getFullYear() || target.getMonth() !== now.getMonth()) {
+        openPaywall("calendar"); return;
+      }
+    }
+    setCurrent(target);
+  }
   const resolveOwner = useOwnerIdentity();
   const searchParams = useSearchParams();
   const [current, setCurrent] = useState(() => new Date());
@@ -494,7 +505,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
       {/* ── Month nav ──────────────────────────────────────── */}
       <div className="flex items-center px-3 py-3">
         <button
-          onClick={() => setCurrent(new Date(year, month - 1, 1))}
+          onClick={() => goToMonth(new Date(year, month - 1, 1))}
           aria-label="previous month"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
         >
@@ -502,7 +513,7 @@ export default function CalendarClient({ active = true }: { active?: boolean }) 
         </button>
         <p key={monthLabel} className="swap-fade flex-1 text-center text-sm font-semibold text-foreground">{monthLabel}</p>
         <button
-          onClick={() => setCurrent(new Date(year, month + 1, 1))}
+          onClick={() => goToMonth(new Date(year, month + 1, 1))}
           aria-label="next month"
           className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-secondary transition-colors"
         >

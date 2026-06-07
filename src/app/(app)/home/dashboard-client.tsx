@@ -194,7 +194,7 @@ export default function DashboardClient({ active = true }: { active?: boolean })
   const [, startTransition] = useTransition();
 
   // Founding/beta identity badges, shown beside the profile button.
-  const { paid: founding, comp: beta } = useEntitlement();
+  const { paid: founding, comp: beta, premium, openPaywall } = useEntitlement();
 
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");
@@ -466,7 +466,10 @@ export default function DashboardClient({ active = true }: { active?: boolean })
     };
   }
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  function openLayoutEditor() { setLayoutDraft(normalizeLayout(data.dashboardLayout)); setShowLayoutEditor(true); }
+  function openLayoutEditor() {
+    if (!premium) { openPaywall("layout"); return; }
+    setLayoutDraft(normalizeLayout(data.dashboardLayout)); setShowLayoutEditor(true);
+  }
   function onLayoutDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;

@@ -7,16 +7,19 @@ import { BottomSheet } from "@/components/ui/sheet";
 import { Sparkles } from "lucide-react";
 
 export type PaywallReason =
-  | "photos" | "lists" | "folders" | "pots" | "calendar" | "history" | "themes" | "generic";
+  | "photos" | "albums" | "lists" | "folders" | "pots" | "calendar"
+  | "history" | "themes" | "layout" | "generic";
 
 const REASON_COPY: Record<PaywallReason, string> = {
   photos: "you've filled all 50 photos on the free plan.",
+  albums: "free spaces include one photo album.",
   lists: "free spaces include 2 to-do lists.",
   folders: "free spaces keep the two starter folders.",
   pots: "free spaces include one savings pot.",
-  calendar: "planning beyond this month is a premium feature.",
+  calendar: "the free plan covers the current month — planning ahead is premium.",
   history: "looking back through your full history is a premium feature.",
-  themes: "themes are a little premium touch.",
+  themes: "a custom banner is a little premium touch.",
+  layout: "rearranging your home is a premium touch.",
   generic: "this is a premium feature.",
 };
 

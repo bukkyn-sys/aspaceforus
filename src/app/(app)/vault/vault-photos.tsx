@@ -171,6 +171,12 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
     fileRef.current?.click();
   }
 
+  // Free plan: one album.
+  function requestNewAlbum() {
+    if (!premium && albums.length >= 1) { openPaywall("albums"); return; }
+    setMovingPhoto(null); setAlbumName(""); setShowNewAlbum(true);
+  }
+
   // FAB → open the picker (gated by the free photo limit)
   useEffect(() => {
     setAction(() => requestAddPhoto());
@@ -303,7 +309,7 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
           {albums.map((a) => (
             <AlbumChip key={a.id} active={activeAlbum === a.id && !favFilter} label={a.name} onClick={() => { setActiveAlbum(a.id); setFavFilter(false); }} />
           ))}
-          <button onClick={() => { setAlbumName(""); setShowNewAlbum(true); }} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={requestNewAlbum} className="flex-shrink-0 inline-flex items-center gap-1 px-3 h-8 rounded-full bg-secondary text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
             <Plus className="w-3.5 h-3.5" /> album
           </button>
           {activeAlbum && !favFilter && (
@@ -391,7 +397,7 @@ export default function VaultPhotos({ active = true }: { active?: boolean }) {
             {albums.map((a) => (
               <MoveOption key={a.id} label={a.name} active={movingPhoto.album_id === a.id} onClick={() => handleMove(movingPhoto, a.id)} />
             ))}
-            <button onClick={() => { setMovingPhoto(null); setAlbumName(""); setShowNewAlbum(true); }} className="w-full text-left px-4 h-11 rounded-xl bg-secondary/60 text-sm text-muted-foreground flex items-center gap-2">
+            <button onClick={requestNewAlbum} className="w-full text-left px-4 h-11 rounded-xl bg-secondary/60 text-sm text-muted-foreground flex items-center gap-2">
               <Plus className="w-4 h-4" /> new album
             </button>
           </div>

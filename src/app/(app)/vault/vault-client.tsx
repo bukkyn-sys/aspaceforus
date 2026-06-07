@@ -334,14 +334,16 @@ export function VaultLists({ active = true }: { active?: boolean }) {
   const partnerAccent = getAccent(partner?.accent_color);
 
 
-  // FAB wires to the correct action per view. Free spaces keep the two starter
-  // folders, so creating a new folder is premium; adding items stays free.
+  // Free spaces keep the two starter folders, so creating a new folder is
+  // premium (every entry point routes through this); adding items stays free.
+  function requestNewFolder() {
+    if (!premium) { openPaywall("folders"); return; }
+    setShowNewFolder(true);
+  }
+
+  // FAB wires to the correct action per view.
   useEffect(() => {
-    setAction(
-      view === "folders"
-        ? () => { if (!premium) { openPaywall("folders"); return; } setShowNewFolder(true); }
-        : () => setShowAdd(true)
-    );
+    setAction(view === "folders" ? () => requestNewFolder() : () => setShowAdd(true));
     return () => setAction(null);
   }, [view, premium]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -702,7 +704,7 @@ export function VaultLists({ active = true }: { active?: boolean }) {
 
             {/* New folder */}
             <button
-              onClick={() => setShowNewFolder(true)}
+              onClick={requestNewFolder}
               className="w-full rounded-2xl border border-dashed border-border/50 h-[66px] flex items-center justify-center gap-2 text-muted-foreground/60 hover:text-muted-foreground hover:border-border/80 transition-colors"
             >
               <Plus className="w-4 h-4" strokeWidth={2} />
