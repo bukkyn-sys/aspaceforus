@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode, Sparkles } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
@@ -402,34 +402,65 @@ function BillingSettings() {
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
 
+  // Gold gradient frame so Premium stands apart from the plain setting cards.
   return (
-    <div className="card p-4 mb-4">
-      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">premium</p>
+    <div className="rounded-2xl p-[1.5px] mb-4 shadow-card bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-500">
+      <div className="rounded-2xl bg-card p-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          <p className="text-sm font-semibold text-foreground">us. premium</p>
+          {subscribed && <span className="ml-auto text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded-full">active</span>}
+          {onTrial && <span className="ml-auto text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 rounded-full">trial</span>}
+        </div>
 
-      {state === null ? (
-        <p className="text-sm text-muted-foreground/60">…</p>
-      ) : subscribed ? (
-        <>
-          <p className="text-sm text-foreground">premium · active</p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">
-            {state.plan === "annual" ? "annual" : "monthly"} · {state.cancelAtPeriodEnd ? "ends" : "renews"} {fmt(state.currentPeriodEnd)}
-          </p>
-          <Button onClick={manage} disabled={busy} variant="outline" className="mt-3 w-full">manage subscription</Button>
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-foreground">
-            {onTrial ? `premium trial · ${daysLeft(state.trialEndsAt)} days left` : "free plan"}
-          </p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">founding pricing · 99p each (£1.98/mo for both)</p>
-          <div className="flex gap-2 mt-3">
-            <Button onClick={() => subscribe("monthly")} disabled={busy} className="flex-1">£1.98 / mo</Button>
-            <Button onClick={() => subscribe("annual")} disabled={busy} variant="outline" className="flex-1">£19.99 / yr</Button>
-          </div>
-          <p className="text-[11px] text-muted-foreground/50 mt-2">annual locks the founding rate · monthly may rise as we grow</p>
-        </>
-      )}
-      {err && <p className="text-xs text-terracotta mt-2">{err}</p>}
+        {state === null ? (
+          <p className="text-sm text-muted-foreground/60">…</p>
+        ) : subscribed ? (
+          <>
+            <p className="text-sm text-foreground">{state.plan === "annual" ? "annual plan" : "monthly plan"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {state.cancelAtPeriodEnd ? "ends" : "renews"} {fmt(state.currentPeriodEnd)}
+            </p>
+            <Button onClick={manage} disabled={busy} variant="outline" className="mt-3 w-full">manage subscription</Button>
+          </>
+        ) : (
+          <>
+            {onTrial && (
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1.5">
+                {daysLeft(state.trialEndsAt)} days of premium left — keep it below.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+              unlimited photos, plan any month ahead, full history, themes &amp; more — for the two of you.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              {/* Annual — emphasised */}
+              <button
+                onClick={() => subscribe("annual")}
+                disabled={busy}
+                className="relative rounded-xl border-2 border-amber-400 bg-amber-50/60 dark:bg-amber-500/10 p-3 text-left transition active:scale-[0.98] disabled:opacity-60"
+              >
+                <span className="absolute -top-2 left-3 text-[9px] font-bold tracking-wide text-white bg-amber-500 px-1.5 py-0.5 rounded-full">BEST VALUE</span>
+                <p className="text-base font-bold text-foreground leading-none mt-1">£19.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">save ~16% · locks founding rate</p>
+              </button>
+
+              {/* Monthly */}
+              <button
+                onClick={() => subscribe("monthly")}
+                disabled={busy}
+                className="rounded-xl border border-border bg-card p-3 text-left transition active:scale-[0.98] disabled:opacity-60"
+              >
+                <p className="text-base font-bold text-foreground leading-none mt-1">£1.98<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">99p each · cancel anytime</p>
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 mt-2">one plan covers both of you · monthly may rise as we grow</p>
+          </>
+        )}
+        {err && <p className="text-xs text-terracotta mt-2">{err}</p>}
+      </div>
     </div>
   );
 }

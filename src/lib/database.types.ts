@@ -1335,6 +1335,7 @@ export type Database = {
         Returns: undefined
       }
       my_couple_id: { Args: never; Returns: string }
+      redeem_beta_code: { Args: { p_code: string }; Returns: string }
       save_push_subscription: {
         Args: { p_couple_id: string; p_subscription: Json; p_user_id: string }
         Returns: undefined

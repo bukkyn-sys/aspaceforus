@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
-import { startCheckout } from "@/app/(app)/profile/billing-actions";
+import { startCheckout, redeemBetaCode } from "@/app/(app)/profile/billing-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus } from "lucide-react";
@@ -549,6 +549,8 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
 
   // Plan
   const [planBusy, setPlanBusy] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [betaCode, setBetaCode] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -683,6 +685,22 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
         setError(r.error ?? "something went wrong");
       } catch (e) {
         setError(e instanceof Error ? e.message : "something went wrong");
+      } finally {
+        setPlanBusy(false);
+      }
+    });
+  }
+  function applyBetaCode() {
+    if (!betaCode.trim()) return;
+    setPlanBusy(true);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const r = await redeemBetaCode(betaCode.trim());
+        if (r.ok) { window.location.replace("/home"); return; }
+        setError(r.error ?? "could not redeem code");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "could not redeem code");
       } finally {
         setPlanBusy(false);
       }
@@ -902,6 +920,25 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
                 </Button>
               </div>
               <p className="text-[11px] text-center text-muted-foreground/50">annual locks the founding rate · cancel anytime</p>
+
+              {showCode ? (
+                <div className="flex gap-2 pt-1">
+                  <Input
+                    value={betaCode}
+                    onChange={(e) => setBetaCode(e.target.value)}
+                    placeholder="beta code"
+                    className="h-11 rounded-xl bg-card border-border/60 text-center tracking-wide"
+                  />
+                  <Button onClick={applyBetaCode} disabled={planBusy || !betaCode.trim()} variant="outline" className="h-11 rounded-xl px-5">
+                    {planBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : "apply"}
+                  </Button>
+                </div>
+              ) : (
+                <button onClick={() => setShowCode(true)} className="w-full text-center text-xs text-muted-foreground/60 hover:text-muted-foreground pt-1">
+                  have a beta code?
+                </button>
+              )}
+
               {error && <p className="text-sm text-destructive text-center">{error}</p>}
             </div>
           </div>

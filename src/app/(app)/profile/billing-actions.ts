@@ -114,6 +114,26 @@ export async function startCheckout(
   }
 }
 
+// Redeem a beta/comp code → grants the couple free Premium (no Stripe). Runs on
+// the authed client so the RPC's auth.uid() resolves to the caller.
+export async function redeemBetaCode(code: string): Promise<{ ok?: boolean; error?: string }> {
+  try {
+    const { supabase, uid } = await getUid();
+    if (!uid) return { error: "not signed in" };
+    const { data, error } = await supabase.rpc("redeem_beta_code", { p_code: code });
+    if (error) return { error: error.message };
+    switch (data as string) {
+      case "ok": return { ok: true };
+      case "no_couple": return { error: "finish setting up your space first" };
+      case "exhausted": return { error: "this code has been fully used" };
+      default: return { error: "that code isn't valid" };
+    }
+  } catch (e) {
+    console.error("redeemBetaCode failed", e);
+    return { error: (e as Error)?.message ?? "could not redeem code" };
+  }
+}
+
 export async function openBillingPortal(): Promise<{ url?: string; error?: string }> {
   try {
     const { uid } = await getUid();
