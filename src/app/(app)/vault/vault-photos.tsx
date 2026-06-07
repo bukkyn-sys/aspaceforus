@@ -67,7 +67,7 @@ async function processImage(file: File, max = 2048): Promise<{ blob: Blob; width
   }
 }
 
-export default function VaultPhotos() {
+export default function VaultPhotos({ active = true }: { active?: boolean }) {
   const { coupleId, me } = useCouple();
   const setAction = useFabSetter();
   const supabase = useRef(createClient()).current;
@@ -99,6 +99,8 @@ export default function VaultPhotos() {
 
   // Load (photos + albums); archived photos excluded everywhere.
   useEffect(() => {
+    // Peek panes keep their cached photos; fetch only when this tab is active.
+    if (!active) return;
     Promise.all([
       supabase.from("vault_photos").select("id,path,width,height,caption,created_by,created_at,album_id,favorite")
         .eq("couple_id", coupleId).is("archived_at", null).order("created_at", { ascending: false }),
@@ -111,16 +113,16 @@ export default function VaultPhotos() {
       const next = (ph as Photo[]) ?? [];
       setPhotos(next); setAlbums((al as Album[]) ?? []); setCache(`vphotos:${coupleId}`, next);
     });
-  }, [coupleId, rtick, supabase]);
+  }, [coupleId, rtick, supabase, active]);
 
   // Batch-sign any not-yet-signed photo paths (one request) for the wall.
   useEffect(() => {
     const fresh = photos.filter((p) => !p.local && !requested.current.has(p.path)).map((p) => p.path);
     if (fresh.length === 0) return;
     fresh.forEach((p) => requested.current.add(p));
-    let active = true;
+    let alive = true;
     supabase.storage.from("photos").createSignedUrls(fresh, SIGN_EXPIRY).then(({ data, error }) => {
-      if (!active) return;
+      if (!alive) return;
       if (error || !data) { fresh.forEach((p) => requested.current.delete(p)); return; } // let a later pass retry
       setSigned((prev) => {
         const n = { ...prev };
@@ -128,7 +130,7 @@ export default function VaultPhotos() {
         return n;
       });
     });
-    return () => { active = false; };
+    return () => { alive = false; };
   }, [photos, supabase]);
 
   // A thumbnail that fails to load (e.g. a stale signed URL) re-signs itself once
@@ -144,8 +146,9 @@ export default function VaultPhotos() {
     });
   }
 
-  // Realtime — partner uploads / deletes
+  // Realtime — partner uploads / deletes (active tab only)
   useEffect(() => {
+    if (!active) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChange = (p: any) => {
       if (p.eventType === "INSERT" && p.new?.created_by === me.id) return;
@@ -155,7 +158,7 @@ export default function VaultPhotos() {
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_photos", filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [coupleId, me.id, supabase]);
+  }, [coupleId, me.id, supabase, active]);
 
   // FAB → open the picker
   useEffect(() => {

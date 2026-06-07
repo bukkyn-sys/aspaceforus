@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useRef, useEffect, useCallback, type ReactNode } from "react";
 
 /**
  * Horizontal, finger-tracked pager built on native CSS scroll-snap — so the
@@ -45,19 +45,6 @@ export function SwipePager({
   const settleTimer = useRef<number | undefined>(undefined);
   const idxRef = useRef(index);
   idxRef.current = index;
-
-  const [seen, setSeen] = useState<Set<number>>(() => new Set([index]));
-
-  // Keep visited panes (∪ current window) mounted to preserve their state.
-  useEffect(() => {
-    setSeen((prev) => {
-      const next = new Set(prev);
-      for (let i = index - mountWindow; i <= index + mountWindow; i++) {
-        if (i >= 0 && i < count) next.add(i);
-      }
-      return next.size === prev.size ? prev : next;
-    });
-  }, [index, count, mountWindow]);
 
   // Place the horizontal scroll at the active index without animation on mount.
   useEffect(() => {
@@ -132,7 +119,9 @@ export function SwipePager({
       }}
     >
       {Array.from({ length: count }, (_, i) => {
-        const mounted = seen.has(i) || Math.abs(i - index) <= mountWindow;
+        // Only the active tab + its immediate neighbours stay mounted; far tabs
+        // unmount so their data fetches + realtime channels tear down (scaling).
+        const mounted = Math.abs(i - index) <= mountWindow;
         return (
           <div
             key={i}

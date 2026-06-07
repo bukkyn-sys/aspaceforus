@@ -208,7 +208,7 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
   );
 }
 
-export default function LedgerClient() {
+export default function LedgerClient({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
@@ -273,7 +273,9 @@ export default function LedgerClient() {
 
 
   // Live updates — partner adding expenses / contributing to pots.
+  // Only the active tab subscribes; a backgrounded ledger drops its channel.
   useEffect(() => {
+    if (!active) return;
     const supabase = createClient();
     // Skip our own INSERTs (optimistic UI already shows them). Contributions are
     // UPDATEs to a pot, so they still reload — that's intended (amounts must sync).
@@ -289,7 +291,7 @@ export default function LedgerClient() {
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
-  }, [coupleId, me.id]);
+  }, [coupleId, me.id, active]);
 
   useEffect(() => {
     setAction(() => {
@@ -302,6 +304,8 @@ export default function LedgerClient() {
   }, [tab, defaultFolderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // Peek panes keep their cached state (set in useState above); fetch only when active.
+    if (!active) return;
     const supabase = createClient();
     Promise.all([
       supabase.from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", false).order("created_at", { ascending: false }),
@@ -335,7 +339,7 @@ export default function LedgerClient() {
         if (p) { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }
       }
     });
-  }, [coupleId, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadHistory() {
     if (settledEntries) return;

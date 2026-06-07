@@ -51,7 +51,7 @@ function dueMeta(due: string | null): { label: string; tone: "muted" | "today" |
   return { label: new Date(due + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }), tone: "muted" };
 }
 
-export default function VaultTodos() {
+export default function VaultTodos({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const setAction = useFabSetter();
   const [, startTransition] = useTransition();
@@ -98,6 +98,7 @@ export default function VaultTodos() {
   // ── Loads ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (view !== "lists") return;
+    if (!active) return; // peek keeps cached lists; fetch only when active
     const supabase = createClient();
     Promise.all([
       supabase.from("vault_todo_lists").select("id,title,emoji,created_by,created_at").eq("couple_id", coupleId).order("created_at", { ascending: true }),
@@ -115,22 +116,24 @@ export default function VaultTodos() {
       setLists(next); setListsLoading(false); setCache(`vtodo:${coupleId}`, next);
       setPriorityListId((cp as { priority_todo_list_id: string | null } | null)?.priority_todo_list_id ?? null);
     });
-  }, [coupleId, view, rtick]);
+  }, [coupleId, view, rtick, active]);
 
   useEffect(() => {
     if (view !== "items" || !activeList) return;
     const cached = getCache<Todo[]>(`vtodoItems:${activeList.id}`);
     if (cached) { setTodos(cached); setItemsLoading(false); } else { setItemsLoading(true); }
+    if (!active) return; // peek shows cache; fetch only when active
     const supabase = createClient();
     supabase.from("vault_todos").select("*").eq("list_id", activeList.id).order("created_at", { ascending: true })
       .then(({ data }) => {
         const next = (data as Todo[]) ?? [];
         setTodos(next); setItemsLoading(false); setCache(`vtodoItems:${activeList.id}`, next);
       });
-  }, [activeList, view, rtick]);
+  }, [activeList, view, rtick, active]);
 
-  // Realtime — partner changes (skip our own inserts; optimistic already shows them).
+  // Realtime — partner changes (active tab only; skip our own inserts).
   useEffect(() => {
+    if (!active) return;
     const supabase = createClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const onChange = (p: any) => {
@@ -142,7 +145,7 @@ export default function VaultTodos() {
       .on("postgres_changes", { event: "*", schema: "public", table: "vault_todo_lists", filter: `couple_id=eq.${coupleId}` }, onChange)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [coupleId, me.id]);
+  }, [coupleId, me.id, active]);
 
   // FAB — new list at lists level, add item inside a list.
   useEffect(() => {

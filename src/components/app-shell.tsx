@@ -21,14 +21,16 @@ import { VaultLists, VAULT_TABS, type VaultTab } from "@/app/(app)/vault/vault-c
 const VAULT_BASE = 2; // index of the first vault pane (photos)
 const COUNT = 6;
 
-function paneFor(i: number): ReactNode {
+// `active` = this is the visible tab → it loads its data + opens its realtime
+// channel. Inactive (mounted-for-peek) panes stay quiet until you land on them.
+function paneFor(i: number, active: boolean): ReactNode {
   switch (i) {
-    case 0: return <DashboardClient />;
-    case 1: return <CalendarClient />;
-    case 2: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultPhotos /></div>;
-    case 3: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultTodos /></div>;
-    case 4: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultLists /></div>;
-    default: return <LedgerClient />;
+    case 0: return <DashboardClient active={active} />;
+    case 1: return <CalendarClient active={active} />;
+    case 2: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultPhotos active={active} /></div>;
+    case 3: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultTodos active={active} /></div>;
+    case 4: return <div className="max-w-lg mx-auto pt-[8.5rem]"><VaultLists active={active} /></div>;
+    default: return <LedgerClient active={active} />;
   }
 }
 
@@ -130,7 +132,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
           className="h-[calc(100dvh-5rem-env(safe-area-inset-bottom))]"
           onIndexChange={(i) => { if (i !== index) go(i); }}
           onProgress={onProgress}
-          renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i)}</FabGate>}
+          renderPane={(i, active) => <FabGate active={active && isTab}>{paneFor(i, active && isTab)}</FabGate>}
         />
       </div>
 

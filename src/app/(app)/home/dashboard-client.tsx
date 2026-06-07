@@ -169,7 +169,7 @@ function timeAgo(iso: string | null): string | null {
 
 type DashCache = { data: DashboardData; hasPartner: boolean };
 
-export default function DashboardClient() {
+export default function DashboardClient({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
   const { markActivity } = useNotifications();
   const [data, setData] = useState<DashboardData>(() => {
@@ -223,6 +223,10 @@ export default function DashboardClient() {
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
+    // Only the visible tab loads + opens its realtime channel. Inactive panes
+    // (mounted for the swipe peek) stay quiet; they refetch + resubscribe when
+    // you land on them, so per-user DB/realtime cost tracks the active tab only.
+    if (!active) return;
     const supabase = createClient();
 
     async function load() {
@@ -314,7 +318,7 @@ export default function DashboardClient() {
 
     channelRef.current = channel;
     return () => { if (reloadTimer) clearTimeout(reloadTimer); supabase.removeChannel(channel); channelRef.current = null; };
-  }, [coupleId, me.id, partner]);
+  }, [coupleId, me.id, partner, active]);
 
   function handleMood(mood: number) {
     const at = new Date().toISOString();

@@ -270,7 +270,7 @@ function OwnerButtons({
   );
 }
 
-export function VaultLists() {
+export function VaultLists({ active = true }: { active?: boolean }) {
   const { coupleId, me, partner, myName, partnerName } = useCouple();
   const { markActivity } = useNotifications();
   const setAction = useFabSetter();
@@ -342,7 +342,9 @@ export function VaultLists() {
   const [rtick, setRtick] = useState(0);
 
   // Live updates — partner adds/changes vault items without requiring a refresh.
+  // Active tab only; a backgrounded lists pane drops its channel.
   useEffect(() => {
+    if (!active) return;
     const supabase = createClient();
     // Skip our own INSERTs (optimistic UI already shows them) to avoid a redundant refetch.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -357,10 +359,11 @@ export function VaultLists() {
     const onRefresh = () => setRtick((t) => t + 1);
     window.addEventListener("app:refresh", onRefresh);
     return () => { supabase.removeChannel(channel); window.removeEventListener("app:refresh", onRefresh); };
-  }, [coupleId, me.id]);
+  }, [coupleId, me.id, active]);
 
   // Load folders + item counts
   useEffect(() => {
+    if (!active) return; // fetch only when this tab is active
     const load = async () => {
       const supabase = createClient();
       const [{ data: foldersRaw }, { data: countRaw }] = await Promise.all([
@@ -407,11 +410,11 @@ export function VaultLists() {
       setFoldersLoading(false);
     };
     load();
-  }, [coupleId, me.id, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [coupleId, me.id, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load items when folder is opened (or partner changes something)
   useEffect(() => {
-    if (!activeFolder) return;
+    if (!activeFolder || !active) return;
     setItemsLoading(true);
     const supabase = createClient();
     supabase
@@ -424,7 +427,7 @@ export function VaultLists() {
         setItems((data as VaultItem[]) ?? []);
         setItemsLoading(false);
       });
-  }, [activeFolder, coupleId, rtick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeFolder, coupleId, rtick, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──────────────────────────────────────────────────────────────
 
