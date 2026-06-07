@@ -6,7 +6,12 @@ export function stripe(): Stripe {
   if (!_stripe) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-    _stripe = new Stripe(key); // SDK pins a default apiVersion
+    _stripe = new Stripe(key, {
+      // Use global fetch instead of the Node http agent — the default agent
+      // throws StripeConnectionError on Vercel's serverless/edge runtime.
+      httpClient: Stripe.createFetchHttpClient(),
+      maxNetworkRetries: 2,
+    });
   }
   return _stripe;
 }
