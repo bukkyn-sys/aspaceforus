@@ -66,7 +66,10 @@ export async function getBillingState(): Promise<BillingState> {
   };
 }
 
-export async function startCheckout(plan: PlanInterval): Promise<{ url?: string; error?: string }> {
+export async function startCheckout(
+  plan: PlanInterval,
+  source: "profile" | "onboarding" = "profile",
+): Promise<{ url?: string; error?: string }> {
   try {
     const { uid } = await getUid();
     if (!uid) return { error: "not signed in" };
@@ -89,6 +92,9 @@ export async function startCheckout(plan: PlanInterval): Promise<{ url?: string;
     const reuse = (existing ?? []).find((s) => s.stripe_customer_id)?.stripe_customer_id as string | undefined;
     const meta = { couple_id: coupleId, payer_user_id: uid, plan_kind: "single" };
     const base = await origin();
+    // Onboarding checkouts return into the app; settings checkouts return to profile.
+    const successUrl = source === "onboarding" ? `${base}/home?welcome=premium` : `${base}/profile?billing=success`;
+    const cancelUrl = source === "onboarding" ? `${base}/home` : `${base}/profile?billing=cancel`;
 
     const session = await stripe().checkout.sessions.create({
       mode: "subscription",
@@ -97,8 +103,8 @@ export async function startCheckout(plan: PlanInterval): Promise<{ url?: string;
       metadata: meta,
       subscription_data: { metadata: meta },
       allow_promotion_codes: true,
-      success_url: `${base}/profile?billing=success`,
-      cancel_url: `${base}/profile?billing=cancel`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
 
     return session.url ? { url: session.url } : { error: "could not start checkout" };

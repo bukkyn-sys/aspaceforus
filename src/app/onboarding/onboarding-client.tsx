@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
+import { startCheckout } from "@/app/(app)/profile/billing-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus } from "lucide-react";
@@ -15,7 +16,7 @@ import { DateField } from "@/components/ui/date-field";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/theme-toggle";
 
-type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "install";
+type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "plan" | "install";
 type Tab = "create" | "join";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -546,6 +547,9 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
   // Finish
   const [startDate, setStartDate] = useState("");
 
+  // Plan
+  const [planBusy, setPlanBusy] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -578,7 +582,7 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
   const [pillarDir, setPillarDir] = useState(1);
   const prevStep = useRef<Step>(step);
   useEffect(() => {
-    const order: Step[] = ["install", "welcome", "pillars", "name", "photo", "colour", "couple", "finish"];
+    const order: Step[] = ["install", "welcome", "pillars", "name", "photo", "colour", "couple", "finish", "plan"];
     setDirection(order.indexOf(step) >= order.indexOf(prevStep.current) ? 1 : -1);
     prevStep.current = step;
   }, [step]);
@@ -640,9 +644,10 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       const avatarUrl = croppedBlob ? await uploadAvatar(croppedBlob) : avatarPreview;
       await saveProfile({ userId, name, accentColor, avatarUrl });
       const result = await joinCouple(userId, joinCode);
-      if (result?.error) { setError(result.error); return; }
+      if (result && "error" in result && result.error) { setError(result.error); return; }
       try { sessionStorage.setItem("ph_pending_event", "couple_joined"); } catch { /* ignore */ }
-      window.location.replace("/home");
+      // Joining completes the pair → the 30-day trial is now live. Offer the plan.
+      setStep("plan");
     });
   }
 
@@ -660,7 +665,27 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
       } catch {
         // Saving the (optional) start date shouldn't block finishing.
       }
-      window.location.replace("/home");
+      setStep("plan");
+    });
+  }
+
+  // Plan step: ride the free trial (cardless) or lock founding pricing now.
+  function startTrial() {
+    window.location.replace("/home");
+  }
+  function subscribeFromOnboarding(plan: "monthly" | "annual") {
+    setPlanBusy(true);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const r = await startCheckout(plan, "onboarding");
+        if (r.url) { window.location.href = r.url; return; }
+        setError(r.error ?? "something went wrong");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "something went wrong");
+      } finally {
+        setPlanBusy(false);
+      }
     });
   }
 
@@ -826,6 +851,62 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
             {error && <p className="text-sm text-destructive text-center mt-4">{error}</p>}
           </SetupShell>
         );
+
+      // ── Plan — every new space gets 30 days of premium; lock in founding price ─
+      case "plan": {
+        const hex = selectedAccent.hex;
+        const features = [
+          "unlimited photos in your vault",
+          "plan any month ahead, not just this one",
+          "full history — moods, daily questions, ledger",
+          "unlimited lists, savings pots & folders",
+          "themes & a custom home banner",
+        ];
+        return (
+          <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
+            <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto">
+              <motion.span variants={rise} className="self-start inline-flex items-center px-2.5 py-1 rounded-full mb-4 text-[11px] font-medium" style={{ backgroundColor: `${hex}1f`, color: hex }}>
+                ✨ 30 days free · no card needed
+              </motion.span>
+              <motion.h1 variants={rise} className="font-heading text-3xl text-foreground tracking-tight">your space, unlocked.</motion.h1>
+              <motion.p variants={rise} className="text-sm text-muted-foreground mt-1.5 mb-7">
+                every new space starts with 30 days of <span className="font-heading">premium</span> — on us.
+              </motion.p>
+              <motion.ul variants={rise} className="space-y-2.5">
+                {features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm text-foreground">
+                    <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: hex }} />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </motion.ul>
+            </motion.div>
+
+            <div className="max-w-sm w-full mx-auto space-y-3">
+              <Button onClick={startTrial} disabled={planBusy} className={cn(accentBtn, "text-white")} style={{ backgroundColor: hex }}>
+                start your 30 days free
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="h-px bg-border flex-1" />
+                <span className="text-[11px] text-muted-foreground/60">or lock founding pricing</span>
+                <div className="h-px bg-border flex-1" />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={() => subscribeFromOnboarding("annual")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
+                  <span className="text-sm font-medium">£19.99 / yr</span>
+                  <span className="text-[10px] text-muted-foreground">best value</span>
+                </Button>
+                <Button onClick={() => subscribeFromOnboarding("monthly")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
+                  <span className="text-sm font-medium">£1.98 / mo</span>
+                  <span className="text-[10px] text-muted-foreground">99p each</span>
+                </Button>
+              </div>
+              <p className="text-[11px] text-center text-muted-foreground/50">annual locks the founding rate · cancel anytime</p>
+              {error && <p className="text-sm text-destructive text-center">{error}</p>}
+            </div>
+          </div>
+        );
+      }
 
       // ── Add to home screen (first step) ─────────────────────────────────────
       case "install":

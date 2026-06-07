@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 export async function saveProfile(data: {
   userId: string;
@@ -34,7 +33,8 @@ export async function joinCouple(userId: string, code: string) {
   if (result === "rate_limited") return { error: "too many attempts — try again in 15 minutes." };
   if (result === "not_found") return { error: "code not found — double-check with your partner." };
   if (result === "full") return { error: "that space already has two people in it." };
-  redirect("/home");
+  // Success — the client routes on to the plan step (then /home).
+  return { ok: true as const };
 }
 
 export async function setOnboardingStartDate(userId: string, coupleId: string, date: string) {
