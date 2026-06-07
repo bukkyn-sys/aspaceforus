@@ -523,7 +523,7 @@ function CropModal({
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
-export default function OnboardingClient({ userId, firstName, avatar, initialInvite }: Props) {
+export default function OnboardingClient({ userId, firstName, initialInvite }: Props) {
   // The "add to home screen" prompt comes first for the full web-app feel.
   const [step, setStep] = useState<Step>("install");
   const [pillar, setPillar] = useState(0);
@@ -532,7 +532,9 @@ export default function OnboardingClient({ userId, firstName, avatar, initialInv
   const [name, setName] = useState(firstName);
   const [accentColor, setAccentColor] = useState("sage");
   const [colourPicked, setColourPicked] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(avatar);
+  // Start empty so the "add a photo" placeholder shows. We don't pre-fill the
+  // OAuth/DB avatar here — if the user skips, the app falls back to initials.
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
