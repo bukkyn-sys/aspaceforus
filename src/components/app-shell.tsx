@@ -194,7 +194,10 @@ const VaultTopBar = forwardRef<VaultBarHandle, { onSelect: (sub: number) => void
       tx = Math.max(-100, Math.min(100, tx));
       if (root.current) {
         root.current.style.transform = `translateX(${tx}%)`;
-        root.current.style.pointerEvents = Math.abs(tx) < 50 ? "auto" : "none";
+        // Interactive ONLY when settled in place on a vault tab — never mid-swipe.
+        // A full-width fixed bar turning interactive during a drag steals the touch
+        // (the pager gets a touch-cancel), which made held swipes auto-settle + snap.
+        root.current.style.pointerEvents = (tx === 0 && Number.isInteger(p)) ? "auto" : "none";
       }
       if (indicator.current) indicator.current.style.transform = `translateX(${clamped * 100}%)`;
       const near = Math.round(clamped);
