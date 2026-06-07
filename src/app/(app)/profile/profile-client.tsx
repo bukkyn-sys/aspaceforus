@@ -10,6 +10,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
 import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple } from "./actions";
+import { getBillingState, startCheckout, openBillingPortal, type BillingState } from "./billing-actions";
 
 const CURRENCIES = ["£", "$", "€"] as const;
 import { savePushSubscription } from "@/app/(app)/push-actions";
@@ -352,6 +353,71 @@ function AccessibilitySettings() {
           <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", on ? "left-[1.15rem]" : "left-0.5")} />
         </span>
       </button>
+    </div>
+  );
+}
+
+// Days remaining (ceil) until an ISO timestamp.
+function daysLeft(iso: string | null): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000));
+}
+
+// Premium status + subscribe/manage. Minimal Phase-2 surface — Phase 3 adds the
+// full founding upgrade screen + contextual paywalls.
+function BillingSettings() {
+  const [state, setState] = useState<BillingState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => { getBillingState().then(setState); }, []);
+
+  async function subscribe(plan: "monthly" | "annual") {
+    setBusy(true); setErr(null);
+    const r = await startCheckout(plan);
+    if (r.url) { window.location.href = r.url; return; }
+    setErr(r.error ?? "something went wrong"); setBusy(false);
+  }
+  async function manage() {
+    setBusy(true); setErr(null);
+    const r = await openBillingPortal();
+    if (r.url) { window.location.href = r.url; return; }
+    setErr(r.error ?? "something went wrong"); setBusy(false);
+  }
+
+  const subscribed = state?.status === "premium_paid";
+  const onTrial = state?.status === "trial";
+  const fmt = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
+
+  return (
+    <div className="card p-4 mb-4">
+      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">premium</p>
+
+      {state === null ? (
+        <p className="text-sm text-muted-foreground/60">…</p>
+      ) : subscribed ? (
+        <>
+          <p className="text-sm text-foreground">premium · active</p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">
+            {state.plan === "annual" ? "annual" : "monthly"} · {state.cancelAtPeriodEnd ? "ends" : "renews"} {fmt(state.currentPeriodEnd)}
+          </p>
+          <Button onClick={manage} disabled={busy} variant="outline" className="mt-3 w-full">manage subscription</Button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-foreground">
+            {onTrial ? `premium trial · ${daysLeft(state.trialEndsAt)} days left` : "free plan"}
+          </p>
+          <p className="text-xs text-muted-foreground/60 mt-0.5">founding pricing · 99p each (£1.98/mo for both)</p>
+          <div className="flex gap-2 mt-3">
+            <Button onClick={() => subscribe("monthly")} disabled={busy} className="flex-1">£1.98 / mo</Button>
+            <Button onClick={() => subscribe("annual")} disabled={busy} variant="outline" className="flex-1">£19.99 / yr</Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground/50 mt-2">annual locks the founding rate · monthly may rise as we grow</p>
+        </>
+      )}
+      {err && <p className="text-xs text-terracotta mt-2">{err}</p>}
     </div>
   );
 }
@@ -710,6 +776,9 @@ export default function ProfileClient({
           <p className="font-mono text-lg font-semibold tracking-[0.25em] text-foreground">{couple.inviteCode}</p>
         </div>
       </Dialog>
+
+      {/* Premium */}
+      <BillingSettings />
 
       {/* Appearance */}
       <ThemeToggle />
