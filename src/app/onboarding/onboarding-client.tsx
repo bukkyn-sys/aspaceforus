@@ -5,7 +5,7 @@ import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { saveProfile, createCouple, requestJoinCouple, setOnboardingStartDate } from "./actions";
 import { LegalSheet } from "@/components/legal-sheet";
 import type { LegalDoc } from "@/lib/legal";
-import { startCheckout } from "@/app/(app)/profile/billing-actions";
+import { startCheckout, startLifetimeCheckout, getLifetimeSpots } from "@/app/(app)/profile/billing-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Check, Loader2, Heart, Camera, ArrowLeft, Smartphone, Share, Plus } from "lucide-react";
@@ -553,6 +553,7 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
 
   // Plan
   const [planBusy, setPlanBusy] = useState(false);
+  const [spots, setSpots] = useState<number | null>(null);
 
   // Legal — must accept before looking around; viewable any time.
   const [acceptedLegal, setAcceptedLegal] = useState(false);
@@ -708,7 +709,13 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
     });
   }
 
-  // Plan step: ride the free trial (cardless) or lock founding pricing now.
+  // Pull the live founding-lifetime counter when the plan step is reached.
+  useEffect(() => {
+    if (step !== "plan") return;
+    getLifetimeSpots().then(setSpots).catch(() => {});
+  }, [step]);
+
+  // Plan step: ride the free trial (cardless), or buy now (sub or lifetime).
   function startTrial() {
     window.location.replace("/home");
   }
@@ -718,6 +725,21 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
     startTransition(async () => {
       try {
         const r = await startCheckout(plan, "onboarding");
+        if (r.url) { window.location.href = r.url; return; }
+        setError(r.error ?? "something went wrong");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "something went wrong");
+      } finally {
+        setPlanBusy(false);
+      }
+    });
+  }
+  function lifetimeFromOnboarding() {
+    setPlanBusy(true);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const r = await startLifetimeCheckout("onboarding");
         if (r.url) { window.location.href = r.url; return; }
         setError(r.error ?? "something went wrong");
       } catch (e) {
@@ -967,20 +989,39 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
               </Button>
               <div className="flex items-center gap-3">
                 <div className="h-px bg-border flex-1" />
-                <span className="text-[11px] text-muted-foreground/60">or lock founding pricing</span>
+                <span className="text-[11px] text-muted-foreground/60">or unlock premium now</span>
                 <div className="h-px bg-border flex-1" />
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => subscribeFromOnboarding("annual")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
                   <span className="text-sm font-medium">£29.99 / yr</span>
-                  <span className="text-[10px] text-muted-foreground">best value</span>
+                  <span className="text-[10px] text-muted-foreground">save 37%</span>
                 </Button>
                 <Button onClick={() => subscribeFromOnboarding("monthly")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
                   <span className="text-sm font-medium">£3.99 / mo</span>
                   <span className="text-[10px] text-muted-foreground">billed monthly</span>
                 </Button>
               </div>
-              <p className="text-[11px] text-center text-muted-foreground/50">annual locks the founding rate · cancel anytime</p>
+              {/* Founding lifetime — one-time, scarce. Hidden once sold out. */}
+              {(spots === null || spots > 0) && (
+                <button
+                  onClick={lifetimeFromOnboarding}
+                  disabled={planBusy}
+                  className="w-full h-12 rounded-xl border-2 px-3.5 flex items-center justify-between gap-2 transition active:scale-[0.99] disabled:opacity-60"
+                  style={{ borderColor: hex, backgroundColor: `${hex}14` }}
+                >
+                  <span className="flex flex-col items-start gap-0 leading-tight text-left">
+                    <span className="text-sm font-semibold text-foreground">£49.99 · lifetime</span>
+                    <span className="text-[10px] text-muted-foreground">founding member — pay once, premium forever</span>
+                  </span>
+                  {spots !== null && (
+                    <span className="text-[10px] font-semibold flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ color: hex, backgroundColor: `${hex}22` }}>
+                      {spots.toLocaleString("en-GB")} of 5,000 left
+                    </span>
+                  )}
+                </button>
+              )}
+              <p className="text-[11px] text-center text-muted-foreground/50">subscriptions cancel anytime · one plan covers you both</p>
 
               {error && <p className="text-sm text-destructive text-center">{error}</p>}
             </div>
