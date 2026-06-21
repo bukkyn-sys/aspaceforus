@@ -83,7 +83,6 @@ const CATEGORIES = [
 ] as const;
 const catById = (id: string | null) => CATEGORIES.find((c) => c.id === id);
 
-const CURRENCIES = ["£", "$", "€"] as const;
 const RECURRENCES: { id: Recurrence; label: string }[] = [
   { id: "none", label: "one-off" },
   { id: "weekly", label: "weekly" },
@@ -637,17 +636,8 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
                 )}>{e}</button>
             ))}
           </ChipRow>
-          <Field label="currency">
-            <ChipRow>
-              {CURRENCIES.map((c) => (
-                <button key={c} onClick={() => setPotCurrency(c)}
-                  className={cn("h-11 rounded-xl text-sm font-bold border transition-colors",
-                    potCurrency === c ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
-                  )}>{c}</button>
-              ))}
-            </ChipRow>
-          </Field>
-          <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${potCurrency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
+          {/* Currency comes from settings — pots use the couple's currency. */}
+          <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${currency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
           <Field label={<>target date <span className="opacity-50">(optional)</span></>}>
             <DateField value={potTarget} onChange={setPotTarget} placeholder="select a date" />
           </Field>

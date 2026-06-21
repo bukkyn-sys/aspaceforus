@@ -12,7 +12,7 @@ import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import type { DayPart } from "@/lib/day-parts";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check, GripVertical } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -35,7 +35,7 @@ const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; parts?: string[]; start_time?: string | null; attendee?: string | null; }
 interface NoteLine { id: string; body: string; created_by: string; sort_order: number; }
 interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
-interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; done?: boolean; }
+interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; needs_both?: boolean; ticked_by?: string[]; done?: boolean; }
 interface PriorityTodo { list_id: string; title: string; emoji: string; remaining: number; items: PriorityTodoItem[]; }
 
 // Calm due styling for the pinned to-do card (mirrors the vault's).
@@ -63,8 +63,6 @@ const MODULE_LABEL: Record<string, string> = {
   mood: "mood", daily: "the daily", note: "shared note", countdowns: "events",
   free: "free times", accounts: "accounts", todo: "to-dos",
 };
-// Modules that read acceptably at half width. mood + the daily need full width.
-const HALF_CAPABLE = new Set(["note", "countdowns", "free", "accounts", "todo"]);
 
 // Merge a saved layout with the canonical module set (so new modules always
 // appear, and a stale cache without a layout is handled).
@@ -448,64 +446,52 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     startTransition(() => { deleteEvent(id, coupleId, me.id); });
   }
 
-  // Check off a pinned to-do straight from Home. We tick it in place (filled
-  // circle + strike-through) rather than making it vanish, so the action reads
-  // as "done", mirrors the vault, and can be undone with a second tap. The item
-  // drops off naturally on the next load (the RPC only returns open items).
-  function setTodoDone(id: string, done: boolean) {
+  // Check off a pinned to-do straight from Home. Mirrors the vault: toggle MY
+  // tick, derive done (needs_both ? both partners : ≥1), and show it in place
+  // (filled circle + strike-through) rather than vanishing. Items finished today
+  // keep showing on reload (the RPC returns them), so it survives navigation.
+  function handleTodoCheck(item: PriorityTodoItem) {
+    const ticked = item.ticked_by ?? [];
+    const iTicked = ticked.includes(me.id);
+    const nextTicked = iTicked ? ticked.filter((x) => x !== me.id) : [...ticked, me.id];
+    const members = partner ? [me.id, partner.id] : [me.id];
+    const done = item.needs_both ? members.every((m) => nextTicked.includes(m)) : nextTicked.length >= 1;
     setData((prev) => prev.priorityTodo ? {
       ...prev,
       priorityTodo: {
         ...prev.priorityTodo,
-        items: prev.priorityTodo.items.map((i) => i.id === id ? { ...i, done } : i),
-        remaining: Math.max(0, prev.priorityTodo.remaining + (done ? -1 : 1)),
+        items: prev.priorityTodo.items.map((i) => i.id === item.id ? { ...i, ticked_by: nextTicked, done } : i),
+        remaining: Math.max(0, prev.priorityTodo.remaining + (done && !item.done ? -1 : !done && item.done ? 1 : 0)),
       },
     } : prev);
+    if (done && !item.done) track("todo_completed");
+    startTransition(() => { toggleTodoTick(item.id, coupleId, item.title); });
   }
-  function handleTodoCheck(item: PriorityTodoItem) {
-    const nextDone = !item.done;
-    setTodoDone(item.id, nextDone);
-    if (nextDone) track("todo_completed");
-    startTransition(async () => {
-      // Reconcile with the server's derived state — a "needs both" item isn't
-      // actually done until the partner ticks too, so reflect that truth.
-      const res = await toggleTodoTick(item.id, coupleId, item.title);
-      if (res && typeof res.done === "boolean" && res.done !== nextDone) setTodoDone(item.id, res.done);
-    });
+
+  // Who a pinned to-do is for → avatars to render (mirrors the vault).
+  function todoPeople(assignee: string | null | undefined) {
+    if (assignee === me.id) return [{ url: me.avatar_url, name: myName, hex: myAccent.hex }];
+    if (partner && assignee === partner.id) return [{ url: partner.avatar_url, name: partnerName, hex: partnerAccent.hex }];
+    if (assignee === "both") return [
+      { url: me.avatar_url, name: myName, hex: myAccent.hex },
+      { url: partner?.avatar_url ?? null, name: partnerName, hex: partnerAccent.hex },
+    ];
+    return [];
   }
 
   const today = new Date().toISOString().split("T")[0];
   const myAccent = getAccent(me.accent_color);
   const partnerAccent = getAccent(partner?.accent_color);
 
-  // ── Modular layout (CSS order + grid col-span; cards themselves are unchanged) ─
+  // ── Modular layout (CSS order; cards themselves are unchanged) ───────────────
   const layout = normalizeLayout(data.dashboardLayout);
   const modIndex = new Map(layout.map((m, i) => [m.id, i]));
-  // Which modules actually render right now (so pairing/gaps reflect reality).
-  function visible(id: string): boolean {
-    if (id === "mood" || id === "note") return true;       // always shown
-    if (loading) return false;                              // the rest are gated on load
-    if (id === "free") return hasPartner;
-    if (id === "todo") return !!(data.priorityTodo && data.priorityTodo.items.length);
-    return true;                                            // daily, countdowns, accounts
-  }
-  // Pair consecutive halves among the VISIBLE modules; a half that can't pair
-  // (followed by a full, or last) renders full — no awkward half-row gaps.
-  const visibleOrdered = layout.filter((m) => visible(m.id));
-  const effSize = new Map<string, DashSize>();
-  for (let i = 0; i < visibleOrdered.length; i++) {
-    const m = visibleOrdered[i];
-    if (m.size === "half" && visibleOrdered[i + 1]?.size === "half") {
-      effSize.set(m.id, "half"); effSize.set(visibleOrdered[i + 1].id, "half"); i++;
-    } else {
-      effSize.set(m.id, "full");
-    }
-  }
+  // Modules are full-width for now — couples can still reorder them, but every
+  // tile spans the row (no half/full sizing).
   function mod(id: string) {
     return {
       style: { order: modIndex.get(id) ?? 99 },
-      // h-full + [&>*]:h-full so two side-by-side halves stretch to equal height.
-      className: (effSize.get(id) === "half" ? "col-span-1 min-w-0" : "col-span-2") + " h-full [&>*]:h-full",
+      className: "col-span-2 h-full [&>*]:h-full",
     };
   }
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -521,9 +507,6 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
       const newI = prev.findIndex((m) => m.id === over.id);
       return oldI < 0 || newI < 0 ? prev : arrayMove(prev, oldI, newI);
     });
-  }
-  function toggleSize(id: string) {
-    setLayoutDraft((prev) => prev.map((m) => m.id === id ? { ...m, size: m.size === "half" ? "full" : "half" } : m));
   }
   function saveLayout() {
     setData((prev) => ({ ...prev, dashboardLayout: layoutDraft }));
@@ -883,6 +866,8 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
           <div className="space-y-0.5">
             {data.priorityTodo.items.map((item) => {
               const due = todoDue(item.due_date);
+              const iTicked = (item.ticked_by ?? []).includes(me.id);
+              const people = todoPeople(item.assignee);
               return (
                 <div key={item.id} className="flex items-center gap-3 py-1.5">
                   <button
@@ -891,17 +876,29 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
                     aria-label={item.done ? `mark "${item.title}" not done` : `mark "${item.title}" done`}
                     className={cn(
                       "w-[20px] h-[20px] rounded-full flex items-center justify-center flex-shrink-0 transition-colors active:scale-90",
-                      item.done ? "bg-sage" : "border-[1.5px] border-muted-foreground/30 hover:border-muted-foreground/60"
+                      item.done ? "bg-sage" : iTicked ? "border-[1.5px] border-sage" : "border-[1.5px] border-muted-foreground/30 hover:border-muted-foreground/60"
                     )}
                   >
-                    {item.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                    {item.done ? <Check className="w-3 h-3 text-white" strokeWidth={3} /> : iTicked ? <Check className="w-2.5 h-2.5 text-sage" strokeWidth={3} /> : null}
                   </button>
                   <span className={cn("text-sm flex-1 truncate", item.done ? "line-through text-muted-foreground/50" : "text-foreground")}>{item.title}</span>
-                  {due && !item.done && (
+                  {!item.done && item.needs_both && (
+                    <span className="text-[11px] text-muted-foreground/50 tabular-nums flex-shrink-0">{(item.ticked_by ?? []).length}/2 ticked</span>
+                  )}
+                  {!item.done && due && (
                     <span className={cn("text-[11px] font-medium flex-shrink-0",
                       due.tone === "over" ? "text-terracotta/80" : due.tone === "today" ? "text-sage" : "text-muted-foreground/50")}>
                       {due.label}
                     </span>
+                  )}
+                  {!item.done && people.length > 0 && (
+                    <div className="flex items-center -space-x-1 flex-shrink-0">
+                      {people.map((p, i) => (
+                        <span key={i} className="w-4 h-4 rounded-full overflow-hidden bg-secondary inline-flex items-center justify-center" style={{ boxShadow: `0 0 0 1.5px ${p.hex}` }}>
+                          {p.url ? <SignedImg src={p.url} className="w-full h-full object-cover" /> : <span className="text-[8px] font-semibold text-muted-foreground">{p.name[0]?.toUpperCase()}</span>}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               );
@@ -1000,19 +997,19 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
         )}
       </Dialog>
 
-      {/* Layout editor — reorder + half/full sizing */}
+      {/* Layout editor — reorder only */}
       <BottomSheet
         open={showLayoutEditor}
         onClose={() => setShowLayoutEditor(false)}
         title="edit layout"
         footer={<Button onClick={saveLayout} className="w-full h-11 rounded-xl">done</Button>}
       >
-        <p className="text-xs text-muted-foreground/60 mb-3">drag the tiles to reorder your home. tap a tile&apos;s size to make it half-width — two halves sit side by side.</p>
+        <p className="text-xs text-muted-foreground/60 mb-3">drag the tiles to reorder your home.</p>
         <DndContext sensors={layoutSensors} collisionDetection={closestCenter} onDragEnd={onLayoutDragEnd}>
           <SortableContext items={layoutDraft.map((m) => m.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2">
               {layoutDraft.map((m) => (
-                <LayoutTile key={m.id} m={m} onToggleSize={() => toggleSize(m.id)} />
+                <LayoutTile key={m.id} m={m} />
               ))}
             </div>
           </SortableContext>
@@ -1023,11 +1020,9 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   );
 }
 
-// A draggable skeleton tile in the layout editor — mirrors the page (full = wide,
-// half = narrow) so the couple can picture the result while they rearrange.
-function LayoutTile({ m, onToggleSize }: { m: DashModule; onToggleSize: () => void }) {
+// A draggable tile in the layout editor — drag to reorder the home modules.
+function LayoutTile({ m }: { m: DashModule }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: m.id });
-  const half = m.size === "half";
   return (
     <div
       ref={setNodeRef}
@@ -1035,21 +1030,12 @@ function LayoutTile({ m, onToggleSize }: { m: DashModule; onToggleSize: () => vo
       {...attributes}
       {...listeners}
       className={cn(
-        "rounded-2xl bg-secondary border border-border/50 px-3 py-5 flex items-center justify-between gap-2 cursor-grab active:cursor-grabbing select-none touch-none",
-        half ? "col-span-1" : "col-span-2",
+        "rounded-2xl bg-secondary border border-border/50 px-4 py-4 flex items-center gap-2 cursor-grab active:cursor-grabbing select-none touch-none",
         isDragging && "opacity-70 shadow-lg z-10"
       )}
     >
+      <GripVertical className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
       <span className="text-sm font-medium text-foreground truncate">{MODULE_LABEL[m.id] ?? m.id}</span>
-      {HALF_CAPABLE.has(m.id) && (
-        <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => { e.stopPropagation(); onToggleSize(); }}
-          className={cn("text-[11px] font-medium px-2 py-1 rounded-md flex-shrink-0 transition-colors", half ? "bg-foreground text-background" : "bg-card text-muted-foreground")}
-        >
-          {half ? "half" : "full"}
-        </button>
-      )}
     </div>
   );
 }

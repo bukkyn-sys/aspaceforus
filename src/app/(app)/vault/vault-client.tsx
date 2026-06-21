@@ -76,8 +76,7 @@ interface VaultItem {
 
 interface OgPreview { image: string | null; title: string | null }
 
-const CURRENCIES = ["£", "$", "€"] as const;
-type Currency = typeof CURRENCIES[number];
+const CURRENCY_SYMBOLS = ["£", "$", "€"];
 
 const STAGE_LABEL: Record<Stage, string> = { ideas: "idea", planned: "planned", completed: "done" };
 const STAGE_NEXT: Record<Stage, Stage> = { ideas: "planned", planned: "completed", completed: "ideas" };
@@ -113,48 +112,33 @@ const ITEM_EMOJIS   = ["🍽️", "🍷", "🎬", "✈️", "🎁", "🛍️", "
 //    definitions get a new reference every render, causing unmount/remount) ──
 
 function PriceInput({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
-  const currency: Currency = (CURRENCIES.find((c) => value?.startsWith(c)) ?? "£") as Currency;
-  const amount = value === "free" ? ""
-    : value ? (CURRENCIES.some((c) => value.startsWith(c)) ? value.slice(currency.length) : value)
-    : "";
+  // Currency comes from settings — the price just uses the couple's symbol.
+  const { currency } = useCouple();
+  const isFree = value === "free";
+  const amount = isFree || !value ? ""
+    : CURRENCY_SYMBOLS.some((c) => value.startsWith(c)) ? value.slice(1) : value;
 
-  function update(c: Currency, a: string) { onChange(a.trim() ? c + a.trim() : null); }
+  function setAmount(a: string) { onChange(a.trim() ? currency + a.trim() : null); }
 
   return (
     <div className="space-y-2.5">
-      {/* Currency selector */}
-      <div className="flex gap-2">
-        {CURRENCIES.map((c) => (
-          <button key={c} type="button"
-            onClick={() => update(c, amount)}
-            className={cn(
-              "w-11 h-11 rounded-xl text-sm font-bold border transition-colors",
-              value !== "free" && currency === c
-                ? "bg-foreground text-background border-foreground"
-                : "bg-card text-muted-foreground border-border/60"
-            )}
-          >{c}</button>
-        ))}
-        <button type="button"
-          onClick={() => onChange(value === "free" ? null : "free")}
-          className={cn(
-            "flex-1 h-11 rounded-xl text-sm font-medium border transition-colors",
-            value === "free"
-              ? "bg-foreground text-background border-foreground"
-              : "bg-card text-muted-foreground border-border/60"
-          )}
-        >free</button>
-      </div>
+      <button type="button"
+        onClick={() => onChange(isFree ? null : "free")}
+        className={cn(
+          "w-full h-11 rounded-xl text-sm font-medium border transition-colors",
+          isFree ? "bg-foreground text-background border-foreground" : "bg-card text-muted-foreground border-border/60"
+        )}
+      >free</button>
 
       {/* Amount input — hidden when free */}
-      {value !== "free" && (
+      {!isFree && (
         <div className="relative">
           <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground/60 pointer-events-none select-none">
             {currency}
           </span>
           <Input
             value={amount}
-            onChange={(e) => update(currency, e.target.value)}
+            onChange={(e) => setAmount(e.target.value)}
             placeholder="0"
             inputMode="decimal"
             className="h-11 rounded-xl bg-card border-border/60 pl-8"
