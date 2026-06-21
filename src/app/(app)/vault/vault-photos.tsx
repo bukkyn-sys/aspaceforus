@@ -15,7 +15,7 @@ import { useSignedUrl } from "@/lib/use-signed-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
-import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus, Heart } from "lucide-react";
+import { X, Trash2, Download, ChevronLeft, ChevronRight, Pencil, ImagePlus, Check, FolderInput, Plus, Heart, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addPhoto, updatePhotoCaption, deletePhoto, setPhotoFavorite, createAlbum, renameAlbum, deleteAlbum, movePhotoToAlbum } from "./photo-actions";
 
@@ -275,6 +275,14 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
   const shown = favFilter ? photos.filter((p) => p.favorite)
     : activeAlbum ? photos.filter((p) => p.album_id === activeAlbum) : photos;
 
+  // Behind glass: on free, the newest PHOTO_LIMIT stay open and the rest are
+  // locked (blurred, tap → paywall). Computed off the global newest-first list,
+  // so the cap is the couple's whole gallery, not per-album.
+  const lockedIds = !premium && photos.length > PHOTO_LIMIT
+    ? new Set(photos.slice(PHOTO_LIMIT).map((p) => p.id))
+    : null;
+  const lockedCount = lockedIds ? lockedIds.size : 0;
+
   // Greedy 2-column masonry — push each photo to the currently shorter column.
   const cols: Photo[][] = [[], []];
   const colH = [0, 0];
@@ -284,8 +292,10 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
     cols[i].push(p); colH[i] += ratio;
   }
 
-  const lightboxIndex = lightboxId ? shown.findIndex((p) => p.id === lightboxId) : -1;
-  const lightbox = lightboxIndex >= 0 ? shown[lightboxIndex] : null;
+  // Lightbox navigates only the unlocked photos (locked ones open the paywall).
+  const nav = lockedIds ? shown.filter((p) => !lockedIds.has(p.id)) : shown;
+  const lightboxIndex = lightboxId ? nav.findIndex((p) => p.id === lightboxId) : -1;
+  const lightbox = lightboxIndex >= 0 ? nav[lightboxIndex] : null;
 
   return (
     <div className="px-3 pb-24 pt-3">
@@ -323,6 +333,17 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
         </div>
       )}
 
+      {lockedCount > 0 && !favFilter && !activeAlbum && (
+        <button onClick={() => openPaywall("photos")} className="w-full flex items-center gap-2.5 mb-3 rounded-2xl bg-secondary/70 px-3.5 py-2.5 text-left active:scale-[0.99] transition-transform">
+          <Lock className="w-4 h-4 text-muted-foreground flex-shrink-0" strokeWidth={2} />
+          <span className="text-xs text-foreground flex-1 leading-snug">
+            <span className="font-medium">{lockedCount.toLocaleString("en-GB")} {lockedCount === 1 ? "memory" : "memories"} tucked away</span>
+            <span className="text-muted-foreground"> · re-unlock to see your whole gallery</span>
+          </span>
+          <ChevronRight className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
+        </button>
+      )}
+
       {loading && photos.length === 0 ? (
         <div className="grid grid-cols-2 gap-2">
           {[0, 1, 2, 3].map((i) => <div key={i} className="rounded-2xl bg-secondary/50 animate-pulse" style={{ aspectRatio: i % 2 ? "3/4" : "1/1" }} />)}
@@ -345,21 +366,29 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
         <div className="flex gap-2 items-start">
           {cols.map((col, ci) => (
             <div key={ci} className="flex-1 flex flex-col gap-2 min-w-0">
-              {col.map((p) => (
+              {col.map((p) => {
+                const locked = !!lockedIds?.has(p.id);
+                return (
                 <button
                   key={p.id}
-                  onClick={() => setLightboxId(p.id)}
+                  onClick={() => locked ? openPaywall("photos") : setLightboxId(p.id)}
                   className="block w-full rounded-2xl overflow-hidden bg-secondary active:scale-[0.99] transition-transform relative"
                   style={{ aspectRatio: p.width && p.height ? `${p.width}/${p.height}` : "1/1" }}
                 >
                   {(() => {
                     const url = p.local ?? signed[p.path];
                     // eslint-disable-next-line @next/next/no-img-element
-                    return url ? <img src={url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" onError={() => { if (!p.local) reSign(p.path); }} /> : null;
+                    return url ? <img src={url} alt="" loading="lazy" decoding="async" className={cn("w-full h-full object-cover", locked && "blur-xl scale-110")} onError={() => { if (!p.local) reSign(p.path); }} /> : null;
                   })()}
-                  {p.favorite && <Heart className="absolute top-1.5 right-1.5 w-4 h-4 text-white fill-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />}
+                  {locked && (
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <Lock className="w-5 h-5 text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />
+                    </span>
+                  )}
+                  {!locked && p.favorite && <Heart className="absolute top-1.5 right-1.5 w-4 h-4 text-white fill-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" />}
                 </button>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
@@ -371,9 +400,9 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
           src={lightbox.local ?? signed[lightbox.path] ?? photoUrl(lightbox.path)}
           canEdit
           hasPrev={lightboxIndex > 0}
-          hasNext={lightboxIndex < shown.length - 1}
-          onPrev={() => setLightboxId(shown[lightboxIndex - 1]?.id ?? null)}
-          onNext={() => setLightboxId(shown[lightboxIndex + 1]?.id ?? null)}
+          hasNext={lightboxIndex < nav.length - 1}
+          onPrev={() => setLightboxId(nav[lightboxIndex - 1]?.id ?? null)}
+          onNext={() => setLightboxId(nav[lightboxIndex + 1]?.id ?? null)}
           onClose={() => setLightboxId(null)}
           onDelete={() => removePhoto(lightbox)}
           onCaption={(c) => saveCaption(lightbox, c)}

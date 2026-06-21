@@ -30,6 +30,7 @@ type EntitlementValue = {
   comp: boolean;      // beta tester
   lifetime: boolean;  // one-time founding lifetime purchase
   onTrial: boolean;
+  trialEndsAt: string | null;
   refresh: () => void;
   openPaywall: (reason?: PaywallReason) => void;
 };
@@ -89,6 +90,7 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         comp: state?.comp ?? false,
         lifetime: state?.lifetime ?? false,
         onTrial: state?.onTrial ?? false,
+        trialEndsAt: state?.trialEndsAt ?? null,
         refresh,
         openPaywall,
       }}

@@ -12,7 +12,7 @@ import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import type { DayPart } from "@/lib/day-parts";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check, GripVertical, Settings } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check, GripVertical, Settings, Sparkles } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -192,8 +192,11 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   const [, startTransition] = useTransition();
 
   // Founding/beta identity badges, shown beside the profile button.
-  const { paid, lifetime, comp: beta, premium, openPaywall } = useEntitlement();
+  const { paid, lifetime, comp: beta, premium, onTrial, trialEndsAt, openPaywall } = useEntitlement();
   const founding = paid || lifetime;
+  const [trialNudgeDismissed, setTrialNudgeDismissed] = useState(false);
+  const trialDaysLeft = onTrial && trialEndsAt ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000) : null;
+  const showTrialNudge = !trialNudgeDismissed && trialDaysLeft !== null && trialDaysLeft <= 10;
 
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");
@@ -521,6 +524,21 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
       <HomeBanner bannerUrl={data.bannerUrl} focus={data.bannerFocus} />
 
       <div className="px-4 pt-4">
+      {/* Trial-ending nudge — gentle, dismissible, only in the final stretch. */}
+      {showTrialNudge && (
+        <div className="flex items-center gap-2.5 mb-4 rounded-2xl px-3.5 py-2.5" style={{ backgroundColor: "rgba(245,158,11,0.10)" }}>
+          <Sparkles className="w-4 h-4 flex-shrink-0" style={{ color: "#D97706" }} />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-foreground leading-snug">
+              {trialDaysLeft === 0 ? "your premium trial ends today" : `${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} of premium left`}
+            </p>
+            <button onClick={() => openPaywall("generic")} className="text-[11px] font-medium" style={{ color: "#D97706" }}>keep your space unlocked →</button>
+          </div>
+          <button onClick={() => setTrialNudgeDismissed(true)} aria-label="dismiss" className="w-6 h-6 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground flex-shrink-0">
+            <span className="text-base leading-none">×</span>
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

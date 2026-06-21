@@ -9,7 +9,7 @@ import {
   addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, updateSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder, setPotPinned,
 } from "./actions";
-import { Check, Trash2, Pencil, Repeat, Info, X, Pin } from "lucide-react";
+import { Check, Trash2, Pencil, Repeat, Info, X, Pin, Lock } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -128,9 +128,9 @@ type ResolveOwner = ReturnType<typeof useOwnerIdentity>;
 
 // Module-level so they keep a stable component identity across renders (a nested
 // definition would remount the whole subtree every render).
-function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSelect, onTogglePin }: {
+function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSelect, onTogglePin, locked }: {
   pot: Pot; meId: string; myName: string; partnerName: string;
-  myAccent: Accent; partnerAccent: Accent; onSelect: (pot: Pot) => void; onTogglePin: (pot: Pot) => void;
+  myAccent: Accent; partnerAccent: Accent; onSelect: (pot: Pot) => void; onTogglePin: (pot: Pot) => void; locked?: boolean;
 }) {
   const goal = parseFloat(pot.goal_amount);
   const his = parseFloat(pot.his_amount ?? "0");
@@ -150,9 +150,9 @@ function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSe
     <div className="relative">
       <button
         onClick={() => onSelect(pot)}
-        className="w-full card-row p-4 text-left active:scale-[0.99] transition-transform"
+        className={cn("w-full card-row p-4 text-left active:scale-[0.99] transition-transform", locked && "opacity-60")}
       >
-        <p className="text-sm font-medium text-foreground mb-2 pr-8">{pot.emoji ? `${pot.emoji} ` : ""}{pot.title}</p>
+        <p className="text-sm font-medium text-foreground mb-2 pr-8">{pot.emoji ? `${pot.emoji} ` : ""}{pot.title}{locked && <span className="text-xs font-normal text-muted-foreground"> · locked</span>}</p>
         <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2 flex">
           <div className="h-full transition-all" style={{ width: `${hisW}%`, backgroundColor: creatorAccent.hex }} />
           <div className="h-full transition-all" style={{ width: `${hersW}%`, backgroundColor: otherAccent.hex }} />
@@ -167,16 +167,22 @@ function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSe
         </div>
         {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
       </button>
-      <button
-        onClick={(e) => { e.stopPropagation(); onTogglePin(pot); }}
-        aria-label={pot.pinned ? "unpin from home" : "pin to home"}
-        className={cn(
-          "absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-          pot.pinned ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
-        )}
-      >
-        <Pin className={cn("w-3.5 h-3.5", pot.pinned && "fill-current")} />
-      </button>
+      {locked ? (
+        <span className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-muted-foreground/50">
+          <Lock className="w-3.5 h-3.5" />
+        </span>
+      ) : (
+        <button
+          onClick={(e) => { e.stopPropagation(); onTogglePin(pot); }}
+          aria-label={pot.pinned ? "unpin from home" : "pin to home"}
+          className={cn(
+            "absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+            pot.pinned ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
+          )}
+        >
+          <Pin className={cn("w-3.5 h-3.5", pot.pinned && "fill-current")} />
+        </button>
+      )}
     </div>
   );
 }
@@ -848,12 +854,16 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {pots.map((pot) => (
-              <PotCard key={pot.id} pot={pot} meId={me.id} myName={myName} partnerName={partnerName}
-                myAccent={myAccent} partnerAccent={partnerAccent}
-                onSelect={(p) => { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }}
-                onTogglePin={handleTogglePotPin} />
-            ))}
+            {/* Behind glass: free keeps the newest pot; older ones lock (tap → paywall). */}
+            {(() => { const keptPotId = !premium && pots.length > 1 ? pots[0].id : null; return pots.map((pot) => {
+              const locked = keptPotId !== null && pot.id !== keptPotId;
+              return (
+                <PotCard key={pot.id} pot={pot} meId={me.id} myName={myName} partnerName={partnerName}
+                  myAccent={myAccent} partnerAccent={partnerAccent} locked={locked}
+                  onSelect={(p) => { if (locked) { openPaywall("pots"); return; } setSelectedPot(p); setContribDelta(""); setContribMode("add"); }}
+                  onTogglePin={handleTogglePotPin} />
+              );
+            }); })()}
           </div>
         )
       )}

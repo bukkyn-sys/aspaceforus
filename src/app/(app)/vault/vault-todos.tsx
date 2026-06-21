@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
-import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin, Repeat, GripVertical } from "lucide-react";
+import { Plus, Check, ChevronLeft, ChevronRight, X, Trash2, ChevronDown, Pin, Repeat, GripVertical, Lock } from "lucide-react";
 import {
   createTodoList, renameTodoList, deleteTodoList,
   addTodo, updateTodo, toggleTodoTick, deleteTodo, clearCompleted, setPriorityTodoList, reorderTodos,
@@ -335,6 +335,11 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
 
   // ── LISTS VIEW ───────────────────────────────────────────────────────────────
   if (view === "lists") {
+    // Behind glass: free keeps the single newest list open; older ones lock
+    // (view-only, tap → paywall) but can still be deleted to get back under cap.
+    const keptListId = !premium && lists.length > 1
+      ? [...lists].sort((a, b) => b.created_at.localeCompare(a.created_at))[0].id
+      : null;
     return (
       <div className="px-4 pb-24 pt-3">
         {listsLoading ? <SkeletonRows count={3} /> : lists.length === 0 ? (
@@ -346,36 +351,39 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
           <div className="space-y-2.5">
             {lists.map((l) => {
               const pct = l.total > 0 ? Math.round((l.done / l.total) * 100) : 0;
+              const locked = keptListId !== null && l.id !== keptListId;
               return (
                 <button
                   key={l.id}
-                  onClick={() => openList(l)}
-                  onContextMenu={(e) => { e.preventDefault(); openEditList(l); }}
+                  onClick={() => locked ? openPaywall("lists") : openList(l)}
+                  onContextMenu={(e) => { e.preventDefault(); if (!locked) openEditList(l); }}
                   className="w-full card-row overflow-hidden flex items-center text-left px-4 py-3.5 active:scale-[0.99] transition-transform"
                 >
-                  <span className="text-2xl flex-shrink-0 mr-3 leading-none">{l.emoji}</span>
+                  <span className={cn("text-2xl flex-shrink-0 mr-3 leading-none", locked && "opacity-40")}>{l.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{l.title}</p>
+                    <p className={cn("text-sm font-semibold truncate", locked ? "text-muted-foreground" : "text-foreground")}>{l.title}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {l.total === 0 ? "nothing yet" : `${l.done}/${l.total} done`}
+                      {locked ? "locked · re-unlock premium" : l.total === 0 ? "nothing yet" : `${l.done}/${l.total} done`}
                     </p>
-                    {l.total > 0 && (
+                    {!locked && l.total > 0 && (
                       <div className="h-1 bg-foreground/10 rounded-full overflow-hidden mt-1.5 max-w-[140px]">
                         <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     )}
                   </div>
                   <div className="flex items-center pl-2 gap-1 flex-shrink-0">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); togglePriority(l); }}
-                      className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
-                        priorityListId === l.id ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
-                      )}
-                      aria-label={priorityListId === l.id ? "unpin from home" : "pin to home"}
-                    >
-                      <Pin className={cn("w-3.5 h-3.5", priorityListId === l.id && "fill-current")} />
-                    </button>
+                    {!locked && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); togglePriority(l); }}
+                        className={cn(
+                          "w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+                          priorityListId === l.id ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
+                        )}
+                        aria-label={priorityListId === l.id ? "unpin from home" : "pin to home"}
+                      >
+                        <Pin className={cn("w-3.5 h-3.5", priorityListId === l.id && "fill-current")} />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => { e.stopPropagation(); setConfirmDeleteList(l); }}
                       className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors"
@@ -383,7 +391,7 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
+                    {locked ? <Lock className="w-3.5 h-3.5 text-muted-foreground/40" /> : <ChevronRight className="w-4 h-4 text-muted-foreground/30" />}
                   </div>
                 </button>
               );
