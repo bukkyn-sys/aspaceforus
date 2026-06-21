@@ -11,9 +11,9 @@ export type PaywallReason =
   | "history" | "themes" | "layout" | "generic";
 
 const REASON_COPY: Record<PaywallReason, string> = {
-  photos: "you've filled all 50 photos on the free plan.",
-  albums: "free spaces include one photo album.",
-  lists: "free spaces include 2 to-do lists.",
+  photos: "you've filled all 25 photos on the free plan.",
+  albums: "photo albums are a premium feature.",
+  lists: "free spaces include 1 to-do list.",
   folders: "free spaces keep the two starter folders.",
   pots: "free spaces include one savings pot.",
   calendar: "the free plan covers the current month — planning ahead is premium.",

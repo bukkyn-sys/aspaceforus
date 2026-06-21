@@ -162,8 +162,8 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
     return () => { supabase.removeChannel(ch); };
   }, [coupleId, me.id, supabase, live]);
 
-  // Free plan: 50 photos. Refs keep the FAB action reading live values.
-  const PHOTO_LIMIT = 50;
+  // Free plan: 25 photos. Refs keep the FAB action reading live values.
+  const PHOTO_LIMIT = 25;
   const photosRef = useRef(photos); photosRef.current = photos;
   const premiumRef = useRef(premium); premiumRef.current = premium;
   function requestAddPhoto() {
@@ -171,9 +171,9 @@ export default function VaultPhotos({ live = true }: { live?: boolean }) {
     fileRef.current?.click();
   }
 
-  // Free plan: one album.
+  // Albums are a premium feature (free = the shared wall only).
   function requestNewAlbum() {
-    if (!premium && albums.length >= 1) { openPaywall("albums"); return; }
+    if (!premium) { openPaywall("albums"); return; }
     setMovingPhoto(null); setAlbumName(""); setShowNewAlbum(true);
   }
 

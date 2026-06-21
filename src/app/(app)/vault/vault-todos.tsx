@@ -160,8 +160,8 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   function openNewList() {
-    // Free plan: 2 lists.
-    if (!premium && lists.length >= 2) { openPaywall("lists"); return; }
+    // Free plan: 1 list.
+    if (!premium && lists.length >= 1) { openPaywall("lists"); return; }
     setEditingList(null); setListTitle(""); setListEmoji("✅"); setShowNewList(true);
   }
   function openEditList(l: TodoList) { setEditingList(l); setListTitle(l.title); setListEmoji(l.emoji); setShowNewList(true); }
