@@ -132,6 +132,10 @@ export function SwipePager({
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    // Sheets/dialogs are portaled to <body> but their pointer events still bubble
+    // here through the React tree — so ignore any gesture that starts inside an
+    // open form, otherwise the page swipes behind it.
+    if ((e.target as Element)?.closest?.("[data-sheet]")) return;
     cancelAnim(); // grabbing mid-animation continues from where it is
     drag.current = { startX: e.clientX, startY: e.clientY, base: offsetRef.current, axis: null, lastX: e.clientX, lastT: e.timeStamp, vx: 0 };
   }, []);

@@ -178,10 +178,9 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
       const optimistic: TodoList = { id: tempId, title, emoji: listEmoji, created_by: me.id, created_at: new Date().toISOString(), total: 0, done: 0 };
       setLists((prev) => [...prev, optimistic]);
       track("todo_list_created");
-      // Reconcile the temp id with the real one (own inserts are skipped by realtime).
-      createTodoList(coupleId, title, listEmoji).then((realId) => {
-        if (realId) setLists((prev) => prev.map((l) => l.id === tempId ? { ...l, id: realId } : l));
-      });
+      // Insert with the temp id as the real id so the list exists in the DB
+      // immediately (items added right after reference a real list row).
+      createTodoList(coupleId, title, listEmoji, tempId);
     }
     setShowNewList(false); setEditingList(null);
   }
@@ -231,8 +230,7 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
       };
       setTodos((prev) => [...prev, optimistic]);
       track("todo_added");
-      addTodo({ coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined, recurrence: itemRecurrence, remind: itemRemind, needsBoth: itemNeedsBoth })
-        .then((realId) => { if (realId) setTodos((prev) => prev.map((t) => t.id === tempId ? { ...t, id: realId } : t)); });
+      addTodo({ id: tempId, coupleId, listId: activeList.id, title, notes: notes ?? undefined, dueDate: due ?? undefined, assignee: itemAssignee ?? undefined, recurrence: itemRecurrence, remind: itemRemind, needsBoth: itemNeedsBoth });
     }
     setShowItem(false); setEditingItem(null);
   }
@@ -273,8 +271,7 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
       needs_both: false, ticked_by: [],
     };
     setTodos((prev) => [...prev, optimistic]);
-    addTodo({ coupleId, listId: activeList.id, title: t, parentId: editingItem.id })
-      .then((realId) => { if (realId) setTodos((prev) => prev.map((x) => x.id === tempId ? { ...x, id: realId } : x)); });
+    addTodo({ id: tempId, coupleId, listId: activeList.id, title: t, parentId: editingItem.id });
     setSubtaskDraft("");
   }
 

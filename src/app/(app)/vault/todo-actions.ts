@@ -3,12 +3,15 @@
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
 
-export async function createTodoList(coupleId: string, title: string, emoji: string) {
+export async function createTodoList(coupleId: string, title: string, emoji: string, id?: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Insert with the client id so items added to a freshly-made list reference a
+  // real row right away (otherwise the optimistic list id never exists in the DB
+  // and the items fail to save — the list looks empty after a reload).
   const { data } = await supabase
     .from("vault_todo_lists")
-    .insert({ couple_id: coupleId, created_by: uid, title, emoji })
+    .insert({ ...(id ? { id } : {}), couple_id: coupleId, created_by: uid, title, emoji })
     .select("id")
     .single();
   return data?.id as string | undefined;
@@ -27,6 +30,7 @@ export async function deleteTodoList(id: string, coupleId: string) {
 }
 
 export async function addTodo(data: {
+  id?: string;
   coupleId: string;
   listId: string;
   title: string;
@@ -43,6 +47,7 @@ export async function addTodo(data: {
   const { data: row } = await supabase
     .from("vault_todos")
     .insert({
+      ...(data.id ? { id: data.id } : {}),
       couple_id: data.coupleId,
       list_id: data.listId,
       created_by: uid,

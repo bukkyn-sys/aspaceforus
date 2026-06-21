@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { BottomSheet } from "@/components/ui/sheet";
 import { Field, ChipRow } from "@/components/ui/form";
 import { SignedImg } from "@/components/signed-img";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { PARTS, PART_META, fmtTimeLabel, type DayPart } from "@/lib/day-parts";
@@ -211,6 +212,11 @@ export function EventSheet({
               <input type="date" value={untilDate} min={onDate} onChange={(e) => setUntilDate(e.target.value)} style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
             </div>
           </div>
+          {untilDate && (
+            <button type="button" onClick={() => setUntilDate("")} className="flex items-center justify-center gap-1 w-full text-xs font-medium text-muted-foreground/70 hover:text-foreground mt-1.5 transition-colors">
+              <X className="w-3 h-3" /> remove end date
+            </button>
+          )}
           {multiDay && (
             <p className="text-[11px] text-muted-foreground/50 mt-1.5">a multi-day event books every part of each day</p>
           )}

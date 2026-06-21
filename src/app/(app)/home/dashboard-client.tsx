@@ -12,7 +12,7 @@ import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import type { DayPart } from "@/lib/day-parts";
 import { toggleTodoTick } from "@/app/(app)/vault/todo-actions";
 import Link from "next/link";
-import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check, GripVertical } from "lucide-react";
+import { Plane, Heart, User, Pencil, Trash2, Plus, LayoutGrid, Check, GripVertical, Settings } from "lucide-react";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { DateField } from "@/components/ui/date-field";
 import { track } from "@/lib/analytics";
-import { cn, clickable } from "@/lib/utils";
+import { cn, clickable, commas } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { ownerTint } from "@/lib/owner-identity";
 import { HomeBanner } from "@/components/home-banner";
@@ -34,7 +34,7 @@ const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
 
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; parts?: string[]; start_time?: string | null; attendee?: string | null; }
 interface NoteLine { id: string; body: string; created_by: string; sort_order: number; }
-interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
+interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; pinned: boolean; }
 interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; needs_both?: boolean; ticked_by?: string[]; done?: boolean; }
 interface PriorityTodo { list_id: string; title: string; emoji: string; remaining: number; items: PriorityTodoItem[]; }
 
@@ -106,7 +106,7 @@ interface HomeData {
   events: { id: string; title: string; on_date: string; until_date: string | null; parts: string[]; start_time: string | null; emoji: string; created_by: string }[];
   free_days: { date: string; parts: string[] }[];
   balance: number;
-  pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number }[];
+  pots: { id: string; title: string; saved: number; goal: number; currency: string; progress: number; pinned?: boolean }[];
   partner_action: { text: string; at: string } | null;
   daily?: DailyData;
   priority_todo?: PriorityTodo | null;
@@ -246,7 +246,7 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
       const partner = h.partner;
       const pa = h.partner_action;
       const pots: PotMini[] = (h.pots ?? []).map((p) => ({
-        id: p.id, title: p.title, saved: Number(p.saved), goal: Number(p.goal), currency: p.currency ?? "£",
+        id: p.id, title: p.title, saved: Number(p.saved), goal: Number(p.goal), currency: p.currency ?? "£", pinned: p.pinned ?? false,
       }));
 
       const newData: DashboardData = {
@@ -429,7 +429,7 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
       }));
       markActivity("home");
       track("event_created", { multi_day: !!endDate, parts: parts.length });
-      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts: parts as DayPart[], untilDate: endDate, startTime, emoji, attendee }); });
+      startTransition(() => { addEvent({ id: cd.id, coupleId, userId: me.id, title, onDate, parts: parts as DayPart[], untilDate: endDate, startTime, emoji, attendee }); });
     }
     setEditingEvent(null); setShowEventSheet(false);
   }
@@ -544,6 +544,14 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <PremiumBadges founding={founding} beta={beta} />
+          {/* Settings gear — same destination as the avatar, just clearer. */}
+          <Link
+            href="/profile"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0"
+            aria-label="settings"
+          >
+            <Settings className="w-[18px] h-[18px]" strokeWidth={1.75} />
+          </Link>
           <Link
             href="/profile"
             className="w-9 h-9 rounded-full overflow-hidden bg-secondary flex items-center justify-center flex-shrink-0"
@@ -836,23 +844,25 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
                 {data.balance > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}
               </p>
               <p className={cn("text-xl font-bold tabular-nums", data.balance > 0 ? "text-sage" : "text-terracotta")}>
-                {data.balance > 0 ? "+" : "−"}{currency}{Math.abs(data.balance).toFixed(2)}
+                {data.balance > 0 ? "+" : "−"}{currency}{commas(Math.abs(data.balance), 2)}
               </p>
             </Link>
           )}
 
-          {/* Savings pots — horizontal scroll */}
-          {data.pots.length > 0 && (
-            <div className="flex gap-2.5 overflow-x-auto mt-4 -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: "none" }}>
-              {data.pots.map((pot) => {
+          {/* Pinned savings pots — stacked vertically (pin them from the ledger). */}
+          {data.pots.some((p) => p.pinned) && (
+            <div className="space-y-2 mt-4">
+              {data.pots.filter((p) => p.pinned).map((pot) => {
                 const pct = pot.goal > 0 ? Math.min(100, Math.round((pot.saved / pot.goal) * 100)) : 0;
                 return (
                   <Link key={pot.id} href={`/ledger?tab=pots&pot=${pot.id}`}
-                    className="flex-shrink-0 w-36 rounded-2xl bg-secondary/60 p-3 active:scale-[0.98] transition-transform">
-                    <p className="text-xs font-medium text-foreground truncate">{pot.title}</p>
-                    <p className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
-                      {pot.currency}{pot.saved.toFixed(0)} / {pot.currency}{pot.goal.toFixed(0)}
-                    </p>
+                    className="block rounded-2xl bg-secondary/60 p-3 active:scale-[0.99] transition-transform">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="text-xs font-medium text-foreground truncate">{pot.title}</p>
+                      <p className="text-[11px] text-muted-foreground tabular-nums flex-shrink-0">
+                        {pot.currency}{commas(pot.saved)} / {pot.currency}{commas(pot.goal)}
+                      </p>
+                    </div>
                     <div className="h-1.5 bg-foreground/10 rounded-full overflow-hidden mt-2">
                       <div className="h-full bg-sage rounded-full" style={{ width: `${pct}%` }} />
                     </div>

@@ -6,6 +6,7 @@ import { notifyPartner } from "@/lib/push";
 type VaultKind = "date_idea" | "wishlist" | "general";
 
 export async function addVaultFolder(data: {
+  id?: string;
   coupleId: string;
   userId: string;
   name: string;
@@ -15,9 +16,12 @@ export async function addVaultFolder(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Insert with the client id so items added to a brand-new folder reference a
+  // real folder row (otherwise the FK fails and the folder reads empty later).
   const { data: folder } = await supabase
     .from("vault_folders")
     .insert({
+      ...(data.id ? { id: data.id } : {}),
       couple_id: data.coupleId,
       created_by: uid,
       name: data.name,
@@ -42,6 +46,7 @@ export async function deleteVaultFolder(id: string, coupleId: string) {
 }
 
 export async function addVaultItem(data: {
+  id?: string;
   coupleId: string;
   userId: string;
   folderId: string;
@@ -57,7 +62,9 @@ export async function addVaultItem(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Insert with the client id so editing a just-added item targets the real row.
   await supabase.from("vault_items").insert({
+    ...(data.id ? { id: data.id } : {}),
     couple_id: data.coupleId,
     created_by: uid,
     folder_id: data.folderId,

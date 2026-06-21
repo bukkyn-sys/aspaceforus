@@ -26,7 +26,7 @@ import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { track } from "@/lib/analytics";
 import { useOwnerIdentity } from "@/lib/owner-identity";
-import { cn, clickable } from "@/lib/utils";
+import { cn, clickable, commafyPrice } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
 import { validateImage } from "@/lib/validate-image";
@@ -484,7 +484,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
     setShowNewFolder(false);
     setFolderName(""); setFolderEmoji("📁");
     startTransition(() => {
-      addVaultFolder({ coupleId, userId: me.id, name: optimistic.name, emoji: optimistic.emoji, kind: optimistic.kind });
+      addVaultFolder({ id: optimistic.id, coupleId, userId: me.id, name: optimistic.name, emoji: optimistic.emoji, kind: optimistic.kind });
     });
   }
 
@@ -551,7 +551,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
     track("vault_item_created", { type: activeFolder.kind });
     startTransition(() =>
       addVaultItem({
-        coupleId, userId: me.id,
+        id: optimistic.id, coupleId, userId: me.id,
         folderId: activeFolder.id, folderKind: activeFolder.kind,
         title: optimistic.title, owner,
         url: url.trim() || undefined,
@@ -851,7 +851,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
                       {item.price_range && (
                         <>
                           <span className="text-muted-foreground/25 text-[10px]">·</span>
-                          <span className="text-xs font-semibold text-foreground/70">{item.price_range}</span>
+                          <span className="text-xs font-semibold text-foreground/70">{commafyPrice(item.price_range)}</span>
                         </>
                       )}
                       {/* Only surface a stage once it's past the default "idea" */}
@@ -1032,7 +1032,12 @@ export function VaultLists({ live = true }: { live?: boolean }) {
             <p className="font-semibold text-foreground text-center truncate">{actionItem.title}</p>
             <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
             <div className="space-y-2">
-              <Button onClick={() => openEdit(actionItem)} className="w-full h-11 rounded-xl">
+              {(() => { const link = safeExternalUrl(actionItem.url); return link ? (
+                <Button onClick={() => { window.open(link, "_blank", "noopener,noreferrer"); setActionItem(null); }} className="w-full h-11 rounded-xl">
+                  <Link2 className="w-4 h-4 mr-1.5" /> open link
+                </Button>
+              ) : null; })()}
+              <Button onClick={() => openEdit(actionItem)} variant={safeExternalUrl(actionItem.url) ? "outline" : "default"} className="w-full h-11 rounded-xl">
                 <Pencil className="w-4 h-4 mr-1.5" /> edit
               </Button>
               <Button
@@ -1054,7 +1059,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
               </p>
               {(actionItem.notes || actionItem.price_range) && (
                 <p className="text-sm text-muted-foreground text-center mt-1">
-                  {actionItem.price_range && <span className="font-medium text-foreground/70">{actionItem.price_range}</span>}
+                  {actionItem.price_range && <span className="font-medium text-foreground/70">{commafyPrice(actionItem.price_range)}</span>}
                   {actionItem.price_range && actionItem.notes ? " · " : ""}
                   {actionItem.notes}
                 </p>

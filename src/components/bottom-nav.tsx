@@ -51,7 +51,8 @@ export default function BottomNav() {
               "w-12 h-12 rounded-2xl text-white",
               "flex items-center justify-center",
               "shadow-[0_4px_20px_rgb(0,0,0,0.18)]",
-              "active:scale-95 transition-transform",
+              // background-color included so a new accent eases in smoothly.
+              "active:scale-95 transition-[transform,background-color] duration-300",
               !action && "opacity-40"
             )}
             style={{ backgroundColor: accent.hex }}

@@ -741,6 +741,7 @@ export type Database = {
           hers_amount: number | null
           his_amount: number | null
           id: string
+          pinned: boolean
           target_date: string | null
           title: string
           updated_at: string | null
@@ -756,6 +757,7 @@ export type Database = {
           hers_amount?: number | null
           his_amount?: number | null
           id?: string
+          pinned?: boolean
           target_date?: string | null
           title: string
           updated_at?: string | null
@@ -771,6 +773,7 @@ export type Database = {
           hers_amount?: number | null
           his_amount?: number | null
           id?: string
+          pinned?: boolean
           target_date?: string | null
           title?: string
           updated_at?: string | null

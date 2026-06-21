@@ -51,6 +51,7 @@ export async function setAvailabilityDay(
 // evening/night). untilDate spans a multi-day event (all parts each day);
 // startTime is an optional cosmetic label only (no free/busy logic).
 export async function addEvent(data: {
+  id?: string;
   coupleId: string;
   userId: string;
   title: string;
@@ -63,7 +64,11 @@ export async function addEvent(data: {
 }) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Insert with the client-generated id so the optimistic row and the DB row
+  // share an id — otherwise editing a just-created event targets a row that
+  // doesn't exist (the edit silently no-ops and reverts on the next reload).
   await supabase.from("events").insert({
+    ...(data.id ? { id: data.id } : {}),
     couple_id: data.coupleId,
     created_by: uid,
     title: data.title,

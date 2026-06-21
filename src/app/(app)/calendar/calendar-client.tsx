@@ -268,7 +268,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
       setEvents((prev) => [...prev, optimistic].sort((a, b) => a.on_date.localeCompare(b.on_date)));
       markActivity("calendar");
       track("event_created", { multi_day: !!untilDate, parts: parts.length });
-      startTransition(() => { addEvent({ coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji, attendee }); });
+      startTransition(() => { addEvent({ id: optimistic.id, coupleId, userId: me.id, title, onDate, parts, untilDate, startTime, emoji, attendee }); });
     }
     closeEventSheet();
   }

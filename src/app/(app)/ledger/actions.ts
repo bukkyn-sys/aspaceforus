@@ -4,6 +4,7 @@ import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
 
 export async function addLedgerEntry(data: {
+  id?: string;
   coupleId: string;
   userId: string;
   title: string;
@@ -16,6 +17,7 @@ export async function addLedgerEntry(data: {
   const { supabase, uid } = await getUid();
   if (!uid) return;
   await supabase.from("ledger_entries").insert({
+    ...(data.id ? { id: data.id } : {}),
     couple_id: data.coupleId,
     created_by: uid,
     paid_by: data.paidBy,   // semantic — user chooses who paid
@@ -80,6 +82,7 @@ export async function deleteLedgerEntry(id: string, coupleId: string, userId: st
 }
 
 export async function addSavingsPot(data: {
+  id?: string;
   coupleId: string;
   userId: string;
   title: string;
@@ -92,6 +95,7 @@ export async function addSavingsPot(data: {
   const { supabase, uid } = await getUid();
   if (!uid) return undefined;
   const { data: row } = await supabase.from("savings_pots").insert({
+    ...(data.id ? { id: data.id } : {}),
     couple_id: data.coupleId,
     created_by: uid,
     folder_id: data.folderId,
@@ -157,6 +161,13 @@ export async function deleteSavingsPot(potId: string, coupleId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
   await supabase.from("savings_pots").delete().eq("id", potId).eq("couple_id", coupleId);
+}
+
+// Pin / unpin a pot to the Home dashboard (couple-shared, like editing).
+export async function setPotPinned(potId: string, coupleId: string, pinned: boolean) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.from("savings_pots").update({ pinned }).eq("id", potId).eq("couple_id", coupleId);
 }
 
 export async function addPotFolder(data: {

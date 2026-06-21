@@ -7,9 +7,9 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import {
   addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, updateSavingsPot, contributeToPot,
-  deleteSavingsPot, addPotFolder,
+  deleteSavingsPot, addPotFolder, setPotPinned,
 } from "./actions";
-import { Check, Trash2, Pencil, Repeat, Info } from "lucide-react";
+import { Check, Trash2, Pencil, Repeat, Info, X, Pin } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -24,7 +24,7 @@ import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
 import { PersonPicker } from "@/components/ui/person-picker";
 import { netBalance, isSettled } from "@/lib/ledger-math";
 import { undoableDelete } from "@/lib/toast";
-import { cn, clickable } from "@/lib/utils";
+import { cn, clickable, commas } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics";
 import { getAccent } from "@/lib/accent-colors";
@@ -57,6 +57,7 @@ interface Pot {
   target_date: string | null;
   currency: string;
   emoji: string | null;
+  pinned?: boolean;
 }
 
 interface PotFolder {
@@ -119,7 +120,7 @@ function potPace(saved: number, goal: number, target: string | null, cur: string
   const daysLeft = Math.ceil((new Date(target + "T12:00:00").getTime() - Date.now()) / 86400000);
   if (daysLeft <= 0) return "target date passed";
   const perWeek = (goal - saved) / (daysLeft / 7);
-  return `${cur}${perWeek.toFixed(0)}/wk to reach by ${fmtDate(target)}`;
+  return `${cur}${commas(perWeek)}/wk to reach by ${fmtDate(target)}`;
 }
 
 type Accent = { hex: string };
@@ -127,9 +128,9 @@ type ResolveOwner = ReturnType<typeof useOwnerIdentity>;
 
 // Module-level so they keep a stable component identity across renders (a nested
 // definition would remount the whole subtree every render).
-function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSelect }: {
+function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSelect, onTogglePin }: {
   pot: Pot; meId: string; myName: string; partnerName: string;
-  myAccent: Accent; partnerAccent: Accent; onSelect: (pot: Pot) => void;
+  myAccent: Accent; partnerAccent: Accent; onSelect: (pot: Pot) => void; onTogglePin: (pot: Pot) => void;
 }) {
   const goal = parseFloat(pot.goal_amount);
   const his = parseFloat(pot.his_amount ?? "0");
@@ -146,28 +147,37 @@ function PotCard({ pot, meId, myName, partnerName, myAccent, partnerAccent, onSe
   const theirAmount = iAmCreator ? hers : his;
   const paceText = potPace(total, goal, pot.target_date, cur);
   return (
-    <button
-      onClick={() => onSelect(pot)}
-      className="w-full card-row p-4 text-left active:scale-[0.99] transition-transform"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium text-foreground">{pot.emoji ? `${pot.emoji} ` : ""}{pot.title}</p>
-        <p className="text-sm font-semibold text-foreground tabular-nums">{cur}{total.toFixed(0)} / {cur}{goal.toFixed(0)}</p>
-      </div>
-      <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2 flex">
-        <div className="h-full transition-all" style={{ width: `${hisW}%`, backgroundColor: creatorAccent.hex }} />
-        <div className="h-full transition-all" style={{ width: `${hersW}%`, backgroundColor: otherAccent.hex }} />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <div className="flex gap-2">
-          <span>{myName}: {cur}{myAmount.toFixed(0)}</span>
-          <span>·</span>
-          <span>{partnerName}: {cur}{theirAmount.toFixed(0)}</span>
+    <div className="relative">
+      <button
+        onClick={() => onSelect(pot)}
+        className="w-full card-row p-4 text-left active:scale-[0.99] transition-transform"
+      >
+        <p className="text-sm font-medium text-foreground mb-2 pr-8">{pot.emoji ? `${pot.emoji} ` : ""}{pot.title}</p>
+        <div className="h-2 bg-secondary rounded-full overflow-hidden mb-2 flex">
+          <div className="h-full transition-all" style={{ width: `${hisW}%`, backgroundColor: creatorAccent.hex }} />
+          <div className="h-full transition-all" style={{ width: `${hersW}%`, backgroundColor: otherAccent.hex }} />
         </div>
-        <span className="font-medium text-foreground/70 tabular-nums">{pct}%</span>
-      </div>
-      {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
-    </button>
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex gap-2">
+            <span>{myName}: {cur}{commas(myAmount)}</span>
+            <span>·</span>
+            <span>{partnerName}: {cur}{commas(theirAmount)}</span>
+          </div>
+          <span className="font-semibold text-foreground/70 tabular-nums">{cur}{commas(total)} / {cur}{commas(goal)} · {pct}%</span>
+        </div>
+        {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onTogglePin(pot); }}
+        aria-label={pot.pinned ? "unpin from home" : "pin to home"}
+        className={cn(
+          "absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center transition-colors",
+          pot.pinned ? "text-foreground" : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-secondary"
+        )}
+      >
+        <Pin className={cn("w-3.5 h-3.5", pot.pinned && "fill-current")} />
+      </button>
+    </div>
   );
 }
 
@@ -198,12 +208,12 @@ function ExpenseRow({ e, meId, myName, partnerName, cur, resolveOwner, onSelect 
         <div className="flex items-center gap-1.5 mt-0.5">
           <OwnerAvatars people={o.people} />
           <p className="text-xs text-muted-foreground">
-            {paidByMe ? myName : partnerName} paid {cur}{amt.toFixed(2)} · your share {cur}{myShare.toFixed(2)}
+            {paidByMe ? myName : partnerName} paid {cur}{commas(amt, 2)} · your share {cur}{commas(myShare, 2)}
           </p>
         </div>
       </div>
       <div className={cn("text-sm font-semibold flex-shrink-0", paidByMe ? "text-sage" : "text-terracotta")}>
-        {paidByMe ? `+${cur}${(amt * (1 - ratio)).toFixed(2)}` : `-${cur}${(amt * ratio).toFixed(2)}`}
+        {paidByMe ? `+${cur}${commas(amt * (1 - ratio), 2)}` : `-${cur}${commas(amt * ratio, 2)}`}
       </div>
     </div>
   );
@@ -313,7 +323,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
     const supabase = createClient();
     Promise.all([
       supabase.from("ledger_entries").select("*").eq("couple_id", coupleId).eq("settled", false).order("created_at", { ascending: false }),
-      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency, emoji").eq("couple_id", coupleId).order("created_at", { ascending: false }),
+      supabase.from("savings_pots").select("id, title, goal_amount, his_amount, hers_amount, folder_id, created_by, target_date, currency, emoji, pinned").eq("couple_id", coupleId).order("created_at", { ascending: false }),
       supabase.from("pot_folders").select("id, name, emoji, is_default, sort_order, created_by, created_at").eq("couple_id", coupleId).order("sort_order").order("created_at"),
     ]).then(async ([{ data: e }, { data: p }, { data: f }]) => {
       // DB stores amounts as numeric; the UI interfaces model them as strings and
@@ -385,7 +395,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
       markActivity("ledger");
       track("expense_added", { recurrence, split_even: ratio === 0.5 });
       startTransition(async () => {
-        try { await addLedgerEntry({ coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); }
+        try { await addLedgerEntry({ id: optimistic.id, coupleId, userId: me.id, title: t, amount: amt, paidBy: paidById, splitRatio: ratio, category, recurrence }); }
         catch { toast("couldn't save that expense — check your connection"); setRtick((x) => x + 1); }
       });
     }
@@ -432,7 +442,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
     const folderId = potFolderId ?? defaultFolderId;
     if (!potTitle.trim() || !potGoal || !folderId) return;
     const goal = parseFloat(potGoal);
-    const tempId = `temp-${Date.now()}`;
+    const tempId = crypto.randomUUID();
     const snap = { title: potTitle.trim(), targetDate: potTarget || null, currency: potCurrency, emoji: potEmoji };
     // Optimistic: show immediately with temp id
     const optimistic: Pot = {
@@ -444,11 +454,17 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
     setPotTitle(""); setPotGoal(""); setPotTarget(""); setPotCurrency(currency); setPotEmoji(null); setShowPot(false);
     markActivity("ledger");
     // Await real DB id so the first contribution uses the correct pot id.
-    const realId = await addSavingsPot({ coupleId, userId: me.id, title: snap.title, goalAmount: goal, folderId, targetDate: snap.targetDate, currency: snap.currency, emoji: snap.emoji });
+    const realId = await addSavingsPot({ id: tempId, coupleId, userId: me.id, title: snap.title, goalAmount: goal, folderId, targetDate: snap.targetDate, currency: snap.currency, emoji: snap.emoji });
     if (realId) {
       setPots((prev) => prev.map((p) => p.id === tempId ? { ...p, id: realId } : p));
       setSelectedPot((prev) => prev?.id === tempId ? { ...prev, id: realId } : prev);
     }
+  }
+
+  function handleTogglePotPin(pot: Pot) {
+    const next = !pot.pinned;
+    setPots((prev) => prev.map((p) => p.id === pot.id ? { ...p, pinned: next } : p));
+    startTransition(() => { setPotPinned(pot.id, coupleId, next); });
   }
 
   function resetPotForm() {
@@ -585,8 +601,8 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
               }>
               <div>
                 <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>{cur}{totalNew.toFixed(0)} saved · {pct}%</span>
-                  <span>goal {cur}{goal.toFixed(0)}</span>
+                  <span>{cur}{commas(totalNew)} saved · {pct}%</span>
+                  <span>goal {cur}{commas(goal)}</span>
                 </div>
                 <div className="h-2 bg-secondary rounded-full overflow-hidden">
                   <div className="h-full bg-sage rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -594,7 +610,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
                 {paceText && <p className="text-[11px] text-muted-foreground/60 mt-1.5">{paceText}</p>}
               </div>
               <div>
-                <FieldLabel>you&apos;ve put in {cur}{myCurrent.toFixed(0)}</FieldLabel>
+                <FieldLabel>you&apos;ve put in {cur}{commas(myCurrent)}</FieldLabel>
                 <div className="flex gap-2 mb-2">
                   {(["add", "withdraw"] as const).map((m) => (
                     <button key={m} onClick={() => setContribMode(m)} aria-pressed={contribMode === m}
@@ -609,7 +625,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
                 </div>
               </div>
               <div className="text-xs text-muted-foreground bg-secondary rounded-xl px-3 py-2.5">
-                {partnerName}: {cur}{theirAmt.toFixed(0)}
+                {partnerName}: {cur}{commas(theirAmt)}
               </div>
             </BottomSheet>
           );
@@ -640,6 +656,11 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
           <Input value={potGoal} onChange={(e) => setPotGoal(e.target.value)} placeholder={`goal amount (${currency})`} type="number" min="0" className="h-11 rounded-xl bg-card border-border/60" />
           <Field label={<>target date <span className="opacity-50">(optional)</span></>}>
             <DateField value={potTarget} onChange={setPotTarget} placeholder="select a date" />
+            {potTarget && (
+              <button onClick={() => setPotTarget("")} className="flex items-center justify-center gap-1 w-full text-xs font-medium text-muted-foreground/70 hover:text-foreground mt-1.5 transition-colors">
+                <X className="w-3 h-3" /> remove target date
+              </button>
+            )}
           </Field>
         </BottomSheet>
 
@@ -706,7 +727,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
           <div className={cn("rounded-3xl p-5 mb-5", net > 0 ? "bg-sage-light" : "bg-terracotta-light")}>
             <p className="text-xs text-muted-foreground font-medium tracking-wide mb-1">balance</p>
             <p className={cn("text-4xl font-bold tabular-nums mb-1", net > 0 ? "text-sage" : "text-terracotta")}>
-              {net > 0 ? `+${currency}${net.toFixed(2)}` : `-${currency}${Math.abs(net).toFixed(2)}`}
+              {net > 0 ? `+${currency}${commas(net, 2)}` : `-${currency}${commas(Math.abs(net), 2)}`}
             </p>
             <p className="text-sm text-muted-foreground">{net > 0 ? `${partnerName} owes you` : `you owe ${partnerName}`}</p>
             <button onClick={() => setShowSettleConfirm(true)} className="mt-3 flex items-center gap-1.5 text-xs font-medium text-foreground bg-card/70 rounded-xl px-3 py-1.5">
@@ -766,7 +787,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
                   <div key={s.key} className="card-row p-4">
                     <div className="flex items-center justify-between mb-2.5">
                       <p className="text-sm font-semibold text-foreground">{s.date ? `settled ${s.date}` : "earlier settlements"}</p>
-                      <p className="text-sm font-semibold text-muted-foreground tabular-nums">{currency}{s.total.toFixed(2)}</p>
+                      <p className="text-sm font-semibold text-muted-foreground tabular-nums">{currency}{commas(s.total, 2)}</p>
                     </div>
                     <div className="space-y-1.5">
                       {s.entries.map((e) => {
@@ -776,7 +797,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
                           <div key={e.id} className="flex items-center gap-2 text-xs">
                             {cat && <span className="text-sm leading-none flex-shrink-0">{cat.emoji}</span>}
                             <span className="text-foreground truncate flex-1">{e.title}</span>
-                            <span className="text-muted-foreground/70 flex-shrink-0 tabular-nums">{paidByName} · {currency}{parseFloat(e.amount).toFixed(2)}</span>
+                            <span className="text-muted-foreground/70 flex-shrink-0 tabular-nums">{paidByName} · {currency}{commas(parseFloat(e.amount), 2)}</span>
                           </div>
                         );
                       })}
@@ -830,7 +851,8 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
             {pots.map((pot) => (
               <PotCard key={pot.id} pot={pot} meId={me.id} myName={myName} partnerName={partnerName}
                 myAccent={myAccent} partnerAccent={partnerAccent}
-                onSelect={(p) => { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }} />
+                onSelect={(p) => { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }}
+                onTogglePin={handleTogglePotPin} />
             ))}
           </div>
         )
