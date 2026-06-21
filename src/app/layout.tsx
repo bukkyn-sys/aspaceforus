@@ -3,6 +3,7 @@ import { Instrument_Serif, Plus_Jakarta_Sans, Geist_Mono } from "next/font/googl
 import "./globals.css";
 import PwaRegister from "@/components/pwa-register";
 import ZoomPref from "@/components/zoom-pref";
+import ThemeSync from "@/components/theme-sync";
 
 const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument",
@@ -94,6 +95,7 @@ export default function RootLayout({
       <body className="h-full antialiased">
         <PwaRegister />
         <ZoomPref />
+        <ThemeSync />
         {children}
         {/* Portrait-only: phones in landscape see this instead of the app. */}
         <div className="landscape-lock" aria-hidden>

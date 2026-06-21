@@ -3,17 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-type Theme = "system" | "light" | "dark";
-
-function applyTheme(theme: Theme) {
-  const dark = theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.classList.toggle("dark", dark);
-  // Keep the status-bar tint in lockstep with the chosen theme.
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", dark ? "#1A1A18" : "#F9F8F6");
-}
+import { applyDark, resolveDark, type Theme } from "@/lib/theme";
 
 const OPTIONS: { id: Theme; label: string; Icon: typeof Sun }[] = [
   { id: "system", label: "auto", Icon: Monitor },
@@ -27,20 +17,12 @@ export default function ThemeToggle({ compact = false }: { compact?: boolean }) 
   useEffect(() => {
     setTheme(((localStorage.getItem("theme") as Theme) || "system"));
   }, []);
-
-  // When following the system, react to OS changes live.
-  useEffect(() => {
-    if (theme !== "system") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => applyTheme("system");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
+  // OS-change handling for "system" lives globally in <ThemeSync>.
 
   function choose(t: Theme) {
     setTheme(t);
     localStorage.setItem("theme", t);
-    applyTheme(t);
+    applyDark(resolveDark(t));
   }
 
   if (compact) {

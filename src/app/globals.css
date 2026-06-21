@@ -186,6 +186,17 @@
   }
 }
 
+/* One-shot crossfade when the theme flips (added by applyDark for ~320ms), so
+   light↔dark eases instead of jump-cutting. Scoped to colour properties. */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 300ms ease, color 300ms ease,
+              border-color 300ms ease, fill 300ms ease,
+              stroke 300ms ease, box-shadow 300ms ease !important;
+}
+
 /* ── Cold-start splash ─────────────────────────────────────────────────────────
    Pure CSS so it shows on first paint and dissolves on its own even if JS is slow
    to hydrate. Only plays on a full document load (not client navigations). */
