@@ -953,9 +953,12 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
           </div>
         );
 
-      // ── Plan — every new space gets 30 days of premium; lock in founding price ─
+      // ── Plan — premium trial (starts on pairing) + buy-now options ───────────
       case "plan": {
         const hex = selectedAccent.hex;
+        // Joiners reach here already paired (trial live); creators are still solo
+        // (trial begins the moment their partner joins).
+        const joined = tab === "join";
         const features = [
           "unlimited photos in your vault",
           "plan any month ahead, not just this one",
@@ -967,11 +970,15 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto">
               <motion.span variants={rise} className="self-start inline-flex items-center px-2.5 py-1 rounded-full mb-4 text-[11px] font-medium" style={{ backgroundColor: `${hex}1f`, color: hex }}>
-                ✨ 60 days free · no card needed
+                {joined ? "✨ your 60 days of premium start now" : "✨ 60 days free when your partner joins"}
               </motion.span>
-              <motion.h1 variants={rise} className="font-heading text-3xl text-foreground tracking-tight">your space, unlocked.</motion.h1>
+              <motion.h1 variants={rise} className="font-heading text-3xl text-foreground tracking-tight">
+                {joined ? "you're paired." : "your space awaits."}
+              </motion.h1>
               <motion.p variants={rise} className="text-sm text-muted-foreground mt-1.5 mb-7">
-                every new space starts with 60 days of <span className="font-heading">premium</span> — on us.
+                {joined
+                  ? <>60 days of <span className="font-heading">premium</span>, on us — enjoy it together.</>
+                  : <>your 60 days of <span className="font-heading">premium</span> begin the moment your partner joins. invite them with your code next.</>}
               </motion.p>
               <motion.ul variants={rise} className="space-y-2.5">
                 {features.map((f) => (
@@ -985,7 +992,7 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
 
             <div className="max-w-sm w-full mx-auto space-y-3">
               <Button onClick={startTrial} disabled={planBusy} className={cn(accentBtn, "text-white")} style={{ backgroundColor: hex }}>
-                start your 60 days free
+                {joined ? "start exploring" : "go to your space"}
               </Button>
               <div className="flex items-center gap-3">
                 <div className="h-px bg-border flex-1" />
