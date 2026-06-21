@@ -714,13 +714,25 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
-            placeholder="add a line…"
+            placeholder="add a line, then tap +"
             className="flex-1 text-sm text-amber-950/70 placeholder:text-amber-900/30 bg-transparent outline-none"
           />
-          {noteDraft.trim() && (
-            <button onClick={handleAddNote} className="w-7 h-7 flex items-center justify-center rounded-lg bg-amber-200/50 text-amber-800/80 active:scale-95" aria-label="add line"><Plus className="w-4 h-4" /></button>
-          )}
+          {/* Always-present + so it's clear a line has to be added (not auto-saved). */}
+          <button
+            onClick={handleAddNote}
+            disabled={!noteDraft.trim()}
+            aria-label="add line"
+            className={cn(
+              "w-7 h-7 flex items-center justify-center rounded-lg transition-all active:scale-95 flex-shrink-0",
+              noteDraft.trim() ? "bg-amber-400/80 text-white shadow-sm" : "bg-amber-200/40 text-amber-800/30"
+            )}
+          >
+            <Plus className="w-4 h-4" strokeWidth={2.5} />
+          </button>
         </div>
+        {noteDraft.trim() && (
+          <p className="text-[11px] text-amber-700/60 mt-1.5">tap + (or return) to save this line</p>
+        )}
       </div>
       </div>
 
