@@ -101,7 +101,12 @@ export function SwipePager({
   useEffect(() => {
     const w = widthRef.current || 1;
     const target = -index * w;
-    if (Math.abs(offsetRef.current - target) < 1) return;
+    if (Math.abs(offsetRef.current - target) < 1) {
+      // Already parked on this index (deep link, return from a routed page): no
+      // tween fires, so emit progress once so the nav/header sync to it.
+      onProgressRef.current?.(index);
+      return;
+    }
     const far = Math.abs(offsetRef.current / w + index) > 1.2;
     const vp = viewport.current;
     if (far && vp) {

@@ -300,6 +300,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingItem, setEditingItem] = useState<VaultItem | null>(null);
   const [actionItem, setActionItem] = useState<VaultItem | null>(null);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<VaultFolder | null>(null);
 
   // New folder form
   const [folderName, setFolderName] = useState("");
@@ -517,6 +518,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
 
   function handleDeleteFolder(folder: VaultFolder) {
     setFolders((prev) => prev.filter((f) => f.id !== folder.id));
+    setConfirmDeleteFolder(null);
     startTransition(() => deleteVaultFolder(folder.id, coupleId));
   }
 
@@ -685,18 +687,16 @@ export function VaultLists({ live = true }: { live?: boolean }) {
                   </p>
                 </div>
 
-                {/* Delete + chevron — fixed width so chevron is always aligned */}
+                {/* Delete + chevron — fixed width so chevron is always aligned.
+                    Default folders (date ideas / wishlist) are deletable too. */}
                 <div className="flex items-center pr-3.5 gap-1 flex-shrink-0">
-                  {!folder.is_default ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder); }}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  ) : (
-                    <div className="w-7" />
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteFolder(folder); }}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground hover:bg-secondary transition-colors"
+                    aria-label={`delete ${folder.name}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                   <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
                 </div>
               </button>
@@ -747,6 +747,26 @@ export function VaultLists({ live = true }: { live?: boolean }) {
             className="h-11 rounded-xl bg-card border-border/60"
           />
         </BottomSheet>
+
+        {/* Delete folder confirm — guards against losing a folder of items */}
+        <Dialog open={confirmDeleteFolder !== null} onClose={() => setConfirmDeleteFolder(null)}>
+          {confirmDeleteFolder && (
+            <>
+              <p className="font-semibold text-foreground text-center truncate">{confirmDeleteFolder.emoji} {confirmDeleteFolder.name}</p>
+              <p className="text-sm text-muted-foreground text-center mt-1 mb-5">
+                {confirmDeleteFolder.item_count > 0
+                  ? `delete this folder and the ${confirmDeleteFolder.item_count} ${confirmDeleteFolder.item_count === 1 ? "item" : "items"} in it?`
+                  : "delete this folder?"}
+              </p>
+              <div className="space-y-2">
+                <Button variant="outline" onClick={() => handleDeleteFolder(confirmDeleteFolder)} className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light">
+                  <Trash2 className="w-4 h-4 mr-1.5" /> delete folder
+                </Button>
+                <button onClick={() => setConfirmDeleteFolder(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+              </div>
+            </>
+          )}
+        </Dialog>
       </div>
     );
   }

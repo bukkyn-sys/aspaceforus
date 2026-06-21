@@ -197,7 +197,9 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
     startTransition(() => { setPriorityTodoList(coupleId, next); });
   }
 
-  function openList(l: TodoList) { setActiveList(l); setView("items"); setShowDone(false); }
+  // Completed items stay visible by default — seeing what's done is reassuring,
+  // and it lets ticks made from the Home pinned card show up here too.
+  function openList(l: TodoList) { setActiveList(l); setView("items"); setShowDone(true); }
   function backToLists() { setView("lists"); setActiveList(null); }
 
   function openAddItem() { setEditingItem(null); setItemTitle(""); setItemNotes(""); setItemDue(""); setItemAssignee(null); setItemRecurrence("none"); setItemRemind(false); setItemNeedsBoth(false); setSubtaskDraft(""); setShowItem(true); }

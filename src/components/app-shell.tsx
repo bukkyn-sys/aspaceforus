@@ -107,31 +107,44 @@ function AppShellInner({ children }: { children: ReactNode }) {
   }, [pushNav]);
 
   // Settled / external index changes: sync the pill + nav highlight, mark seen.
+  const prevIndexRef = useRef(index);
   useEffect(() => {
+    const indexChanged = prevIndexRef.current !== index;
+    prevIndexRef.current = index;
     if (isTab) {
-      vaultBar.current?.setProgress(index);
       const sec = navSectionOf(index);
-      pushNav(sec);
       markSeenRef.current(SECTION_NAME[sec]);
+      // When the index changed (tab tap / swipe settle) the pager animates and
+      // its onProgress drives the highlight continuously — exactly like a swipe.
+      // Pushing the target here too would flip target→origin (first anim frame)
+      // →target: the adjacent-tap jitter. So only sync directly when the pager
+      // isn't moving (return from settings, deep link to the current tab).
+      if (!indexChanged) { vaultBar.current?.setProgress(index); pushNav(sec); }
     } else { vaultBar.current?.setProgress(-99); pushNav(null); }
   }, [isTab, index, pushNav]);
 
-  // Sequential cross-fade between the pager (tabs) and a routed page (settings).
+  // Simultaneous cross-fade between the pager (tabs) and a routed page (settings):
+  // the incoming layer fades in as the outgoing fades out, with no blank gap in
+  // between — so opening / leaving settings reads as immediate, not staged. The
+  // route's loading.tsx commits the navigation instantly, so the fade starts the
+  // moment you tap rather than after the server data resolves.
   const target: "tab" | "page" = isTab ? "tab" : "page";
-  const [shown, setShown] = useState<"tab" | "page">(target);
-  const [fading, setFading] = useState(false);
+  const [pageMounted, setPageMounted] = useState(target === "page");
+  const [pageOpaque, setPageOpaque] = useState(target === "page");
   useEffect(() => {
-    if (target === shown) return;
-    setFading(true);
-    const t = window.setTimeout(() => { setShown(target); setFading(false); }, 210);
+    if (target === "page") {
+      setPageMounted(true);
+      const r = requestAnimationFrame(() => setPageOpaque(true)); // fade in next frame
+      return () => cancelAnimationFrame(r);
+    }
+    setPageOpaque(false);                                          // fade out now
+    const t = window.setTimeout(() => setPageMounted(false), 220); // unmount after fade
     return () => window.clearTimeout(t);
-  }, [target, shown]);
+  }, [target]);
   const lastPage = useRef<ReactNode>(children);
   if (!isTab) lastPage.current = children;
 
-  const pagerOpaque = shown === "tab" && !fading;
-  const pageMounted = shown === "page" || target === "page";
-  const pageOpaque = shown === "page" && !fading;
+  const pagerOpaque = !pageOpaque;
 
   return (
     <>

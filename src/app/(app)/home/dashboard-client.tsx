@@ -35,7 +35,7 @@ const MOOD_LABELS = ["very low", "low", "okay", "good", "great"];
 interface Countdown { id: string; title: string; target_date: string; end_date?: string | null; emoji: string; created_by: string; parts?: string[]; start_time?: string | null; attendee?: string | null; }
 interface NoteLine { id: string; body: string; created_by: string; sort_order: number; }
 interface PotMini { id: string; title: string; saved: number; goal: number; currency: string; }
-interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; }
+interface PriorityTodoItem { id: string; title: string; due_date: string | null; assignee: string | null; done?: boolean; }
 interface PriorityTodo { list_id: string; title: string; emoji: string; remaining: number; items: PriorityTodoItem[]; }
 
 // Calm due styling for the pinned to-do card (mirrors the vault's).
@@ -417,18 +417,30 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     startTransition(() => { deleteEvent(id, coupleId, me.id); });
   }
 
-  // Check off a pinned to-do straight from Home — optimistic remove + persist.
-  function handleTodoCheck(item: PriorityTodoItem) {
+  // Check off a pinned to-do straight from Home. We tick it in place (filled
+  // circle + strike-through) rather than making it vanish, so the action reads
+  // as "done", mirrors the vault, and can be undone with a second tap. The item
+  // drops off naturally on the next load (the RPC only returns open items).
+  function setTodoDone(id: string, done: boolean) {
     setData((prev) => prev.priorityTodo ? {
       ...prev,
       priorityTodo: {
         ...prev.priorityTodo,
-        items: prev.priorityTodo.items.filter((i) => i.id !== item.id),
-        remaining: Math.max(0, prev.priorityTodo.remaining - 1),
+        items: prev.priorityTodo.items.map((i) => i.id === id ? { ...i, done } : i),
+        remaining: Math.max(0, prev.priorityTodo.remaining + (done ? -1 : 1)),
       },
     } : prev);
-    track("todo_completed");
-    startTransition(() => { toggleTodoTick(item.id, coupleId, item.title); });
+  }
+  function handleTodoCheck(item: PriorityTodoItem) {
+    const nextDone = !item.done;
+    setTodoDone(item.id, nextDone);
+    if (nextDone) track("todo_completed");
+    startTransition(async () => {
+      // Reconcile with the server's derived state — a "needs both" item isn't
+      // actually done until the partner ticks too, so reflect that truth.
+      const res = await toggleTodoTick(item.id, coupleId, item.title);
+      if (res && typeof res.done === "boolean" && res.done !== nextDone) setTodoDone(item.id, res.done);
+    });
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -844,11 +856,17 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
                 <div key={item.id} className="flex items-center gap-3 py-1.5">
                   <button
                     onClick={() => handleTodoCheck(item)}
-                    aria-label={`mark "${item.title}" done`}
-                    className="w-[20px] h-[20px] rounded-full border-[1.5px] border-muted-foreground/30 hover:border-muted-foreground/60 flex-shrink-0 transition-colors active:scale-90"
-                  />
-                  <span className="text-sm text-foreground flex-1 truncate">{item.title}</span>
-                  {due && (
+                    aria-pressed={!!item.done}
+                    aria-label={item.done ? `mark "${item.title}" not done` : `mark "${item.title}" done`}
+                    className={cn(
+                      "w-[20px] h-[20px] rounded-full flex items-center justify-center flex-shrink-0 transition-colors active:scale-90",
+                      item.done ? "bg-sage" : "border-[1.5px] border-muted-foreground/30 hover:border-muted-foreground/60"
+                    )}
+                  >
+                    {item.done && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                  </button>
+                  <span className={cn("text-sm flex-1 truncate", item.done ? "line-through text-muted-foreground/50" : "text-foreground")}>{item.title}</span>
+                  {due && !item.done && (
                     <span className={cn("text-[11px] font-medium flex-shrink-0",
                       due.tone === "over" ? "text-terracotta/80" : due.tone === "today" ? "text-sage" : "text-muted-foreground/50")}>
                       {due.label}
@@ -858,9 +876,13 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
               );
             })}
           </div>
-          {data.priorityTodo.remaining > data.priorityTodo.items.length && (
-            <p className="text-[11px] text-muted-foreground/50 mt-2">+{data.priorityTodo.remaining - data.priorityTodo.items.length} more on the list</p>
-          )}
+          {(() => {
+            const shownOpen = data.priorityTodo.items.filter((i) => !i.done).length;
+            const more = data.priorityTodo.remaining - shownOpen;
+            return more > 0 ? (
+              <p className="text-[11px] text-muted-foreground/50 mt-2">+{more} more on the list</p>
+            ) : null;
+          })()}
         </div>
         </div>
       )}

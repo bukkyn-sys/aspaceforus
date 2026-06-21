@@ -159,7 +159,13 @@ function CropModal({
         const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM,
           pinchRef.current.startZoom * (dist / pinchRef.current.startDist),
         ));
-        const newOffset = clampOffset(offsetRef.current.x, offsetRef.current.y, newZoom, bw, bh);
+        // Anchor the zoom to the centre of the crop frame so it grows from the
+        // middle of the circle rather than the top-left corner.
+        const z0 = zoomRef.current;
+        const cx = FRAME.w / 2, cy = FRAME.h / 2;
+        const ax = cx - ((cx - offsetRef.current.x) / z0) * newZoom;
+        const ay = cy - ((cy - offsetRef.current.y) / z0) * newZoom;
+        const newOffset = clampOffset(ax, ay, newZoom, bw, bh);
         setZoom(newZoom);
         setOffset(newOffset);
         zoomRef.current = newZoom;

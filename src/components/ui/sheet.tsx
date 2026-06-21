@@ -8,17 +8,26 @@ import { useScrollLock } from "@/lib/use-scroll-lock";
 
 /** Esc-to-close + move focus into the panel on open and back to the trigger on close. */
 function useDialogA11y(open: boolean, onClose: () => void, panel: React.RefObject<HTMLDivElement | null>) {
+  // Keep onClose in a ref so the focus effect can depend on `open` ALONE. Callers
+  // almost always pass an inline arrow for onClose, so including it in the deps
+  // re-ran this effect on every parent render — and the re-run called
+  // panel.focus(), yanking focus out of whatever input you were typing in. That
+  // closed the keyboard after one keystroke (and snapped date pickers shut on the
+  // next tap). Now focus only moves on a real open/close transition.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     panel.current?.focus({ preventScroll: true });
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onCloseRef.current(); }
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       prev?.focus?.({ preventScroll: true });
     };
-  }, [open, onClose, panel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 }
 
 // Render to document.body so sheets/dialogs are never affected by an ancestor's
