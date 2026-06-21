@@ -189,6 +189,7 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   const [dateDraft, setDateDraft] = useState("");
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const [layoutDraft, setLayoutDraft] = useState<DashModule[]>([]);
+  const [showTrialInfo, setShowTrialInfo] = useState(false);
   const [, startTransition] = useTransition();
 
   // Founding-member badge, shown beside the profile button.
@@ -228,6 +229,18 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   useEffect(() => {
     if (!loading) setCache(`dash:${coupleId}`, { data, hasPartner });
   }, [data, hasPartner, loading, coupleId]);
+
+  // First time on Home while still solo: explain the trial starts at pairing
+  // (and nudge the invite). Shown once per space.
+  useEffect(() => {
+    if (loading || hasPartner) return;
+    try {
+      const key = `us_trialinfo_${coupleId}`;
+      if (localStorage.getItem(key)) return;
+      setShowTrialInfo(true);
+      localStorage.setItem(key, "1");
+    } catch { /* ignore */ }
+  }, [loading, hasPartner, coupleId]);
 
   const loadRef = useRef<(() => void) | null>(null);
   const dailyRefetch = useRef<(() => void) | null>(null);
@@ -1010,6 +1023,32 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
             </div>
           </>
         )}
+      </Dialog>
+
+      {/* First-run: trial starts when your partner joins (incentivise inviting). */}
+      <Dialog open={showTrialInfo} onClose={() => setShowTrialInfo(false)}>
+        <div className="flex justify-center mb-3">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(245,158,11,0.12)" }}>
+            <Heart className="w-6 h-6" style={{ color: "#D97706" }} fill="currentColor" />
+          </div>
+        </div>
+        <p className="font-semibold text-foreground text-center">invite your partner to unlock premium</p>
+        <p className="text-sm text-muted-foreground text-center mt-1 mb-4 leading-relaxed">
+          your <span className="font-medium text-foreground">60 days of premium, free</span> begin the moment they join your space — unlimited photos, full history, plan any month & more.
+        </p>
+        {data.inviteCode && (
+          <button
+            onClick={() => { navigator.clipboard.writeText(data.inviteCode!); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); }}
+            className="w-full flex items-center justify-between bg-secondary rounded-2xl px-4 py-3 mb-3 active:scale-[0.99] transition-transform"
+          >
+            <div className="text-left">
+              <p className="text-[11px] text-muted-foreground mb-0.5">your invite code</p>
+              <p className="font-mono text-base font-semibold tracking-widest text-foreground">{data.inviteCode}</p>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">{codeCopied ? "copied!" : "tap to copy"}</span>
+          </button>
+        )}
+        <Button onClick={() => setShowTrialInfo(false)} className="w-full h-11 rounded-xl">got it</Button>
       </Dialog>
 
       {/* Join request — "X wants to join your space, accept?" */}
