@@ -180,6 +180,9 @@
   html {
     -webkit-text-size-adjust: 100%;
     overscroll-behavior: none;
+    /* Paint the root too (incl. the safe-area / status-bar region under
+       viewport-fit: cover) so dark mode never shows a white band at the top. */
+    background: var(--background);
   }
 }
 

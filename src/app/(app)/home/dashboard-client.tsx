@@ -191,8 +191,8 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   const [layoutDraft, setLayoutDraft] = useState<DashModule[]>([]);
   const [, startTransition] = useTransition();
 
-  // Founding/beta identity badges, shown beside the profile button.
-  const { paid, lifetime, comp: beta, premium, onTrial, trialEndsAt, openPaywall } = useEntitlement();
+  // Founding-member badge, shown beside the profile button.
+  const { paid, lifetime, premium, onTrial, trialEndsAt, openPaywall } = useEntitlement();
   const founding = paid || lifetime;
   const [trialNudgeDismissed, setTrialNudgeDismissed] = useState(false);
   const trialDaysLeft = onTrial && trialEndsAt ? Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000) : null;
@@ -562,7 +562,7 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
           )}
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <PremiumBadges founding={founding} beta={beta} />
+          <PremiumBadges founding={founding} />
           {/* Settings gear — same destination as the avatar, just clearer. */}
           <Link
             href="/profile"

@@ -66,15 +66,16 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F9F8F6" },
-    { media: "(prefers-color-scheme: dark)", color: "#1A1A18" },
-  ],
   viewportFit: "cover",
+  // theme-color is set dynamically by themeScript / ThemeToggle to follow the
+  // ACTUAL (class-based) theme, not prefers-color-scheme — otherwise the status
+  // bar tint is wrong whenever the OS theme and the app's chosen theme differ.
 };
 
-// Applies the saved theme before first paint to avoid a flash of the wrong mode.
-const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+// Applies the saved theme before first paint to avoid a flash of the wrong mode,
+// and sets the status-bar theme-color to match (so the notch/status bar never
+// flashes the opposite mode's colour).
+const themeScript = `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');var c=d?'#1A1A18':'#F9F8F6';var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement('meta');m.setAttribute('name','theme-color');document.head.appendChild(m);}m.setAttribute('content',c);}catch(e){}})();`;
 
 export default function RootLayout({
   children,

@@ -14,21 +14,18 @@ function Pill({ label, color }: { label: string; color: string }) {
 }
 
 /**
- * Founding member (paid subscriber) and/or beta tester (comped) badges.
- * Renders nothing when neither applies.
+ * Founding member badge (paid subscriber or lifetime). Renders nothing otherwise.
  */
 export function PremiumBadges({
-  founding, beta, className,
+  founding, className,
 }: {
   founding?: boolean;
-  beta?: boolean;
   className?: string;
 }) {
-  if (!founding && !beta) return null;
+  if (!founding) return null;
   return (
     <span className={cn("inline-flex items-center gap-1", className)}>
-      {founding && <Pill label="founding" color="#D97706" />}
-      {beta && <Pill label="beta" color="#8B7BB8" />}
+      <Pill label="founding" color="#D97706" />
     </span>
   );
 }

@@ -25,9 +25,9 @@ function isActivePaid(s: any): boolean {
 }
 
 export type BillingState = {
-  premium: boolean;      // effective entitlement (paid OR comp OR active trial OR lifetime)
+  premium: boolean;      // effective entitlement (paid OR granted override OR active trial OR lifetime)
   paid: boolean;         // active paid subscription → founding member
-  comp: boolean;         // active beta/comp override → beta tester
+  granted: boolean;      // premium via an admin override (premium_override_until), not a purchase
   lifetime: boolean;     // one-time founding lifetime purchase
   onTrial: boolean;
   trialEndsAt: string | null;
@@ -37,7 +37,7 @@ export type BillingState = {
 };
 
 const EMPTY_STATE: BillingState = {
-  premium: false, paid: false, comp: false, lifetime: false, onTrial: false,
+  premium: false, paid: false, granted: false, lifetime: false, onTrial: false,
   trialEndsAt: null, plan: null, cancelAtPeriodEnd: false, currentPeriodEnd: null,
 };
 
@@ -60,7 +60,7 @@ export async function getBillingState(): Promise<BillingState> {
   const overrideUntil = (couple?.premium_override_until as string | null) ?? null;
   const lifetime = !!(couple as { lifetime_at?: string | null } | null)?.lifetime_at;
   const onTrial = !!trialEndsAt && new Date(trialEndsAt).getTime() > now;
-  const comp = !!overrideUntil && new Date(overrideUntil).getTime() > now;
+  const granted = !!overrideUntil && new Date(overrideUntil).getTime() > now;
   const active = (subs ?? []).find(isActivePaid);
   const paid = !!active;
 
@@ -70,9 +70,9 @@ export async function getBillingState(): Promise<BillingState> {
     : null;
 
   return {
-    premium: paid || comp || onTrial || lifetime,
+    premium: paid || granted || onTrial || lifetime,
     paid,
-    comp,
+    granted,
     lifetime,
     onTrial,
     trialEndsAt,
@@ -187,26 +187,6 @@ export async function startLifetimeCheckout(
   } catch (e) {
     console.error("startLifetimeCheckout failed", e);
     return { error: (e as Error)?.message ?? "checkout failed" };
-  }
-}
-
-// Redeem a beta/comp code → grants the couple free Premium (no Stripe). Runs on
-// the authed client so the RPC's auth.uid() resolves to the caller.
-export async function redeemBetaCode(code: string): Promise<{ ok?: boolean; error?: string }> {
-  try {
-    const { supabase, uid } = await getUid();
-    if (!uid) return { error: "not signed in" };
-    const { data, error } = await supabase.rpc("redeem_beta_code", { p_code: code });
-    if (error) return { error: error.message };
-    switch (data as string) {
-      case "ok": return { ok: true };
-      case "no_couple": return { error: "finish setting up your space first" };
-      case "exhausted": return { error: "this code has been fully used" };
-      default: return { error: "that code isn't valid" };
-    }
-  } catch (e) {
-    console.error("redeemBetaCode failed", e);
-    return { error: (e as Error)?.message ?? "could not redeem code" };
   }
 }
 

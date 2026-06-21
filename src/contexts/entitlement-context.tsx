@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { getBillingState, startCheckout, startLifetimeCheckout, getLifetimeSpots, type BillingState } from "@/app/(app)/profile/billing-actions";
-import { usePreviewFree } from "@/lib/preview-tier";
 import { BottomSheet } from "@/components/ui/sheet";
 import { Sparkles } from "lucide-react";
 
@@ -25,9 +24,8 @@ const REASON_COPY: Record<PaywallReason, string> = {
 
 type EntitlementValue = {
   loading: boolean;
-  premium: boolean;   // effective — honours the beta "preview as free" toggle
+  premium: boolean;   // effective entitlement
   paid: boolean;      // founding member (active paid subscription)
-  comp: boolean;      // beta tester
   lifetime: boolean;  // one-time founding lifetime purchase
   onTrial: boolean;
   trialEndsAt: string | null;
@@ -42,7 +40,6 @@ const GOLD_TINT = "rgba(245,158,11,0.10)";
 
 export function EntitlementProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<BillingState | null>(null);
-  const previewFree = usePreviewFree();
   const [reason, setReason] = useState<PaywallReason | null>(null);
   const [busy, setBusy] = useState(false);
   const [spots, setSpots] = useState<number | null>(null);
@@ -56,11 +53,10 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
     getLifetimeSpots().then(setSpots).catch(() => {});
   }, [reason]);
 
-  // While entitlement is still loading, assume premium so entitled users (beta /
-  // trial / paid — the vast majority) never flash the free experience or a
-  // paywall. The server-side triggers backstop the brief window for real free
-  // users. Once loaded, honour the real status (and the beta preview toggle).
-  const premium = state === null ? true : (state.premium && !previewFree);
+  // While entitlement is still loading, assume premium so entitled users (trial /
+  // paid — the vast majority) never flash the free experience or a paywall. The
+  // server-side triggers backstop the brief window for real free users.
+  const premium = state === null ? true : state.premium;
   const openPaywall = useCallback((r: PaywallReason = "generic") => setReason(r), []);
 
   async function subscribe(plan: "monthly" | "annual") {
@@ -87,7 +83,6 @@ export function EntitlementProvider({ children }: { children: ReactNode }) {
         loading: state === null,
         premium,
         paid: state?.paid ?? false,
-        comp: state?.comp ?? false,
         lifetime: state?.lifetime ?? false,
         onTrial: state?.onTrial ?? false,
         trialEndsAt: state?.trialEndsAt ?? null,

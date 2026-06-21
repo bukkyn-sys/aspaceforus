@@ -10,6 +10,9 @@ function applyTheme(theme: Theme) {
   const dark = theme === "dark" ||
     (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.classList.toggle("dark", dark);
+  // Keep the status-bar tint in lockstep with the chosen theme.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", dark ? "#1A1A18" : "#F9F8F6");
 }
 
 const OPTIONS: { id: Theme; label: string; Icon: typeof Sun }[] = [
