@@ -2,7 +2,9 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { saveProfile, createCouple, joinCouple, setOnboardingStartDate } from "./actions";
+import { saveProfile, createCouple, requestJoinCouple, setOnboardingStartDate } from "./actions";
+import { LegalSheet } from "@/components/legal-sheet";
+import type { LegalDoc } from "@/lib/legal";
 import { startCheckout, redeemBetaCode } from "@/app/(app)/profile/billing-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +18,7 @@ import { DateField } from "@/components/ui/date-field";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/theme-toggle";
 
-type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "finish" | "plan" | "install";
+type Step = "welcome" | "pillars" | "name" | "photo" | "colour" | "couple" | "waiting" | "finish" | "plan" | "install";
 type Tab = "create" | "join";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -554,6 +556,10 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
   const [showCode, setShowCode] = useState(false);
   const [betaCode, setBetaCode] = useState("");
 
+  // Legal — must accept before looking around; viewable any time.
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -586,7 +592,7 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
   const [pillarDir, setPillarDir] = useState(1);
   const prevStep = useRef<Step>(step);
   useEffect(() => {
-    const order: Step[] = ["install", "welcome", "pillars", "name", "photo", "colour", "couple", "finish", "plan"];
+    const order: Step[] = ["install", "welcome", "pillars", "name", "photo", "colour", "couple", "waiting", "finish", "plan"];
     setDirection(order.indexOf(step) >= order.indexOf(prevStep.current) ? 1 : -1);
     prevStep.current = step;
   }, [step]);
@@ -647,13 +653,44 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
     startTransition(async () => {
       const avatarUrl = croppedBlob ? await uploadAvatar(croppedBlob) : avatarPreview;
       await saveProfile({ userId, name, accentColor, avatarUrl });
-      const result = await joinCouple(userId, joinCode);
-      if (result && "error" in result && result.error) { setError(result.error); return; }
-      try { sessionStorage.setItem("ph_pending_event", "couple_joined"); } catch { /* ignore */ }
-      // Joining completes the pair → the 30-day trial is now live. Offer the plan.
-      setStep("plan");
+      const result = await requestJoinCouple(userId, joinCode, name.trim() || "someone");
+      if ("error" in result && result.error) { setError(result.error); return; }
+      // Already a member (rare) → straight through. Otherwise wait for the
+      // existing partner to accept the request before joining completes.
+      if ("ok" in result) { setStep("plan"); return; }
+      setStep("waiting");
     });
   }
+
+  // While waiting, listen for our own request flipping to accepted / declined.
+  // (RLS lets a requester read their own join_requests rows even pre-couple.)
+  useEffect(() => {
+    if (step !== "waiting") return;
+    const supabase = createClient();
+    async function check() {
+      const { data } = await supabase
+        .from("join_requests")
+        .select("status")
+        .eq("requester_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const status = (data as { status?: string } | null)?.status;
+      if (status === "accepted") {
+        try { sessionStorage.setItem("ph_pending_event", "couple_joined"); } catch { /* ignore */ }
+        setStep("plan");
+      } else if (status === "rejected" || status === "cancelled") {
+        setError("your request wasn't accepted. double-check the code with your partner and try again.");
+        setStep("couple");
+      }
+    }
+    check(); // catch a response that landed before we subscribed
+    const ch = supabase
+      .channel(`join-req-${userId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "join_requests", filter: `requester_id=eq.${userId}` }, check)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [step, userId]);
 
   function copyCode() {
     if (!inviteCode) return;
@@ -737,7 +774,23 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
               </motion.p>
             </motion.div>
             <motion.div variants={rise} initial="hidden" animate="show" className="max-w-sm w-full mx-auto">
-              <Button onClick={() => setStep("pillars")} className={accentBtnCls} style={brandBg}>
+              <button
+                type="button"
+                onClick={() => setAcceptedLegal((v) => !v)}
+                className="flex items-start gap-2.5 w-full text-left mb-4 px-1"
+              >
+                <span className={cn("w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors", acceptedLegal ? "border-transparent" : "border-border")}
+                  style={acceptedLegal ? { backgroundColor: brandHex } : undefined}>
+                  {acceptedLegal && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                </span>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  I agree to the{" "}
+                  <span onClick={(e) => { e.stopPropagation(); setLegalDoc("terms"); }} className="text-foreground underline underline-offset-2">terms of service</span>{" "}
+                  and{" "}
+                  <span onClick={(e) => { e.stopPropagation(); setLegalDoc("privacy"); }} className="text-foreground underline underline-offset-2">privacy policy</span>.
+                </span>
+              </button>
+              <Button onClick={() => setStep("pillars")} disabled={!acceptedLegal} className={accentBtnCls} style={brandBg}>
                 take a look around
               </Button>
             </motion.div>
@@ -876,6 +929,27 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
           </SetupShell>
         );
 
+      // ── Waiting for the existing partner to accept the join request ───────────
+      case "waiting":
+        return (
+          <div className="min-h-full flex flex-col items-center justify-center px-8 text-center">
+            <div className="relative mb-6">
+              <span className="absolute inset-0 rounded-full animate-ping" style={{ backgroundColor: `${brandHex}26` }} />
+              <span className="relative w-16 h-16 rounded-full flex items-center justify-center" style={{ backgroundColor: `${brandHex}1f` }}>
+                <Heart className="w-7 h-7" style={{ color: brandHex }} fill="currentColor" />
+              </span>
+            </div>
+            <h1 className="font-heading text-2xl text-foreground tracking-tight mb-2">request sent</h1>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
+              waiting for your partner to accept you into their space. this screen updates the moment they do.
+            </p>
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/50 mt-6" />
+            <button onClick={() => { setError(null); setStep("couple"); }} className="text-xs text-muted-foreground/60 hover:text-muted-foreground mt-8">
+              cancel
+            </button>
+          </div>
+        );
+
       // ── Plan — every new space gets 30 days of premium; lock in founding price ─
       case "plan": {
         const hex = selectedAccent.hex;
@@ -989,6 +1063,7 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
     <div className="fixed inset-0 bg-background overflow-hidden">
       <Ambient accent={colourPicked ? selectedAccent.hex : NEUTRAL_GLOW} />
       {cropFile && <CropModal file={cropFile} onConfirm={handleCropConfirm} onCancel={() => setCropFile(null)} />}
+      <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />
       <AnimatePresence initial={false} custom={direction}>
         <motion.div
           key={step}

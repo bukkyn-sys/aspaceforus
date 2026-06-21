@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { notifyPartner } from "@/lib/push";
 
 export async function saveProfile(data: {
   userId: string;
@@ -26,15 +27,24 @@ export async function createCouple(userId: string) {
   return { inviteCode: inviteCode as string, coupleId: coupleId as string };
 }
 
-export async function joinCouple(userId: string, code: string) {
+// Ask to join a space: creates a PENDING request and pings the existing member
+// to accept. The joiner waits on a "waiting for them to accept" screen until
+// their request row flips to accepted (see onboarding-client).
+export async function requestJoinCouple(userId: string, code: string, requesterName: string) {
   const supabase = await createClient();
-  const { data: result, error } = await supabase.rpc("join_couple_for_user", { p_user_id: userId, p_code: code });
+  const { data, error } = await supabase.rpc("request_join_couple", { p_user_id: userId, p_code: code });
   if (error) return { error: error.message };
-  if (result === "rate_limited") return { error: "too many attempts — try again in 15 minutes." };
-  if (result === "not_found") return { error: "code not found — double-check with your partner." };
-  if (result === "full") return { error: "that space already has two people in it." };
-  // Success — the client routes on to the plan step (then /home).
-  return { ok: true as const };
+  const res = (data ?? {}) as { status?: string; couple_id?: string };
+  if (res.status === "rate_limited") return { error: "too many attempts — try again in 15 minutes." };
+  if (res.status === "not_found") return { error: "code not found — double-check with your partner." };
+  if (res.status === "full") return { error: "that space already has two people in it." };
+  // Already in this space — nothing to confirm, just proceed.
+  if (res.status === "already_member") return { ok: true as const };
+  if (res.status === "pending" && res.couple_id) {
+    await notifyPartner(res.couple_id, userId, "us.", `${requesterName} wants to join your space`, "/home");
+    return { pending: true as const };
+  }
+  return { error: "something went wrong — please try again." };
 }
 
 export async function setOnboardingStartDate(userId: string, coupleId: string, date: string) {

@@ -9,7 +9,7 @@ import {
   addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, updateSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder,
 } from "./actions";
-import { Check, Trash2, Pencil, Repeat } from "lucide-react";
+import { Check, Trash2, Pencil, Repeat, Info } from "lucide-react";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -21,6 +21,7 @@ import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { useOwnerIdentity } from "@/lib/owner-identity";
 import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
+import { PersonPicker } from "@/components/ui/person-picker";
 import { netBalance, isSettled } from "@/lib/ledger-math";
 import { undoableDelete } from "@/lib/toast";
 import { cn, clickable } from "@/lib/utils";
@@ -526,20 +527,14 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
             </div>
           </Field>
           <Field label="who paid?">
-            <div className="flex gap-2">
-              {([["me", myName], ["partner", partnerName]] as ["me" | "partner", string][]).map(([v, l]) => {
-                const selected = paidBy === v;
-                const accent = v === "me" ? myAccent.hex : partnerAccent.hex;
-                return (
-                  <button key={v} onClick={() => setPaidBy(v)} aria-pressed={selected}
-                    className={cn("flex-1 py-2 text-sm rounded-xl border-2 transition-colors",
-                      selected ? "bg-foreground text-background" : "bg-card text-muted-foreground border-border/60"
-                    )}
-                    style={selected ? { borderColor: accent } : undefined}
-                  >{l}</button>
-                );
-              })}
-            </div>
+            <PersonPicker
+              value={paidBy}
+              onChange={(v) => setPaidBy(v === "partner" ? "partner" : "me")}
+              choices={[
+                { value: "me", label: myName, personId: me.id },
+                { value: "partner", label: partnerName, personId: partner?.id },
+              ]}
+            />
           </Field>
           <Field label={`your share: ${split}%`}>
             <input type="range" min="0" max="100" value={split} onChange={(e) => setSplit(e.target.value)} className="w-full accent-foreground" />
@@ -729,6 +724,14 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
             </button>
           </div>
         )
+      )}
+
+      {/* Gentle clarification — this is a record-keeper, not a payments app. */}
+      {!loading && (
+        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground/50 leading-snug mb-4 px-1">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0" strokeWidth={2} />
+          <span>just a tracker to keep things fair — no real money moves here. settle up between yourselves however you like.</span>
+        </div>
       )}
 
       {/* Tabs */}

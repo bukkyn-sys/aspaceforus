@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode, Sparkles } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode, Sparkles, FileText, Shield, ChevronRight } from "lucide-react";
+import { LegalSheet } from "@/components/legal-sheet";
+import type { LegalDoc } from "@/lib/legal";
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
@@ -524,6 +526,7 @@ export default function ProfileClient({
   const [showLeave, setShowLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const [origin, setOrigin] = useState("");
   useEffect(() => setOrigin(window.location.origin), []);
   const { currency: coupleCurrency, me, partner } = useCouple();
@@ -875,6 +878,29 @@ export default function ProfileClient({
 
       {/* Accessibility */}
       <AccessibilitySettings />
+
+      {/* About & legal */}
+      <div className="card overflow-hidden mb-4">
+        <p className="text-xs text-muted-foreground font-medium tracking-wide p-4 pb-3">about &amp; legal</p>
+        <button
+          onClick={() => setLegalDoc("privacy")}
+          className="w-full flex items-center gap-3 px-4 py-3 border-t border-border/40 text-left active:bg-black/[0.02] transition-colors"
+        >
+          <Shield className="w-4 h-4 text-muted-foreground flex-shrink-0" strokeWidth={1.75} />
+          <span className="text-sm text-foreground flex-1">privacy policy</span>
+          <ChevronRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0" />
+        </button>
+        <button
+          onClick={() => setLegalDoc("terms")}
+          className="w-full flex items-center gap-3 px-4 py-3 border-t border-border/40 text-left active:bg-black/[0.02] transition-colors"
+        >
+          <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" strokeWidth={1.75} />
+          <span className="text-sm text-foreground flex-1">terms of service</span>
+          <ChevronRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0" />
+        </button>
+      </div>
+
+      <LegalSheet doc={legalDoc} onClose={() => setLegalDoc(null)} />
 
       {/* Leave couple */}
       <button

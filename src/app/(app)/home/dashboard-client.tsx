@@ -6,7 +6,7 @@ import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
-import { setMood, setStartedAt, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine } from "./actions";
+import { setMood, setStartedAt, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine, getPendingJoinRequest, respondJoinRequest } from "./actions";
 import { addEvent, updateEvent, deleteEvent } from "@/app/(app)/calendar/actions";
 import { EventSheet, type EventDraft } from "@/components/event-sheet";
 import type { DayPart } from "@/lib/day-parts";
@@ -200,6 +200,11 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   const [noteDraft, setNoteDraft] = useState("");
   const [editingNote, setEditingNote] = useState<{ id: string; body: string } | null>(null);
 
+  // Pending "someone wants to join your space" request (shown to the existing
+  // member until they accept / decline).
+  const [joinReq, setJoinReq] = useState<{ id: string; requester_id: string; name: string | null; avatar_url: string | null; accent_color: string | null } | null>(null);
+  const [joinBusy, setJoinBusy] = useState(false);
+
   function openNewEvent() {
     setEditingEvent(null);
     setShowEventSheet(true);
@@ -324,6 +329,32 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     channelRef.current = channel;
     return () => { if (reloadTimer) clearTimeout(reloadTimer); supabase.removeChannel(channel); channelRef.current = null; };
   }, [coupleId, me.id, partner, live]);
+
+  // While solo, watch for "someone wants to join your space" requests + show the
+  // accept/decline prompt. Stops once paired.
+  useEffect(() => {
+    if (!live || hasPartner) { setJoinReq(null); return; }
+    const supabase = createClient();
+    let active = true;
+    const refetch = async () => { const r = await getPendingJoinRequest(coupleId); if (active) setJoinReq(r); };
+    refetch();
+    const ch = supabase.channel(`joinreq-${coupleId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "join_requests", filter: `couple_id=eq.${coupleId}` }, refetch)
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
+  }, [coupleId, hasPartner, live]);
+
+  async function handleJoinResponse(accept: boolean) {
+    if (!joinReq) return;
+    setJoinBusy(true);
+    const res = await respondJoinRequest(joinReq.id, accept, coupleId);
+    setJoinBusy(false);
+    setJoinReq(null);
+    if (accept && res && "status" in res && res.status === "accepted") {
+      setHasPartner(true);
+      loadRef.current?.();
+    }
+  }
 
   function handleMood(mood: number) {
     const at = new Date().toISOString();
@@ -938,6 +969,32 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
                 <Trash2 className="w-4 h-4 mr-1.5" /> remove
               </Button>
               <button onClick={() => setActionCountdown(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+            </div>
+          </>
+        )}
+      </Dialog>
+
+      {/* Join request — "X wants to join your space, accept?" */}
+      <Dialog open={joinReq !== null} onClose={() => { if (!joinBusy) setJoinReq(null); }}>
+        {joinReq && (
+          <>
+            <div className="flex justify-center mb-3">
+              <div className="w-14 h-14 rounded-full overflow-hidden bg-secondary flex items-center justify-center" style={{ boxShadow: `0 0 0 2px ${getAccent(joinReq.accent_color).hex}` }}>
+                {joinReq.avatar_url
+                  ? <SignedImg src={joinReq.avatar_url} className="w-full h-full object-cover" />
+                  : <span className="text-lg font-semibold text-muted-foreground">{(joinReq.name ?? "?")[0]?.toUpperCase()}</span>}
+              </div>
+            </div>
+            <p className="font-semibold text-foreground text-center">{joinReq.name ?? "someone"} wants to join your space</p>
+            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">accept to pair up — this is your shared space from here on.</p>
+            <div className="space-y-2">
+              <Button onClick={() => handleJoinResponse(true)} disabled={joinBusy} className="w-full h-11 rounded-xl">
+                {joinBusy ? "…" : "accept"}
+              </Button>
+              <Button variant="outline" onClick={() => handleJoinResponse(false)} disabled={joinBusy}
+                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light">
+                decline
+              </Button>
             </div>
           </>
         )}

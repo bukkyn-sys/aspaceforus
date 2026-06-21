@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
+import { PersonPicker } from "@/components/ui/person-picker";
 import { OwnerAvatars } from "@/components/ui/owner-avatars";
 import { SignedImg } from "@/components/signed-img";
 import { SkeletonRows } from "@/components/ui/skeleton";
@@ -237,7 +238,7 @@ function VisualPicker({
 }
 
 function OwnerButtons({
-  value, onChange, meId, myName, partner, partnerName, myAccentHex, partnerAccentHex,
+  value, onChange, meId, myName, partner, partnerName,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -245,29 +246,17 @@ function OwnerButtons({
   myName: string;
   partner: { id: string } | null;
   partnerName: string;
-  myAccentHex: string;
-  partnerAccentHex: string;
 }) {
   return (
-    <div className="flex gap-2">
-      {[
-        { value: "shared", label: "shared", accent: null as string | null },
-        { value: meId,     label: myName,   accent: myAccentHex },
-        ...(partner ? [{ value: partner.id, label: partnerName, accent: partnerAccentHex }] : []),
-      ].map((o) => {
-        const selected = value === o.value;
-        return (
-          <button key={o.value} onClick={() => onChange(o.value)}
-            className={cn(
-              "flex-1 py-2 text-sm rounded-xl border-2 transition-colors capitalize",
-              selected ? "bg-foreground text-background" : "bg-card text-muted-foreground border-border/60",
-              selected && !o.accent && "border-foreground"
-            )}
-            style={selected && o.accent ? { borderColor: o.accent } : undefined}
-          >{o.label}</button>
-        );
-      })}
-    </div>
+    <PersonPicker
+      value={value}
+      onChange={(v) => onChange(v ?? "shared")}
+      choices={[
+        { value: "shared", label: "shared" },
+        { value: meId, label: myName, personId: meId },
+        ...(partner ? [{ value: partner.id, label: partnerName, personId: partner.id }] : []),
+      ]}
+    />
   );
 }
 
@@ -332,7 +321,6 @@ export function VaultLists({ live = true }: { live?: boolean }) {
 
   const scrolled = useScrolled();
   const myAccent = getAccent(me.accent_color);
-  const partnerAccent = getAccent(partner?.accent_color);
 
 
   // Free spaces keep the two starter folders, so creating a new folder is
@@ -973,7 +961,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
         </div>
         <div>
           <FieldLabel>for?</FieldLabel>
-          <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
+          <OwnerButtons value={owner} onChange={setOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
         </div>
       </BottomSheet>
 
@@ -1034,7 +1022,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
         </div>
         <div>
           <FieldLabel>for?</FieldLabel>
-          <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} myAccentHex={myAccent.hex} partnerAccentHex={partnerAccent.hex} />
+          <OwnerButtons value={editOwner} onChange={setEditOwner} meId={me.id} myName={myName} partner={partner} partnerName={partnerName} />
         </div>
         {activeFolder?.kind === "date_idea" && (
           <div>

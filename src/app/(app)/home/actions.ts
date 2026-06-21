@@ -117,3 +117,23 @@ export async function deleteNoteLine(id: string, coupleId: string) {
   if (!uid) return;
   await supabase.from("note_items").delete().eq("id", id).eq("couple_id", coupleId);
 }
+
+// ── Join requests — the existing member's side of the confirmation step ───────
+export async function getPendingJoinRequest(coupleId: string) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return null;
+  const { data } = await supabase.rpc("pending_join_request", { p_couple_id: coupleId });
+  return (data ?? null) as { id: string; requester_id: string; name: string | null; avatar_url: string | null; accent_color: string | null; created_at: string } | null;
+}
+
+export async function respondJoinRequest(requestId: string, accept: boolean, coupleId: string) {
+  const { supabase, uid } = await getUid();
+  if (!uid) return { error: "not signed in" };
+  const { data, error } = await supabase.rpc("respond_join_request", { p_request_id: requestId, p_accept: accept });
+  if (error) return { error: error.message };
+  const status = data as string;
+  if (status === "accepted") {
+    await notifyPartner(coupleId, uid, "us.", "you're in! your space is ready 💛", "/home");
+  }
+  return { status };
+}

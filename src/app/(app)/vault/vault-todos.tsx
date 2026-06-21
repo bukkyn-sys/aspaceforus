@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
 import { Field, FieldLabel, ChipRow } from "@/components/ui/form";
+import { PersonPicker } from "@/components/ui/person-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
@@ -524,14 +525,15 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
         </div>
         <div>
           <FieldLabel>for</FieldLabel>
-          <div className="flex gap-1.5">
-            {[{ v: null, label: "anyone" }, { v: me.id, label: myName }, ...(partner ? [{ v: partner.id, label: partnerName }, { v: "both", label: "both" }] : [])].map((o) => (
-              <button key={String(o.v)} onClick={() => setItemAssignee(o.v)}
-                className={cn("flex-1 h-9 rounded-xl text-xs font-medium transition-colors capitalize", itemAssignee === o.v ? "bg-foreground text-background" : "bg-secondary text-muted-foreground")}>
-                {o.label}
-              </button>
-            ))}
-          </div>
+          <PersonPicker
+            value={itemAssignee}
+            onChange={setItemAssignee}
+            choices={[
+              { value: null, label: "anyone" },
+              { value: me.id, label: myName, personId: me.id },
+              ...(partner ? [{ value: partner.id, label: partnerName, personId: partner.id }, { value: "both", label: "both" }] : []),
+            ]}
+          />
         </div>
         <div>
           <FieldLabel>repeats</FieldLabel>

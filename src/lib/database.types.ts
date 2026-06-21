@@ -391,6 +391,33 @@ export type Database = {
         }
         Relationships: []
       }
+      join_requests: {
+        Row: {
+          couple_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          responded_at: string | null
+          status: string
+        }
+        Insert: {
+          couple_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          responded_at?: string | null
+          status?: string
+        }
+        Update: {
+          couple_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          responded_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       ledger_entries: {
         Row: {
           amount: number
@@ -1330,6 +1357,15 @@ export type Database = {
         Returns: string
       }
       leave_couple_for_user: { Args: { p_user_id: string }; Returns: undefined }
+      pending_join_request: { Args: { p_couple_id: string }; Returns: Json }
+      request_join_couple: {
+        Args: { p_code: string; p_user_id: string }
+        Returns: Json
+      }
+      respond_join_request: {
+        Args: { p_accept: boolean; p_request_id: string }
+        Returns: string
+      }
       mark_section_activity: {
         Args: { p_section: string; p_user_id: string }
         Returns: undefined
