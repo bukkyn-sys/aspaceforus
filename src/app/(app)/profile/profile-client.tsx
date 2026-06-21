@@ -12,7 +12,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
 import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple } from "./actions";
-import { getBillingState, startCheckout, openBillingPortal, type BillingState } from "./billing-actions";
+import { getBillingState, startCheckout, startLifetimeCheckout, getLifetimeSpots, openBillingPortal, type BillingState } from "./billing-actions";
 import { usePreviewFree, setPreviewFree } from "@/lib/preview-tier";
 import { PremiumBadges } from "@/components/premium-badges";
 import { useEntitlement } from "@/contexts/entitlement-context";
@@ -379,14 +379,27 @@ function BillingSettings() {
   const [state, setState] = useState<BillingState | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [spots, setSpots] = useState<number | null>(null);
   const previewFree = usePreviewFree();
 
-  useEffect(() => { getBillingState().then(setState); }, []);
+  useEffect(() => { getBillingState().then(setState); getLifetimeSpots().then(setSpots).catch(() => {}); }, []);
 
   async function subscribe(plan: "monthly" | "annual") {
     setBusy(true); setErr(null);
     try {
       const r = await startCheckout(plan);
+      if (r.url) { window.location.href = r.url; return; }
+      setErr(r.error ?? "something went wrong");
+    } catch (e) {
+      setErr((e as Error)?.message ?? "something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function buyLifetime() {
+    setBusy(true); setErr(null);
+    try {
+      const r = await startLifetimeCheckout();
       if (r.url) { window.location.href = r.url; return; }
       setErr(r.error ?? "something went wrong");
     } catch (e) {
@@ -412,6 +425,7 @@ function BillingSettings() {
   const isBeta = !!state?.comp;
   const paid = !!state?.paid && !previewFree;
   const comp = isBeta && !previewFree;
+  const lifetime = !!state?.lifetime && !previewFree;
   const onTrial = !!state?.onTrial && !previewFree;
   const fmt = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "";
@@ -428,12 +442,14 @@ function BillingSettings() {
           <Sparkles className="w-4 h-4" style={{ color: GOLD }} />
           <p className="text-sm font-semibold text-foreground">us. premium</p>
           <span className="ml-auto">
-            <PremiumBadges founding={state?.paid} beta={state?.comp} />
+            <PremiumBadges founding={state?.paid || state?.lifetime} beta={state?.comp} />
           </span>
         </div>
 
         {state === null ? (
           <p className="text-sm text-muted-foreground/60">…</p>
+        ) : lifetime ? (
+          <p className="text-sm text-foreground">founding lifetime member — premium, forever. 💛</p>
         ) : paid ? (
           <>
             <p className="text-sm text-foreground">{state.plan === "annual" ? "annual plan" : "monthly plan"} · active</p>
@@ -466,8 +482,8 @@ function BillingSettings() {
                 style={{ borderColor: GOLD, backgroundColor: GOLD_TINT }}
               >
                 <span className="absolute -top-2 left-3 text-[9px] font-bold tracking-wide text-white px-1.5 py-0.5 rounded-full" style={{ backgroundColor: GOLD }}>BEST VALUE</span>
-                <p className="text-base font-bold text-foreground leading-none mt-1">£19.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">save ~16% · locks rate</p>
+                <p className="text-base font-bold text-foreground leading-none mt-1">£29.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">save 37% · locks rate</p>
               </button>
 
               {/* Monthly */}
@@ -476,10 +492,29 @@ function BillingSettings() {
                 disabled={busy}
                 className="rounded-xl border border-border bg-card p-3 text-left transition active:scale-[0.98] disabled:opacity-60"
               >
-                <p className="text-base font-bold text-foreground leading-none mt-1">£1.98<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
-                <p className="text-[10px] text-muted-foreground mt-1">99p each · cancel anytime</p>
+                <p className="text-base font-bold text-foreground leading-none mt-1">£3.99<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">billed monthly · cancel anytime</p>
               </button>
             </div>
+
+            {/* Founding lifetime — one-time, scarce. Hidden once sold out. */}
+            {(spots === null || spots > 0) && (
+              <button
+                onClick={buyLifetime}
+                disabled={busy}
+                className="mt-2 w-full rounded-xl border border-border bg-card p-3 text-left transition active:scale-[0.98] disabled:opacity-60 flex items-center justify-between gap-2"
+              >
+                <div>
+                  <p className="text-sm font-bold text-foreground leading-none">£49.99 <span className="text-xs font-normal text-muted-foreground">once · lifetime</span></p>
+                  <p className="text-[10px] text-muted-foreground mt-1">founding member — pay once, premium forever</p>
+                </div>
+                {spots !== null && (
+                  <span className="text-[10px] font-semibold flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ color: GOLD_TEXT, backgroundColor: GOLD_TINT }}>
+                    {spots.toLocaleString("en-GB")} of 5,000 left
+                  </span>
+                )}
+              </button>
+            )}
             <p className="text-[10px] text-muted-foreground/60 mt-2">one plan covers both of you · monthly may rise as we grow</p>
           </>
         )}

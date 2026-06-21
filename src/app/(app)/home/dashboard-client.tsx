@@ -192,7 +192,8 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
   const [, startTransition] = useTransition();
 
   // Founding/beta identity badges, shown beside the profile button.
-  const { paid: founding, comp: beta, premium, openPaywall } = useEntitlement();
+  const { paid, lifetime, comp: beta, premium, openPaywall } = useEntitlement();
+  const founding = paid || lifetime;
 
   // Shared-note lines
   const [noteDraft, setNoteDraft] = useState("");

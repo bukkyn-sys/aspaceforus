@@ -93,6 +93,7 @@ export type Database = {
           dashboard_layout: Json | null
           id: string
           invite_code: string | null
+          lifetime_at: string | null
           priority_todo_list_id: string | null
           shared_note: string | null
           started_at: string | null
@@ -1355,6 +1356,10 @@ export type Database = {
       }
       get_session_data: { Args: { p_user_id: string }; Returns: Json }
       is_couple_member: { Args: { target_couple_id: string }; Returns: boolean }
+      claim_lifetime: { Args: { p_couple_id: string }; Returns: boolean }
+      lifetime_spots_remaining: { Args: Record<string, never>; Returns: number }
+      free_history_cutoff: { Args: { p_couple_id: string }; Returns: string }
+      grant_couple_trial: { Args: { p_couple_id: string }; Returns: undefined }
       join_couple_for_user: {
         Args: { p_code: string; p_user_id: string }
         Returns: string

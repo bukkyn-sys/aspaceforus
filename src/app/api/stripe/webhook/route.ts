@@ -53,6 +53,10 @@ export async function POST(req: Request) {
         if (session.mode === "subscription" && session.subscription) {
           const sub = await stripe().subscriptions.retrieve(session.subscription as string);
           await upsertSub(admin, sub);
+        } else if (session.mode === "payment" && session.metadata?.kind === "lifetime") {
+          // One-time founding lifetime purchase — grant it (honours the 5,000 cap).
+          const coupleId = session.metadata?.couple_id;
+          if (coupleId) await admin.rpc("claim_lifetime", { p_couple_id: coupleId });
         }
         break;
       }

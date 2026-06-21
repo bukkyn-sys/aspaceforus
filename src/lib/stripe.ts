@@ -26,6 +26,8 @@ export function priceFor(plan: PlanInterval): string {
 }
 export const PRICE_MONTHLY = () => process.env.STRIPE_PRICE_MONTHLY ?? "";
 export const PRICE_ANNUAL = () => process.env.STRIPE_PRICE_ANNUAL ?? "";
+// One-time founding lifetime price (mode: payment, not a subscription).
+export const PRICE_LIFETIME = () => process.env.STRIPE_PRICE_LIFETIME ?? "";
 
 // `current_period_end` lives on the subscription item in newer API versions and
 // on the subscription itself in older ones — read whichever is present.

@@ -964,11 +964,11 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
           <div className="min-h-full flex flex-col px-6 pt-8 pb-10">
             <motion.div variants={stagger} initial="hidden" animate="show" className="flex-1 flex flex-col justify-center max-w-sm w-full mx-auto">
               <motion.span variants={rise} className="self-start inline-flex items-center px-2.5 py-1 rounded-full mb-4 text-[11px] font-medium" style={{ backgroundColor: `${hex}1f`, color: hex }}>
-                ✨ 30 days free · no card needed
+                ✨ 60 days free · no card needed
               </motion.span>
               <motion.h1 variants={rise} className="font-heading text-3xl text-foreground tracking-tight">your space, unlocked.</motion.h1>
               <motion.p variants={rise} className="text-sm text-muted-foreground mt-1.5 mb-7">
-                every new space starts with 30 days of <span className="font-heading">premium</span> — on us.
+                every new space starts with 60 days of <span className="font-heading">premium</span> — on us.
               </motion.p>
               <motion.ul variants={rise} className="space-y-2.5">
                 {features.map((f) => (
@@ -982,7 +982,7 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
 
             <div className="max-w-sm w-full mx-auto space-y-3">
               <Button onClick={startTrial} disabled={planBusy} className={cn(accentBtn, "text-white")} style={{ backgroundColor: hex }}>
-                start your 30 days free
+                start your 60 days free
               </Button>
               <div className="flex items-center gap-3">
                 <div className="h-px bg-border flex-1" />
@@ -991,12 +991,12 @@ export default function OnboardingClient({ userId, firstName, initialInvite }: P
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => subscribeFromOnboarding("annual")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
-                  <span className="text-sm font-medium">£19.99 / yr</span>
+                  <span className="text-sm font-medium">£29.99 / yr</span>
                   <span className="text-[10px] text-muted-foreground">best value</span>
                 </Button>
                 <Button onClick={() => subscribeFromOnboarding("monthly")} disabled={planBusy} variant="outline" className="flex-1 h-12 rounded-xl flex flex-col gap-0 leading-tight">
-                  <span className="text-sm font-medium">£1.98 / mo</span>
-                  <span className="text-[10px] text-muted-foreground">99p each</span>
+                  <span className="text-sm font-medium">£3.99 / mo</span>
+                  <span className="text-[10px] text-muted-foreground">billed monthly</span>
                 </Button>
               </div>
               <p className="text-[11px] text-center text-muted-foreground/50">annual locks the founding rate · cancel anytime</p>
