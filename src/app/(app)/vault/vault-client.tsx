@@ -361,19 +361,9 @@ export function VaultLists({ live = true }: { live?: boolean }) {
           .eq("couple_id", coupleId),
       ]);
 
-      let folderList = (foldersRaw ?? []) as Omit<VaultFolder, "item_count">[];
-
-      // Seed defaults for new couples
-      if (folderList.length === 0) {
-        await addVaultFolder({ coupleId, userId: me.id, name: "date ideas", emoji: "🌹", kind: "date_idea", isDefault: true });
-        await addVaultFolder({ coupleId, userId: me.id, name: "wishlist",  emoji: "🎁", kind: "wishlist",  isDefault: true });
-        const { data: refetched } = await supabase
-          .from("vault_folders")
-          .select("id, name, emoji, kind, is_default, sort_order, created_by, created_at")
-          .eq("couple_id", coupleId)
-          .order("sort_order");
-        folderList = (refetched ?? []) as Omit<VaultFolder, "item_count">[];
-      }
+      // Defaults are seeded once at couple creation (create_couple_for_user) —
+      // we intentionally do NOT re-seed on empty, so deleting the defaults sticks.
+      const folderList = (foldersRaw ?? []) as Omit<VaultFolder, "item_count">[];
 
       const counts = (countRaw ?? []).reduce<Record<string, number>>((acc, i) => {
         if (i.folder_id) acc[i.folder_id] = (acc[i.folder_id] ?? 0) + 1;

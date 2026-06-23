@@ -37,12 +37,13 @@ export async function addVaultFolder(data: {
 export async function deleteVaultFolder(id: string, coupleId: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
+  // Default folders are deletable too (they're seeded once at couple creation,
+  // not re-seeded) — so no is_default guard here.
   await supabase
     .from("vault_folders")
     .delete()
     .eq("id", id)
-    .eq("couple_id", coupleId)
-    .eq("is_default", false);
+    .eq("couple_id", coupleId);
 }
 
 export async function addVaultItem(data: {
