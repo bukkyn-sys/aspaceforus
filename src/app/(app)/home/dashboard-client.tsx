@@ -318,7 +318,9 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     };
 
     // Realtime: note/started_at via postgres_changes, moods via broadcast.
-    const channel = supabase.channel(`dash-${coupleId}`)
+    // Private channel — realtime.messages RLS (realtime_authz.sql) restricts this
+    // topic (and its postgres_changes) to the couple's own members.
+    const channel = supabase.channel(`dash-${coupleId}`, { config: { private: true } })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${coupleId}` },
         (p) => setData((prev) => ({ ...prev, startedAt: p.new.started_at ?? null })))
       .on("broadcast", { event: "mood" },

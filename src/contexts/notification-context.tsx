@@ -53,7 +53,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         });
       });
 
-    const channel = supabase.channel(`notif-${coupleId}`)
+    // Private channel — realtime.messages RLS (realtime_authz.sql) restricts this
+    // topic to the couple's own members.
+    const channel = supabase.channel(`notif-${coupleId}`, { config: { private: true } })
       .on("broadcast", { event: "activity" },
         ({ payload }: { payload: { section: Section; uid: string } }) => {
           if (payload.uid !== me.id) {
