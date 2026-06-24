@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useTransition } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
+import DashboardSkeleton from "./dashboard-skeleton";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, setStartedAt, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine, getPendingJoinRequest, respondJoinRequest } from "./actions";
@@ -255,6 +256,7 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     const supabase = createClient();
 
     async function load() {
+     try {
       // Single RPC replaces the previous ~11 parallel queries (see get_home_data.sql).
       const { data: raw } = await supabase.rpc("get_home_data", { p_user_id: me.id });
       const h = raw as HomeData | null;
@@ -292,6 +294,10 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
       setCache(`dash:${coupleId}`, { data: newData, hasPartner: hasP });
       // (Events are never auto-deleted — they're the shared calendar history.
       // get_home_data already returns only upcoming/ongoing ones for this module.)
+     } catch {
+      // Network hiccup — don't strand the skeleton; show the page (cache if any).
+      setLoading(false);
+     }
     }
 
     load();
@@ -530,6 +536,10 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
     setShowLayoutEditor(false);
     startTransition(() => { setDashboardLayout(coupleId, layoutDraft); });
   }
+
+  // First load (no cache yet) → skeleton. Revisits init `loading` false from
+  // cache, so this only shows on a genuine cold/slow load.
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="pb-6 max-w-lg mx-auto">
