@@ -1,6 +1,7 @@
 "use server";
 
 import { getUid } from "@/lib/auth-server";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 export type DayPart = "morning" | "afternoon" | "evening" | "night";
 
@@ -71,12 +72,12 @@ export async function addEvent(data: {
     ...(data.id ? { id: data.id } : {}),
     couple_id: data.coupleId,
     created_by: uid,
-    title: data.title,
+    title: clampRequired(data.title, LIMITS.title),
     on_date: data.onDate,
     parts: data.parts,
     until_date: data.untilDate || null,
-    start_time: data.startTime || null,
-    emoji: data.emoji ?? "📅",
+    start_time: clampText(data.startTime, 32),
+    emoji: clampText(data.emoji, LIMITS.emoji) ?? "📅",
     attendee: data.attendee ?? null,
   });
 }

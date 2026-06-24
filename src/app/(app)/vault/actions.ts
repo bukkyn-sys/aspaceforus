@@ -2,6 +2,7 @@
 
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 type VaultKind = "date_idea" | "wishlist" | "general";
 
@@ -24,8 +25,8 @@ export async function addVaultFolder(data: {
       ...(data.id ? { id: data.id } : {}),
       couple_id: data.coupleId,
       created_by: uid,
-      name: data.name,
-      emoji: data.emoji,
+      name: clampRequired(data.name, LIMITS.name),
+      emoji: clampText(data.emoji, LIMITS.emoji) ?? undefined,
       kind: data.kind,
       is_default: data.isDefault ?? false,
     })
@@ -70,14 +71,14 @@ export async function addVaultItem(data: {
     created_by: uid,
     folder_id: data.folderId,
     type: data.folderKind === "date_idea" ? "date_idea" : data.folderKind === "wishlist" ? "wishlist" : "general",
-    owner: data.owner,
-    title: data.title,
-    url: data.url || null,
-    notes: data.notes || null,
-    price_range: data.priceRange || null,
-    og_image: data.ogImage || null,
-    og_title: data.ogTitle || null,
-    item_emoji: data.itemEmoji || null,
+    owner: clampText(data.owner, LIMITS.owner),
+    title: clampRequired(data.title, LIMITS.title),
+    url: clampText(data.url, LIMITS.url),
+    notes: clampText(data.notes, LIMITS.note),
+    price_range: clampText(data.priceRange, LIMITS.priceRange),
+    og_image: clampText(data.ogImage, LIMITS.url),
+    og_title: clampText(data.ogTitle, LIMITS.title),
+    item_emoji: clampText(data.itemEmoji, LIMITS.emoji),
     stage: "ideas",
   });
   await notifyPartner(
@@ -123,14 +124,14 @@ export async function updateVaultItem(data: {
   await supabase
     .from("vault_items")
     .update({
-      title: data.title,
-      url: data.url || null,
-      notes: data.notes || null,
-      owner: data.owner || null,
-      price_range: data.priceRange ?? null,
-      og_image: data.ogImage ?? null,
-      og_title: data.ogTitle ?? null,
-      item_emoji: data.itemEmoji ?? null,
+      title: clampRequired(data.title, LIMITS.title),
+      url: clampText(data.url, LIMITS.url),
+      notes: clampText(data.notes, LIMITS.note),
+      owner: clampText(data.owner, LIMITS.owner),
+      price_range: clampText(data.priceRange, LIMITS.priceRange),
+      og_image: clampText(data.ogImage, LIMITS.url),
+      og_title: clampText(data.ogTitle, LIMITS.title),
+      item_emoji: clampText(data.itemEmoji, LIMITS.emoji),
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)

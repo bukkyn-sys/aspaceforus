@@ -2,6 +2,7 @@
 
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 export async function addLedgerEntry(data: {
   id?: string;
@@ -21,10 +22,10 @@ export async function addLedgerEntry(data: {
     couple_id: data.coupleId,
     created_by: uid,
     paid_by: data.paidBy,   // semantic — user chooses who paid
-    title: data.title,
+    title: clampRequired(data.title, LIMITS.title),
     amount: data.amount,
     split_ratio: data.splitRatio,
-    category: data.category || null,
+    category: clampText(data.category, LIMITS.category),
     recurrence: data.recurrence ?? "none",
     settled: false,
   });
@@ -58,11 +59,11 @@ export async function updateLedgerEntry(data: {
   await supabase
     .from("ledger_entries")
     .update({
-      title: data.title,
+      title: clampRequired(data.title, LIMITS.title),
       amount: data.amount,
       paid_by: data.paidBy,
       split_ratio: data.splitRatio,
-      category: data.category || null,
+      category: clampText(data.category, LIMITS.category),
       recurrence: data.recurrence ?? "none",
     })
     .eq("id", data.id)
@@ -99,11 +100,11 @@ export async function addSavingsPot(data: {
     couple_id: data.coupleId,
     created_by: uid,
     folder_id: data.folderId,
-    title: data.title,
+    title: clampRequired(data.title, LIMITS.title),
     goal_amount: data.goalAmount,
     target_date: data.targetDate || null,
-    currency: data.currency || "£",
-    emoji: data.emoji || null,
+    currency: clampText(data.currency, LIMITS.currency) || "£",
+    emoji: clampText(data.emoji, LIMITS.emoji),
     his_amount: 0,
     hers_amount: 0,
   }).select("id").single();
@@ -126,11 +127,11 @@ export async function updateSavingsPot(data: {
   await supabase
     .from("savings_pots")
     .update({
-      title: data.title,
+      title: clampRequired(data.title, LIMITS.title),
       goal_amount: data.goalAmount,
       target_date: data.targetDate || null,
-      currency: data.currency || "£",
-      emoji: data.emoji || null,
+      currency: clampText(data.currency, LIMITS.currency) || "£",
+      emoji: clampText(data.emoji, LIMITS.emoji),
       updated_at: new Date().toISOString(),
     })
     .eq("id", data.id)
@@ -184,8 +185,8 @@ export async function addPotFolder(data: {
     .insert({
       couple_id: data.coupleId,
       created_by: uid,
-      name: data.name,
-      emoji: data.emoji,
+      name: clampRequired(data.name, LIMITS.name),
+      emoji: clampText(data.emoji, LIMITS.emoji) ?? undefined,
       is_default: data.isDefault ?? false,
     })
     .select("id")

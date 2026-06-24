@@ -2,6 +2,7 @@
 
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 export async function createTodoList(coupleId: string, title: string, emoji: string, id?: string) {
   const { supabase, uid } = await getUid();
@@ -11,7 +12,7 @@ export async function createTodoList(coupleId: string, title: string, emoji: str
   // and the items fail to save — the list looks empty after a reload).
   const { data } = await supabase
     .from("vault_todo_lists")
-    .insert({ ...(id ? { id } : {}), couple_id: coupleId, created_by: uid, title, emoji })
+    .insert({ ...(id ? { id } : {}), couple_id: coupleId, created_by: uid, title: clampRequired(title, LIMITS.title), emoji: clampText(emoji, LIMITS.emoji) ?? undefined })
     .select("id")
     .single();
   return data?.id as string | undefined;
@@ -20,7 +21,7 @@ export async function createTodoList(coupleId: string, title: string, emoji: str
 export async function renameTodoList(id: string, coupleId: string, title: string, emoji: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.from("vault_todo_lists").update({ title, emoji }).eq("id", id).eq("couple_id", coupleId);
+  await supabase.from("vault_todo_lists").update({ title: clampRequired(title, LIMITS.title), emoji: clampText(emoji, LIMITS.emoji) ?? undefined }).eq("id", id).eq("couple_id", coupleId);
 }
 
 export async function deleteTodoList(id: string, coupleId: string) {
@@ -52,8 +53,8 @@ export async function addTodo(data: {
       list_id: data.listId,
       created_by: uid,
       parent_id: data.parentId || null,
-      title: data.title,
-      notes: data.notes || null,
+      title: clampRequired(data.title, LIMITS.title),
+      notes: clampText(data.notes, LIMITS.note),
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",
@@ -85,8 +86,8 @@ export async function updateTodo(data: {
   await supabase
     .from("vault_todos")
     .update({
-      title: data.title,
-      notes: data.notes || null,
+      title: clampRequired(data.title, LIMITS.title),
+      notes: clampText(data.notes, LIMITS.note),
       due_date: data.dueDate || null,
       assignee: data.assignee || null,
       recurrence: data.recurrence || "none",

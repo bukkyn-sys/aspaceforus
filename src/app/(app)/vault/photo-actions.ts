@@ -2,6 +2,7 @@
 
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 export async function addPhoto(data: {
   coupleId: string;
@@ -21,7 +22,7 @@ export async function addPhoto(data: {
       path: data.path,
       width: data.width,
       height: data.height,
-      caption: data.caption || null,
+      caption: clampText(data.caption, LIMITS.caption),
       album_id: data.albumId || null,
     })
     .select("id")
@@ -40,7 +41,7 @@ export async function setPhotoFavorite(id: string, coupleId: string, favorite: b
 export async function updatePhotoCaption(id: string, coupleId: string, caption: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.from("vault_photos").update({ caption: caption || null }).eq("id", id).eq("couple_id", coupleId);
+  await supabase.from("vault_photos").update({ caption: clampText(caption, LIMITS.caption) }).eq("id", id).eq("couple_id", coupleId);
 }
 
 export async function deletePhoto(id: string, coupleId: string, path: string) {
@@ -55,7 +56,7 @@ export async function createAlbum(coupleId: string, name: string) {
   if (!uid) return;
   const { data } = await supabase
     .from("vault_albums")
-    .insert({ couple_id: coupleId, created_by: uid, name })
+    .insert({ couple_id: coupleId, created_by: uid, name: clampRequired(name, LIMITS.name) })
     .select("id")
     .single();
   return data?.id as string | undefined;
@@ -64,7 +65,7 @@ export async function createAlbum(coupleId: string, name: string) {
 export async function renameAlbum(id: string, coupleId: string, name: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.from("vault_albums").update({ name }).eq("id", id).eq("couple_id", coupleId);
+  await supabase.from("vault_albums").update({ name: clampRequired(name, LIMITS.name) }).eq("id", id).eq("couple_id", coupleId);
 }
 
 // Deletes the album only — its photos fall back to unsorted (album_id → null via FK).

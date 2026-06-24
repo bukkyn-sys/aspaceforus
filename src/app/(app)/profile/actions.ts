@@ -1,10 +1,11 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { clampRequired, clampText, LIMITS } from "@/lib/validate-input";
 
 export async function updateDisplayName(userId: string, name: string) {
   const supabase = await createClient();
-  await supabase.rpc("update_my_display_name", { p_user_id: userId, p_name: name });
+  await supabase.rpc("update_my_display_name", { p_user_id: userId, p_name: clampRequired(name, LIMITS.name) });
 }
 
 export async function updateAccentColor(userId: string, color: string) {
@@ -14,17 +15,17 @@ export async function updateAccentColor(userId: string, color: string) {
 
 export async function updateAvatar(userId: string, url: string) {
   const supabase = await createClient();
-  await supabase.rpc("update_my_avatar", { p_user_id: userId, p_url: url });
+  await supabase.rpc("update_my_avatar", { p_user_id: userId, p_url: clampText(url, LIMITS.url) ?? "" });
 }
 
 export async function updateCoupleBanner(coupleId: string, userId: string, url: string) {
   const supabase = await createClient();
-  await supabase.rpc("update_couple_banner", { p_couple_id: coupleId, p_user_id: userId, p_url: url });
+  await supabase.rpc("update_couple_banner", { p_couple_id: coupleId, p_user_id: userId, p_url: clampText(url, LIMITS.url) ?? "" });
 }
 
 export async function updateCoupleCurrency(coupleId: string, userId: string, currency: string) {
   const supabase = await createClient();
-  await supabase.rpc("update_couple_currency", { p_couple_id: coupleId, p_user_id: userId, p_currency: currency });
+  await supabase.rpc("update_couple_currency", { p_couple_id: coupleId, p_user_id: userId, p_currency: clampRequired(currency, LIMITS.currency) });
 }
 
 export async function updateCoupleBannerFocus(coupleId: string, userId: string, focus: number) {

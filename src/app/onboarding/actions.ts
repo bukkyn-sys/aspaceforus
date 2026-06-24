@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { notifyPartner } from "@/lib/push";
+import { clampRequired, LIMITS } from "@/lib/validate-input";
 
 export async function saveProfile(data: {
   userId: string;
@@ -10,7 +11,7 @@ export async function saveProfile(data: {
   avatarUrl: string | null;
 }) {
   const supabase = await createClient();
-  await supabase.rpc("update_my_display_name", { p_user_id: data.userId, p_name: data.name.trim() });
+  await supabase.rpc("update_my_display_name", { p_user_id: data.userId, p_name: clampRequired(data.name, LIMITS.name) });
   await supabase.rpc("update_my_accent_color", { p_user_id: data.userId, p_color: data.accentColor });
   if (data.avatarUrl) {
     await supabase.rpc("update_my_avatar", { p_user_id: data.userId, p_url: data.avatarUrl });

@@ -2,6 +2,7 @@
 
 import { getUid } from "@/lib/auth-server";
 import { notifyPartner } from "@/lib/push";
+import { clampText, clampRequired, LIMITS } from "@/lib/validate-input";
 
 export async function setMood(userId: string, mood: number, coupleId?: string) {
   const { supabase, uid } = await getUid();
@@ -16,7 +17,7 @@ export async function setMood(userId: string, mood: number, coupleId?: string) {
 export async function updateNote(coupleId: string, userId: string, note: string) {
   const { supabase, uid } = await getUid();
   if (!uid) return;
-  await supabase.rpc("update_shared_note", { p_couple_id: coupleId, p_user_id: uid, p_note: note });
+  await supabase.rpc("update_shared_note", { p_couple_id: coupleId, p_user_id: uid, p_note: clampRequired(note, LIMITS.note) });
 }
 
 export async function setDashboardLayout(coupleId: string, layout: { id: string; size: "full" | "half" }[]) {
@@ -49,11 +50,11 @@ export async function addCountdown(data: {
   await supabase.from("events").insert({
     couple_id: data.coupleId,
     created_by: uid,
-    title: data.title,
+    title: clampRequired(data.title, LIMITS.title),
     on_date: data.targetDate,
     parts: ALL_PARTS,
     until_date: data.endDate || null,
-    emoji: data.emoji,
+    emoji: clampText(data.emoji, LIMITS.emoji),
   });
 }
 
@@ -99,7 +100,7 @@ export async function addNoteLine(coupleId: string, body: string, sortOrder: num
   if (!uid) return;
   const { data } = await supabase
     .from("note_items")
-    .insert({ couple_id: coupleId, created_by: uid, body, sort_order: sortOrder })
+    .insert({ couple_id: coupleId, created_by: uid, body: clampRequired(body, LIMITS.note), sort_order: sortOrder })
     .select("id")
     .single();
   return data?.id as string | undefined;
@@ -109,7 +110,7 @@ export async function updateNoteLine(id: string, coupleId: string, body: string)
   const { supabase, uid } = await getUid();
   if (!uid) return;
   // Shared note: either partner may edit any line in their couple.
-  await supabase.from("note_items").update({ body }).eq("id", id).eq("couple_id", coupleId);
+  await supabase.from("note_items").update({ body: clampRequired(body, LIMITS.note) }).eq("id", id).eq("couple_id", coupleId);
 }
 
 export async function deleteNoteLine(id: string, coupleId: string) {
