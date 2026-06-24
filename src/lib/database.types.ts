@@ -1324,6 +1324,8 @@ export type Database = {
         Args: { p_couple_id: string; p_date: string; p_part: string }
         Returns: undefined
       }
+      delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
+      export_my_data: { Args: Record<PropertyKey, never>; Returns: Json }
       create_couple_for_user: { Args: { p_user_id: string }; Returns: string }
       daily_build: {
         Args: {

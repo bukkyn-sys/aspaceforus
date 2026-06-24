@@ -5,13 +5,13 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode, Sparkles, FileText, Shield, ChevronRight } from "lucide-react";
+import { ArrowLeft, Camera, Check, LogOut, Lock, Bell, BellOff, Loader2, UserMinus, QrCode, Sparkles, FileText, Shield, ChevronRight, Download, Trash2 } from "lucide-react";
 import { LegalSheet } from "@/components/legal-sheet";
 import type { LegalDoc } from "@/lib/legal";
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
-import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple } from "./actions";
+import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple, exportMyData, deleteAccount } from "./actions";
 import { getBillingState, startCheckout, startLifetimeCheckout, getLifetimeSpots, openBillingPortal, type BillingState } from "./billing-actions";
 import { PremiumBadges } from "@/components/premium-badges";
 import { useEntitlement } from "@/contexts/entitlement-context";
@@ -538,6 +538,9 @@ export default function ProfileClient({
   const [cropState, setCropState] = useState<{ file: File; purpose: "avatar" | "banner" } | null>(null);
   const [showLeave, setShowLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const [origin, setOrigin] = useState("");
@@ -574,6 +577,32 @@ export default function ProfileClient({
     setLeaving(true);
     await leaveCouple(profile.id);
     window.location.href = "/onboarding";
+  }
+
+  async function handleExportData() {
+    setExporting(true);
+    try {
+      const res = await exportMyData();
+      if (res.error || !res.data) { alert("couldn't export your data — please try again"); return; }
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `us-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    const res = await deleteAccount();
+    if (res.error) { setDeleting(false); alert(`couldn't delete account: ${res.error}`); return; }
+    clearCache();
+    try { await createClient().auth.signOut(); } catch { /* session already gone */ }
+    window.location.href = "/auth/login";
   }
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
@@ -937,6 +966,44 @@ export default function ProfileClient({
         <LogOut className="w-4 h-4" />
         sign out
       </button>
+
+      {/* Your data — GDPR export + account deletion */}
+      <div className="mt-6 pt-4 border-t border-border/40">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground/50 px-4 mb-1">your data</p>
+        <button
+          onClick={handleExportData}
+          disabled={exporting}
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-60"
+        >
+          {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          download my data
+        </button>
+        <button
+          onClick={() => setShowDelete(true)}
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          delete my account
+        </button>
+      </div>
+
+      <Dialog open={showDelete} onClose={() => { if (!deleting) setShowDelete(false); }}>
+        <p className="font-semibold text-foreground text-center">delete your account?</p>
+        <p className="text-sm text-muted-foreground text-center mt-2 mb-5 leading-relaxed">
+          this permanently deletes your account and personal data. if you have a partner, your shared items pass to them so their space keeps working; if you&apos;re on your own, the space and its contents are deleted. this can&apos;t be undone.
+        </p>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            onClick={handleDeleteAccount}
+            disabled={deleting}
+            className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4 mr-1.5" /> delete account</>}
+          </Button>
+          <button onClick={() => setShowDelete(false)} disabled={deleting} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
+        </div>
+      </Dialog>
 
       <Dialog open={showLeave} onClose={() => { if (!leaving) setShowLeave(false); }}>
         <p className="font-semibold text-foreground text-center">leave this couple?</p>
