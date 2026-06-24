@@ -34,6 +34,18 @@ revoke execute on function priority_todo_json(uuid)             from anon, authe
 revoke execute on function is_premium(uuid)                     from anon, authenticated;
 revoke execute on function free_history_cutoff(uuid)            from anon, authenticated;
 
+-- ── Deactivate the committed beta code ───────────────────────────────────────
+-- The repo is PUBLIC, so the seeded 'BETALOVE' code (1yr premium x500) is
+-- readable by anyone → free premium. Disable it. Issue real codes out-of-band
+-- with high entropy and NEVER commit them, e.g.:
+--   insert into beta_codes (code, note, premium_days, max_uses)
+--   values (encode(gen_random_bytes(12),'hex'), 'who', 365, 1);
+update beta_codes set active = false where code = 'BETALOVE';
+
+-- NOTE (follow-up, separate migration): redeem_beta_code() has no brute-force
+-- throttle. Add rate-limiting like join_couple_for_user (reuse join_attempts)
+-- before relying on beta codes at any scale.
+
 -- ── Verify ───────────────────────────────────────────────────────────────────
 -- Lists every SECURITY DEFINER public function and whether `authenticated` can
 -- still call it. After running the above, the only `true` rows should be ones a
