@@ -11,5 +11,17 @@ if (dsn) {
     // Privacy: never record a couple's private screens.
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 0,
+    // Don't attach IP / cookies / headers by default.
+    sendDefaultPii: false,
+    // Strip anything that could carry couple content before it leaves the device.
+    beforeSend(event) {
+      if (event.request) {
+        delete event.request.cookies;
+        delete event.request.data;
+        if (event.request.headers) delete event.request.headers["authorization"];
+      }
+      delete event.user;
+      return event;
+    },
   });
 }

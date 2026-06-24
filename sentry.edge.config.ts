@@ -6,5 +6,18 @@ if (dsn) {
   Sentry.init({
     dsn,
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+    sendDefaultPii: false,
+    beforeSend(event) {
+      if (event.request) {
+        delete event.request.cookies;
+        delete event.request.data;
+        if (event.request.headers) {
+          delete event.request.headers["authorization"];
+          delete event.request.headers["cookie"];
+        }
+      }
+      delete event.user;
+      return event;
+    },
   });
 }

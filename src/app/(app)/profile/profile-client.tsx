@@ -24,6 +24,7 @@ import { Dialog } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/theme-toggle";
 import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
+import { clearCache } from "@/lib/data-cache";
 import { cn } from "@/lib/utils";
 import { isZoomEnabled, setZoomEnabled } from "@/components/zoom-pref";
 
@@ -928,6 +929,7 @@ export default function ProfileClient({
         onClick={async () => {
           const s = createClient();
           await s.auth.signOut();
+          clearCache(); // wipe couple data so it can't be read after logout (shared device)
           window.location.href = "/auth/login";
         }}
         className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:text-terracotta hover:bg-terracotta-light transition-colors"

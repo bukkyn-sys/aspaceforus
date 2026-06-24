@@ -30,3 +30,15 @@ export function setCache<T>(key: string, data: T): void {
   mem.set(key, { data, at: Date.now() });
   ssSet(key, data);
 }
+
+// Wipe all cached couple data. Call on sign-out so a previous user's data can't
+// be read from sessionStorage/memory on a shared device (data remanence).
+export function clearCache(): void {
+  mem.clear();
+  try {
+    for (let i = sessionStorage.length - 1; i >= 0; i--) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith("uc:")) sessionStorage.removeItem(k);
+    }
+  } catch { /* sessionStorage unavailable — nothing to clear */ }
+}
