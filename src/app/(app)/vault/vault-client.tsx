@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import VaultListsSkeleton from "./vault-lists-skeleton";
 import { useCouple } from "@/contexts/couple-context";
 import { useFabSetter } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
@@ -381,7 +382,7 @@ export function VaultLists({ live = true }: { live?: boolean }) {
       }
       setFoldersLoading(false);
     };
-    load();
+    load().catch(() => setFoldersLoading(false)); // network hiccup — don't strand the skeleton
   }, [coupleId, me.id, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load items when folder is opened (or partner changes something)
@@ -620,6 +621,10 @@ export function VaultLists({ live = true }: { live?: boolean }) {
     // open/copy-link for your partner's.
     setActionItem(item);
   }
+
+  // First load → skeleton (covers the initial folders view). Once loaded,
+  // foldersLoading stays false for the life of the tab.
+  if (foldersLoading) return <VaultListsSkeleton />;
 
   // ── FOLDERS VIEW ─────────────────────────────────────────────────────────────
 

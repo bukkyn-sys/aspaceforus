@@ -139,7 +139,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
       setEvents(events);
       setLoading(false);
       setCache(key, { rows, events });
-    });
+    }).catch(() => setLoading(false)); // network hiccup — don't strand the loading state
   }, [coupleId, year, month, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live updates — partner's availability / event changes come in without refresh.

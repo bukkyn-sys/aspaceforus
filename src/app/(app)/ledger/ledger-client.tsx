@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
+import LedgerSkeleton from "./ledger-skeleton";
 import {
   addLedgerEntry, updateLedgerEntry, deleteLedgerEntry, settleAll, addSavingsPot, updateSavingsPot, contributeToPot,
   deleteSavingsPot, addPotFolder, setPotPinned,
@@ -358,7 +359,7 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
         const p = pots.find((x) => x.id === potParam);
         if (p) { setSelectedPot(p); setContribDelta(""); setContribMode("add"); }
       }
-    });
+    }).catch(() => setLoading(false)); // network hiccup — don't strand the skeleton
   }, [coupleId, rtick, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadHistory() {
@@ -714,6 +715,9 @@ export default function LedgerClient({ live = true }: { live?: boolean }) {
 
   const presentCategories = Array.from(new Set(entries.map((e) => e.category).filter(Boolean))) as string[];
   const visibleEntries = categoryFilter === "all" ? entries : entries.filter((e) => e.category === categoryFilter);
+
+  // First load (no cache) → skeleton. Revisits init `loading` false from cache.
+  if (loading) return <LedgerSkeleton />;
 
   return (
     <div className="px-4 pb-6 max-w-lg mx-auto">

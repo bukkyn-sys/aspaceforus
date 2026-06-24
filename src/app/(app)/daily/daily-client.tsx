@@ -47,7 +47,7 @@ export default function DailyHistoryClient() {
 
   useEffect(() => {
     track("daily_history_opened");
-    fetchPage(null).then((rows) => { setItems(rows); setLoading(false); });
+    fetchPage(null).then((rows) => { setItems(rows); setLoading(false); }).catch(() => setLoading(false));
   }, [fetchPage]);
 
   async function loadMore() {
