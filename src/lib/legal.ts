@@ -1,10 +1,9 @@
 // Privacy Policy + Terms of Service shown in-app via LegalSheet.
 //
-// ⚠️ BEFORE PUBLIC LAUNCH: have a solicitor review this and fill in the two
-// bracketed placeholders below — [LEGAL ENTITY] (the person/company that is the
-// data controller) and [JURISDICTION] (e.g. "England and Wales"). The copy is a
-// solid, accurate first draft for a UK/EU consumer app that takes payments and
-// holds personal data, but it is not legal advice. Bump `updated` when you edit.
+// Data controller: Chukwuebuka Igwilo Nnadike. Governing law: England and Wales.
+// ⚠️ BEFORE PUBLIC LAUNCH: have a solicitor review this. It's a solid, accurate
+// first draft for a UK/EU consumer app that takes payments and holds personal
+// data, but it is not legal advice. Bump `updated` when you edit.
 
 export type LegalDoc = "privacy" | "terms";
 
@@ -16,7 +15,7 @@ export const LEGAL: Record<LegalDoc, { title: string; updated: string; body: str
     title: "privacy policy",
     updated: UPDATED,
     body: [
-      "us. (\"we\", \"us\") is a private shared space for two people. This policy explains what personal data we collect, why, how long we keep it, and the rights you have. The data controller is [LEGAL ENTITY]. For any privacy question or request, email " + CONTACT + ".",
+      "us. (\"we\", \"us\") is a private shared space for two people. This policy explains what personal data we collect, why, how long we keep it, and the rights you have. The data controller is Chukwuebuka Igwilo Nnadike. For any privacy question or request, email " + CONTACT + ".",
 
       "WHAT WE COLLECT. Account: when you sign in with Google we receive your name, email address and profile picture. Content you create: your display name, accent colour, mood check-ins, shared note, photos, wishlists and date ideas, to-do lists, calendar availability and events, savings pots and ledger entries, and your answers to \"the daily\". Technical: a device push-notification token if you enable notifications, and basic usage/diagnostic data (see Analytics). Payments: if you subscribe, our payment processor handles your card details — we never see or store your full card number.",
 
@@ -39,7 +38,7 @@ export const LEGAL: Record<LegalDoc, { title: string; updated: string; body: str
     title: "terms of service",
     updated: UPDATED,
     body: [
-      "These terms are an agreement between you and [LEGAL ENTITY] (\"we\", \"us\") for use of the us. app. By creating an account you accept them. If you do not agree, do not use us.",
+      "These terms are an agreement between you and Chukwuebuka Igwilo Nnadike (\"we\", \"us\") for use of the us. app. By creating an account you accept them. If you do not agree, do not use us.",
 
       "THE SERVICE. us. is a private shared space for two people to track moods, notes, photos, plans, lists, events and shared costs. You need a Google account to sign in. You are responsible for keeping access to your account secure and for the content you add.",
 
@@ -59,7 +58,7 @@ export const LEGAL: Record<LegalDoc, { title: string; updated: string; body: str
 
       "ENDING. You can delete your account at any time from Settings. We may suspend or end access if you breach these terms or the law.",
 
-      "CHANGES AND GOVERNING LAW. We may update these terms; we'll change the date above and flag material changes in the app. These terms are governed by the laws of [JURISDICTION]. Questions: " + CONTACT + ".",
+      "CHANGES AND GOVERNING LAW. We may update these terms; we'll change the date above and flag material changes in the app. These terms are governed by the laws of England and Wales. Questions: " + CONTACT + ".",
     ],
   },
 };
