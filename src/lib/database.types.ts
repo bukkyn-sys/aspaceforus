@@ -1326,6 +1326,8 @@ export type Database = {
       }
       delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined }
       export_my_data: { Args: Record<PropertyKey, never>; Returns: Json }
+      get_calendar_token: { Args: Record<PropertyKey, never>; Returns: string }
+      regenerate_calendar_token: { Args: Record<PropertyKey, never>; Returns: string }
       create_couple_for_user: { Args: { p_user_id: string }; Returns: string }
       daily_build: {
         Args: {

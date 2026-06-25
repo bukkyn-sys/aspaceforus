@@ -45,6 +45,23 @@ export async function leaveCouple(userId: string) {
   await supabase.rpc("leave_couple_for_user", { p_user_id: userId });
 }
 
+// Calendar feed — the couple's subscribable .ics token (one-way to Apple/Google).
+export async function getCalendarFeed(): Promise<{ token?: string; error?: string }> {
+  const { supabase, uid } = await getUid();
+  if (!uid) return { error: "not signed in" };
+  const { data, error } = await supabase.rpc("get_calendar_token");
+  if (error) return { error: error.message };
+  return { token: data as string };
+}
+
+export async function regenerateCalendarFeed(): Promise<{ token?: string; error?: string }> {
+  const { supabase, uid } = await getUid();
+  if (!uid) return { error: "not signed in" };
+  const { data, error } = await supabase.rpc("regenerate_calendar_token");
+  if (error) return { error: error.message };
+  return { token: data as string };
+}
+
 // GDPR right to access — returns a JSON document of the caller's profile + their
 // couple's shared content for the "download my data" action.
 export async function exportMyData(): Promise<{ data?: unknown; error?: string }> {

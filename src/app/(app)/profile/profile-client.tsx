@@ -26,6 +26,7 @@ import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
 import { clearCache } from "@/lib/data-cache";
 import { getAnalyticsConsent, applyConsentChange } from "@/lib/analytics";
+import CalendarSubscribe from "@/components/calendar-subscribe";
 import { cn } from "@/lib/utils";
 import { isZoomEnabled, setZoomEnabled } from "@/components/zoom-pref";
 
@@ -969,6 +970,9 @@ export default function ProfileClient({
         <LogOut className="w-4 h-4" />
         sign out
       </button>
+
+      {/* Subscribe Apple/Google calendar to the couple's events (one-way .ics) */}
+      <CalendarSubscribe />
 
       {/* Your data — analytics consent + GDPR export + account deletion */}
       <div className="mt-6 pt-4 border-t border-border/40">
