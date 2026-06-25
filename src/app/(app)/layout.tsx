@@ -5,6 +5,7 @@ import PushSubscribe from "@/components/push-subscribe";
 import AppShell from "@/components/app-shell";
 import Toaster from "@/components/toaster";
 import OfflineBanner from "@/components/offline-banner";
+import ConsentBanner from "@/components/consent-banner";
 import { CoupleProvider } from "@/contexts/couple-context";
 import { FabProvider } from "@/contexts/fab-context";
 import { NotificationProvider } from "@/contexts/notification-context";
@@ -94,6 +95,7 @@ export default async function AppLayout({
             <PushSubscribe userId={me.id} coupleId={sd.me.couple_id} />
             <Toaster />
             <OfflineBanner />
+            <ConsentBanner />
             <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
               <AppShell>{children}</AppShell>
             </main>

@@ -28,10 +28,44 @@ const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.i.posth
 
 let ready = false;
 
-/** Initialise PostHog once on the client. Safe no-op when the key is unset, so
- *  the app never throws if analytics isn't configured. */
+// ── Consent (GDPR/PECR) ──────────────────────────────────────────────────────
+// Analytics is off until the user explicitly accepts. `null` = undecided (no
+// tracking, banner shown); "granted"/"denied" = chosen.
+const CONSENT_KEY = "us_analytics_consent";
+export type Consent = "granted" | "denied";
+
+export function getAnalyticsConsent(): Consent | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = localStorage.getItem(CONSENT_KEY);
+    return v === "granted" || v === "denied" ? v : null;
+  } catch { return null; }
+}
+
+export function setAnalyticsConsent(v: Consent): void {
+  try { localStorage.setItem(CONSENT_KEY, v); } catch { /* storage unavailable */ }
+}
+
+/** Apply a consent change from settings: start tracking on grant, stop on revoke. */
+export function applyConsentChange(
+  v: Consent,
+  who?: { id: string; couple_id: string; accent_color: string | null },
+): void {
+  setAnalyticsConsent(v);
+  if (v === "granted") {
+    initAnalytics();
+    if (who) identifyUser(who.id, { couple_id: who.couple_id, accent_color: who.accent_color });
+  } else if (ready) {
+    try { posthog.opt_out_capturing(); } catch { /* not initialised */ }
+  }
+}
+
+/** Initialise PostHog once on the client. No-op unless the key is set AND the
+ *  user has granted consent — so the app never tracks (or sets cookies) without
+ *  permission, and never throws if analytics isn't configured. */
 export function initAnalytics(): void {
   if (ready || typeof window === "undefined" || !POSTHOG_KEY) return;
+  if (getAnalyticsConsent() !== "granted") return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     person_profiles: "identified_only", // no anonymous person profiles

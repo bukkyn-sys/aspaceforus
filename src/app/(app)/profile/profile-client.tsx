@@ -25,6 +25,7 @@ import ThemeToggle from "@/components/theme-toggle";
 import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
 import { clearCache } from "@/lib/data-cache";
+import { getAnalyticsConsent, applyConsentChange } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { isZoomEnabled, setZoomEnabled } from "@/components/zoom-pref";
 
@@ -541,6 +542,8 @@ export default function ProfileClient({
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  useEffect(() => { setAnalyticsOn(getAnalyticsConsent() === "granted"); }, []);
   const [showQR, setShowQR] = useState(false);
   const [legalDoc, setLegalDoc] = useState<LegalDoc | null>(null);
   const [origin, setOrigin] = useState("");
@@ -967,9 +970,22 @@ export default function ProfileClient({
         sign out
       </button>
 
-      {/* Your data — GDPR export + account deletion */}
+      {/* Your data — analytics consent + GDPR export + account deletion */}
       <div className="mt-6 pt-4 border-t border-border/40">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground/50 px-4 mb-1">your data</p>
+        <button
+          onClick={() => {
+            const next = analyticsOn ? "denied" : "granted";
+            applyConsentChange(next, { id: me.id, couple_id: me.couple_id, accent_color: me.accent_color });
+            setAnalyticsOn(next === "granted");
+          }}
+          className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:bg-secondary transition-colors"
+        >
+          <span className="flex items-center gap-2"><Shield className="w-4 h-4" /> product analytics</span>
+          <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", analyticsOn ? "bg-sage/20 text-sage" : "bg-secondary text-muted-foreground")}>
+            {analyticsOn ? "on" : "off"}
+          </span>
+        </button>
         <button
           onClick={handleExportData}
           disabled={exporting}
