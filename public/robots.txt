@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /$
+Allow: /auth/login
+# The app itself is private and requires sign-in — no value (or access) in crawling it.
+Disallow: /home
+Disallow: /calendar
+Disallow: /ledger
+Disallow: /vault
+Disallow: /daily
+Disallow: /profile
+Disallow: /onboarding
+Disallow: /api/
+Disallow: /join
