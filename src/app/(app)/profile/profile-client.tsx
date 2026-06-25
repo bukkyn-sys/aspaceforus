@@ -11,7 +11,7 @@ import type { LegalDoc } from "@/lib/legal";
 import { QRCodeSVG } from "qrcode.react";
 import { ACCENT_COLORS } from "@/lib/accent-colors";
 import { useCouple } from "@/contexts/couple-context";
-import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple, exportMyData, deleteAccount } from "./actions";
+import { updateDisplayName, updateAccentColor, updateAvatar, updateCoupleBanner, updateCoupleCurrency, updateCoupleBannerFocus, leaveCouple, exportMyData, deleteAccount, getServerConsent, setServerConsent } from "./actions";
 import { getBillingState, startCheckout, startLifetimeCheckout, getLifetimeSpots, openBillingPortal, type BillingState } from "./billing-actions";
 import { PremiumBadges } from "@/components/premium-badges";
 import { useEntitlement } from "@/contexts/entitlement-context";
@@ -1002,6 +1002,7 @@ export default function ProfileClient({
           onClick={() => {
             const next = analyticsOn ? "denied" : "granted";
             applyConsentChange(next, { id: me.id, couple_id: me.couple_id, accent_color: me.accent_color });
+            setServerConsent(next);
             setAnalyticsOn(next === "granted");
           }}
           className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-2xl text-sm text-muted-foreground hover:bg-secondary transition-colors"

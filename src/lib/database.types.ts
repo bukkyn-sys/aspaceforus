@@ -643,6 +643,7 @@ export type Database = {
         Row: {
           accent_color: string | null
           activity_at: Json | null
+          analytics_consent: string | null
           avatar_url: string | null
           couple_id: string | null
           created_at: string | null
@@ -1328,6 +1329,7 @@ export type Database = {
       export_my_data: { Args: Record<PropertyKey, never>; Returns: Json }
       get_calendar_token: { Args: Record<PropertyKey, never>; Returns: string }
       regenerate_calendar_token: { Args: Record<PropertyKey, never>; Returns: string }
+      set_analytics_consent: { Args: { p_value: string | null }; Returns: undefined }
       create_couple_for_user: { Args: { p_user_id: string }; Returns: string }
       daily_build: {
         Args: {

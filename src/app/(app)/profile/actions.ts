@@ -45,6 +45,22 @@ export async function leaveCouple(userId: string) {
   await supabase.rpc("leave_couple_for_user", { p_user_id: userId });
 }
 
+// Analytics consent — durable record on the profile (localStorage is only a
+// cache; it doesn't survive PWA storage eviction / separate origins).
+export async function getServerConsent(): Promise<"granted" | "denied" | null> {
+  const { supabase, uid } = await getUid();
+  if (!uid) return null;
+  const { data } = await supabase.from("profiles").select("analytics_consent").eq("id", uid).single();
+  const v = data?.analytics_consent;
+  return v === "granted" || v === "denied" ? v : null;
+}
+
+export async function setServerConsent(value: "granted" | "denied"): Promise<void> {
+  const { supabase, uid } = await getUid();
+  if (!uid) return;
+  await supabase.rpc("set_analytics_consent", { p_value: value });
+}
+
 // Calendar feed — the couple's subscribable .ics token (one-way to Apple/Google).
 export async function getCalendarFeed(): Promise<{ token?: string; error?: string }> {
   const { supabase, uid } = await getUid();

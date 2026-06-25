@@ -9,22 +9,48 @@ import {
   identifyUser,
   capturePageview,
 } from "@/lib/analytics";
+import { getServerConsent, setServerConsent } from "@/app/(app)/profile/actions";
 
 // One-time consent prompt for privacy-first product analytics (PostHog). Nothing
-// is tracked and no analytics cookies are set until the user accepts. Shown only
-// while the choice is undecided; the decision persists in localStorage.
+// is tracked and no analytics cookies are set until the user accepts. The
+// decision is stored on the profile (durable across devices / PWA storage
+// eviction), with localStorage as a fast cache so we don't hit the server every
+// load once a choice exists.
 export default function ConsentBanner() {
   const { me } = useCouple();
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    setShow(getAnalyticsConsent() === null);
-  }, []);
+    let active = true;
+    const local = getAnalyticsConsent();
+    if (local) {
+      if (local === "granted") {
+        initAnalytics();
+        identifyUser(me.id, { couple_id: me.couple_id, accent_color: me.accent_color });
+      }
+      return; // already decided on this device — no banner, no server round-trip
+    }
+    // No local choice: ask the server (covers a fresh device / wiped storage).
+    getServerConsent().then((server) => {
+      if (!active) return;
+      if (server) {
+        setAnalyticsConsent(server); // cache it locally so next load is instant
+        if (server === "granted") {
+          initAnalytics();
+          identifyUser(me.id, { couple_id: me.couple_id, accent_color: me.accent_color });
+        }
+      } else {
+        setShow(true); // genuinely undecided → prompt
+      }
+    });
+    return () => { active = false; };
+  }, [me.id, me.couple_id, me.accent_color]);
 
   if (!show) return null;
 
   function accept() {
     setAnalyticsConsent("granted");
+    setServerConsent("granted");
     initAnalytics();
     identifyUser(me.id, { couple_id: me.couple_id, accent_color: me.accent_color });
     if (typeof window !== "undefined") capturePageview(window.location.pathname);
@@ -33,6 +59,7 @@ export default function ConsentBanner() {
 
   function decline() {
     setAnalyticsConsent("denied");
+    setServerConsent("denied");
     setShow(false);
   }
 
