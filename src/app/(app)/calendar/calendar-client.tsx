@@ -21,6 +21,7 @@ import { track } from "@/lib/analytics";
 import { undoableDelete } from "@/lib/toast";
 import { getAccent } from "@/lib/accent-colors";
 import { useScrolled } from "@/lib/use-scrolled";
+import { haptic } from "@/lib/haptics";
 
 interface Row { user_id: string; date: string; part: DayPart; }
 interface CalEvent { id: string; title: string; emoji: string; on_date: string; parts: DayPart[]; until_date: string | null; start_time: string | null; created_by: string; attendee: string | null; }
@@ -216,6 +217,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
   function handlePart(dateStr: string, part: DayPart) {
     if (!plannableMonth(dateStr)) return;
     const free = !isFree(me.id, dateStr, part);
+    haptic("selection");
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr && r.part === part));
       const newRows = free ? [...filtered, { user_id: me.id, date: dateStr, part }] : filtered;
@@ -229,6 +231,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
   // Free or clear a whole day (all four parts) for me.
   function handleAllDay(dateStr: string, free: boolean) {
     if (!plannableMonth(dateStr)) return;
+    haptic("light");
     setRows((prev) => {
       const filtered = prev.filter((r) => !(r.user_id === me.id && r.date === dateStr));
       const newRows = free ? [...filtered, ...PARTS.map((p) => ({ user_id: me.id, date: dateStr, part: p }))] : filtered;
@@ -257,6 +260,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
   function handleSaveEvent(draft: EventDraft) {
     const { title, emoji, onDate, parts, untilDate, startTime, attendee } = draft;
     if (!plannableMonth(onDate)) { closeEventSheet(); return; }
+    haptic("success");
     if (editEvent) {
       const id = editEvent.id;
       setEvents((prev) => prev
@@ -281,6 +285,7 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
   }
 
   function handleDeleteEvent(id: string) {
+    haptic("warning");
     const ev = events.find((e) => e.id === id);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setActionEvent(null);

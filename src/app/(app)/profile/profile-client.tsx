@@ -17,7 +17,7 @@ import { PremiumBadges } from "@/components/premium-badges";
 import { useEntitlement } from "@/contexts/entitlement-context";
 
 const CURRENCIES = ["£", "$", "€"] as const;
-import { savePushSubscription } from "@/app/(app)/push-actions";
+import { enablePush } from "@/lib/push-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/sheet";
@@ -26,6 +26,7 @@ import { SignedImg } from "@/components/signed-img";
 import { validateImage } from "@/lib/validate-image";
 import { clearCache } from "@/lib/data-cache";
 import { getAnalyticsConsent, applyConsentChange } from "@/lib/analytics";
+import { hapticsEnabled, setHapticsEnabled, haptic } from "@/lib/haptics";
 import CalendarSubscribe from "@/components/calendar-subscribe";
 import { cn } from "@/lib/utils";
 import { isZoomEnabled, setZoomEnabled } from "@/components/zoom-pref";
@@ -291,16 +292,8 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
   async function enable() {
     setBusy(true);
     try {
-      const permission = await Notification.requestPermission();
-      setStatus(permission);
-      if (permission === "granted") {
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-        });
-        await savePushSubscription(userId, coupleId, sub.toJSON());
-      }
+      const permission = await enablePush(userId, coupleId);
+      if (permission !== "unsupported") setStatus(permission);
     } finally {
       setBusy(false);
     }
@@ -350,22 +343,50 @@ function NotificationSettings({ userId, coupleId }: { userId: string; coupleId: 
   );
 }
 
+function Toggle({ on }: { on: boolean }) {
+  return (
+    <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ml-3", on ? "bg-sage" : "bg-foreground/15")}>
+      <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", on ? "left-[1.15rem]" : "left-0.5")} />
+    </span>
+  );
+}
+
 function AccessibilitySettings() {
-  const [on, setOn] = useState(false);
-  useEffect(() => { setOn(isZoomEnabled()); }, []);
-  function toggle() { const next = !on; setOn(next); setZoomEnabled(next); }
+  const [zoomOn, setZoomOn] = useState(false);
+  const [hapticsOn, setHapticsOn] = useState(true);
+  const [hapticsSupported, setHapticsSupported] = useState(false);
+  useEffect(() => {
+    setZoomOn(isZoomEnabled());
+    setHapticsOn(hapticsEnabled());
+    setHapticsSupported(typeof navigator !== "undefined" && typeof navigator.vibrate === "function");
+  }, []);
   return (
     <div className="card p-4 mb-4">
-      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">accessibility</p>
-      <button onClick={toggle} aria-pressed={on} className="flex items-center justify-between w-full text-left">
+      <p className="text-xs text-muted-foreground font-medium tracking-wide mb-3">preferences</p>
+      <button
+        onClick={() => { const next = !zoomOn; setZoomOn(next); setZoomEnabled(next); }}
+        aria-pressed={zoomOn}
+        className="flex items-center justify-between w-full text-left"
+      >
         <div>
           <p className="text-sm text-foreground">pinch to zoom</p>
           <p className="text-xs text-muted-foreground/60 mt-0.5">allow zooming anywhere in the app</p>
         </div>
-        <span className={cn("relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ml-3", on ? "bg-sage" : "bg-foreground/15")}>
-          <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all", on ? "left-[1.15rem]" : "left-0.5")} />
-        </span>
+        <Toggle on={zoomOn} />
       </button>
+      {hapticsSupported && (
+        <button
+          onClick={() => { const next = !hapticsOn; setHapticsOn(next); setHapticsEnabled(next); if (next) haptic("light"); }}
+          aria-pressed={hapticsOn}
+          className="flex items-center justify-between w-full text-left mt-4"
+        >
+          <div>
+            <p className="text-sm text-foreground">haptics</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">a gentle buzz on taps</p>
+          </div>
+          <Toggle on={hapticsOn} />
+        </button>
+      )}
     </div>
   );
 }

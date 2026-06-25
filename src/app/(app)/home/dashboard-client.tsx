@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useCouple } from "@/contexts/couple-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import DashboardSkeleton from "./dashboard-skeleton";
+import { haptic } from "@/lib/haptics";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useNotifications } from "@/contexts/notification-context";
 import { setMood, setStartedAt, setDashboardLayout, addNoteLine, updateNoteLine, deleteNoteLine, getPendingJoinRequest, respondJoinRequest } from "./actions";
@@ -172,7 +173,7 @@ type DashCache = { data: DashboardData; hasPartner: boolean };
 
 export default function DashboardClient({ live = true }: { live?: boolean }) {
   const { coupleId, me, partner, myName, partnerName, currency } = useCouple();
-  const { markActivity } = useNotifications();
+  const { markActivity, nudgePush } = useNotifications();
   const [data, setData] = useState<DashboardData>(() => {
     const c = getCache<DashCache>(`dash:${coupleId}`);
     return c?.data ?? {
@@ -381,9 +382,11 @@ export default function DashboardClient({ live = true }: { live?: boolean }) {
 
   function handleMood(mood: number) {
     const at = new Date().toISOString();
+    haptic("selection");
     setData((prev) => ({ ...prev, myMood: mood, myMoodAt: at }));
     channelRef.current?.send({ type: "broadcast", event: "mood", payload: { user_id: me.id, mood, at } });
     track("mood_set", { mood });
+    nudgePush();
     startTransition(() => { setMood(me.id, mood, coupleId); });
   }
 

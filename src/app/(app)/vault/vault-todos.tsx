@@ -7,6 +7,7 @@ import { useFabSetter } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
 import { getCache, setCache } from "@/lib/data-cache";
 import { track } from "@/lib/analytics";
+import { haptic } from "@/lib/haptics";
 import { cn } from "@/lib/utils";
 import { getAccent } from "@/lib/accent-colors";
 import { BottomSheet, Dialog } from "@/components/ui/sheet";
@@ -245,6 +246,7 @@ export default function VaultTodos({ live = true }: { live?: boolean }) {
       ? { ...x, ticked_by: nextTicked, done, done_at: done ? new Date().toISOString() : null, done_by: done ? me.id : null }
       : x));
     if (done && !t.done) track("todo_completed");
+    haptic(done && !t.done ? "success" : "selection");
     startTransition(() => { toggleTodoTick(t.id, coupleId, t.title); });
   }
 
