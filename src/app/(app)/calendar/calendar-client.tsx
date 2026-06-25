@@ -8,7 +8,9 @@ import { getCache, setCache } from "@/lib/data-cache";
 import { setAvailability, setAvailabilityDay, addEvent, updateEvent, deleteEvent, type DayPart } from "./actions";
 import { PARTS, PART_META, fmtTimeLabel, partsLabel } from "@/lib/day-parts";
 import { EventSheet, type EventDraft } from "@/components/event-sheet";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, CalendarPlus } from "lucide-react";
+import CalendarSubscribe from "@/components/calendar-subscribe";
+import { downloadEventIcs } from "@/lib/ics";
 import { useRegisterFab } from "@/contexts/fab-context";
 import { useEntitlement } from "@/contexts/entitlement-context";
 import { useNotifications } from "@/contexts/notification-context";
@@ -68,7 +70,23 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
   const [editEvent, setEditEvent] = useState<CalEvent | null>(null);
   const [composeDate, setComposeDate] = useState("");   // default date for a new event
   const [actionEvent, setActionEvent] = useState<CalEvent | null>(null);
+  const [showSubscribe, setShowSubscribe] = useState(false);
   const [, startTransition] = useTransition();
+
+  // Open the add-event sheet pre-filled to a specific day (from the day sheet).
+  function openAddEventOn(dateStr: string) {
+    setDayView(null);
+    setEditEvent(null);
+    setPlanContext(null);
+    setComposeDate(dateStr);
+    setShowAddEvent(true);
+  }
+
+  // Open the event detail/action sheet (from a day-sheet event row).
+  function openEventActions(evt: CalEvent) {
+    setDayView(null);
+    setActionEvent(evt);
+  }
 
   const scrolled = useScrolled();
   const year = current.getFullYear();
@@ -499,12 +517,23 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
 
       {/* ── Header (sticky) ───────────────────────────────── */}
       <div className={cn("hdr-float sticky top-0 z-30 bg-background px-5 pt-10 pb-3 border-b transition-[border-color,box-shadow]", scrolled ? "border-border/60 shadow-soft" : "border-transparent")}>
-        <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
-        <p key={monthLabel} className={cn("swap-fade text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
-          {overlaps > 0
-            ? `${overlaps} free day${overlaps !== 1 ? "s" : ""} together this month`
-            : "mark your free days"}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="font-heading text-3xl text-foreground tracking-tight">calendar.</h1>
+            <p key={monthLabel} className={cn("swap-fade text-sm mt-0.5", overlaps > 0 ? "text-sage font-medium" : "text-muted-foreground/70")}>
+              {overlaps > 0
+                ? `${overlaps} free day${overlaps !== 1 ? "s" : ""} together this month`
+                : "mark your free days"}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowSubscribe(true)}
+            aria-label="add to your phone's calendar"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors flex-shrink-0 mt-1"
+          >
+            <CalendarPlus className="w-[18px] h-[18px]" strokeWidth={1.75} />
+          </button>
+        </div>
       </div>
 
       {/* ── Month nav ──────────────────────────────────────── */}
@@ -610,20 +639,37 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
                   <p className="text-xs font-medium text-muted-foreground tracking-wide mb-2.5">events</p>
                   <div className="space-y-1.5">
                     {dayEvts.map((evt) => (
-                      <div key={evt.id} className="flex items-center gap-2.5 rounded-xl bg-secondary/60 px-3 py-2">
+                      <button
+                        key={evt.id}
+                        onClick={() => openEventActions(evt)}
+                        className="w-full flex items-center gap-2.5 rounded-xl bg-secondary/60 px-3 py-2 text-left active:scale-[0.99] transition-transform"
+                      >
                         <span className="text-base flex-shrink-0">{evt.emoji}</span>
                         <span className="text-sm text-foreground flex-1 truncate">{evt.title}</span>
                         <span className="text-[11px] text-muted-foreground flex-shrink-0">
                           {evt.start_time ? fmtTimeLabel(evt.start_time) : partsLabel(evt.parts)}
                         </span>
-                      </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/30 flex-shrink-0" />
+                      </button>
                     ))}
                   </div>
                 </div>
               )}
+
+              <button
+                onClick={() => openAddEventOn(ds)}
+                className="w-full h-11 rounded-xl border border-dashed border-border/60 flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-border transition-colors"
+              >
+                <Plus className="w-4 h-4" /> add event{dayEvts.length === 0 ? " for this day" : ""}
+              </button>
             </div>
           );
         })()}
+      </BottomSheet>
+
+      {/* Subscribe your phone's calendar to the couple's events (.ics feed) */}
+      <BottomSheet open={showSubscribe} onClose={() => setShowSubscribe(false)} title="add to your calendar">
+        <CalendarSubscribe compact />
       </BottomSheet>
 
       {/* Add / edit event sheet — shared with Home */}
@@ -638,27 +684,50 @@ export default function CalendarClient({ live = true }: { live?: boolean }) {
           : { onDate: composeDate }}
       />
 
-      {/* Event action prompt — creator only */}
+      {/* Event details + actions */}
       <Dialog open={actionEvent !== null} onClose={() => setActionEvent(null)}>
-        {actionEvent && (
-          <>
-            <p className="font-semibold text-foreground text-center truncate">{actionEvent.emoji} {actionEvent.title}</p>
-            <p className="text-sm text-muted-foreground text-center mt-1 mb-5">what would you like to do?</p>
-            <div className="space-y-2">
-              <Button onClick={() => openEditEvent(actionEvent)} className="w-full h-11 rounded-xl">
-                <Pencil className="w-4 h-4 mr-1.5" /> edit
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleDeleteEvent(actionEvent.id)}
-                className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
-              >
-                <Trash2 className="w-4 h-4 mr-1.5" /> remove
-              </Button>
-              <button onClick={() => setActionEvent(null)} className="w-full h-10 text-sm text-muted-foreground">cancel</button>
-            </div>
-          </>
-        )}
+        {actionEvent && (() => {
+          const e = actionEvent;
+          const fmtLong = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+          const multiDay = !!e.until_date && e.until_date > e.on_date;
+          const o = resolveOwner(e.attendee ?? null);
+          return (
+            <>
+              <div className="text-center">
+                <div className="text-4xl mb-2 leading-none">{e.emoji}</div>
+                <p className="font-semibold text-lg text-foreground break-words">{e.title}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {multiDay ? `${fmtLong(e.on_date)} – ${fmtLong(e.until_date!)}` : fmtLong(e.on_date)}
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-0.5">
+                  {e.start_time ? fmtTimeLabel(e.start_time) : partsLabel(e.parts)}
+                </p>
+                {o.people.length > 0 && (
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    <OwnerAvatars people={o.people} />
+                    <span className="text-[11px] text-muted-foreground/60">{o.shared ? "both of you" : o.people[0]?.name}</span>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 mt-5">
+                <Button onClick={() => { haptic("light"); downloadEventIcs(e); }} className="w-full h-11 rounded-xl">
+                  <CalendarPlus className="w-4 h-4 mr-1.5" /> add to calendar
+                </Button>
+                <Button variant="outline" onClick={() => openEditEvent(e)} className="w-full h-11 rounded-xl">
+                  <Pencil className="w-4 h-4 mr-1.5" /> edit
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleDeleteEvent(e.id)}
+                  className="w-full h-11 rounded-xl text-terracotta border-terracotta/30 hover:bg-terracotta-light"
+                >
+                  <Trash2 className="w-4 h-4 mr-1.5" /> remove
+                </Button>
+                <button onClick={() => setActionEvent(null)} className="w-full h-10 text-sm text-muted-foreground">close</button>
+              </div>
+            </>
+          );
+        })()}
       </Dialog>
     </div>
   );

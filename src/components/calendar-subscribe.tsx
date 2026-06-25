@@ -7,7 +7,9 @@ import { getCalendarFeed, regenerateCalendarFeed } from "@/app/(app)/profile/act
 // Lets a couple subscribe their phone's calendar (Apple/Google/Outlook) to a
 // one-way feed of their us. events. webcal:// opens the subscribe dialog on
 // Apple; the https link can be pasted into Google Calendar's "From URL".
-export default function CalendarSubscribe() {
+// `compact` drops the outer card/heading when rendered inside a sheet that
+// already provides that chrome.
+export default function CalendarSubscribe({ compact = false }: { compact?: boolean }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -37,12 +39,14 @@ export default function CalendarSubscribe() {
     setBusy(false);
   }
 
-  return (
-    <div className="card p-4 mt-2">
-      <div className="flex items-center gap-2 mb-1">
-        <CalendarPlus className="w-4 h-4 text-muted-foreground" />
-        <p className="text-sm font-medium text-foreground">add to your calendar</p>
-      </div>
+  const body = (
+    <>
+      {!compact && (
+        <div className="flex items-center gap-2 mb-1">
+          <CalendarPlus className="w-4 h-4 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">add to your calendar</p>
+        </div>
+      )}
       <p className="text-xs text-muted-foreground leading-relaxed mb-3">
         subscribe your phone&apos;s calendar to your us. events. it updates on its
         own — one-way, so nothing in us. changes.
@@ -83,6 +87,9 @@ export default function CalendarSubscribe() {
           </p>
         </div>
       )}
-    </div>
+    </>
   );
+
+  if (compact) return <div>{body}</div>;
+  return <div className="card p-4 mt-2">{body}</div>;
 }
